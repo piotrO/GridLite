@@ -236,7 +236,7 @@ export default function LandingPage() {
             >
               <div className="relative flex gap-3 p-2 rounded-2xl bg-card border-2 border-border shadow-lg hover:shadow-xl transition-shadow">
                 <Input
-                  type="url"
+                  type="text"
                   placeholder="Enter your website URL..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}

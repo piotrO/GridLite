@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -66,6 +66,8 @@ export const AdPreviewCanvas = ({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const iframeRefs = useRef<Map<string, HTMLIFrameElement>>(new Map());
   const duration = 5;
 
   // Playback sync effect
@@ -85,6 +87,28 @@ export const AdPreviewCanvas = ({
 
     return () => clearInterval(interval);
   }, [isPlaying, duration]);
+
+  // Sync progress to all iframes
+  const syncProgressToIframes = useCallback((progress: number) => {
+    iframeRefs.current.forEach((iframe) => {
+      try {
+        const iframeWindow = iframe.contentWindow as Window & {
+          grid8player?: { timelineMaster?: { progress: (p: number) => void } };
+        };
+        if (iframeWindow?.grid8player?.timelineMaster) {
+          iframeWindow.grid8player.timelineMaster.progress(progress);
+        }
+      } catch (e) {
+        // Cross-origin or iframe not ready - ignore
+      }
+    });
+  }, []);
+
+  // Sync currentTime to iframes
+  useEffect(() => {
+    const progress = currentTime / duration;
+    syncProgressToIframes(progress);
+  }, [currentTime, duration, syncProgressToIframes]);
 
   const toggleSize = (sizeId: string) => {
     setSelectedSizes((prev) =>
@@ -114,14 +138,23 @@ export const AdPreviewCanvas = ({
 
   const buildIframeSrc = (size: AdSize) => {
     const params = new URLSearchParams();
-    if (data.headline) params.set("headline", data.headline);
-    if (data.bodyCopy) params.set("body", data.bodyCopy);
-    if (data.ctaText) params.set("cta", data.ctaText);
-    if (data.imageUrl) params.set("image", data.imageUrl);
-    if (data.colors?.[0]) params.set("color", data.colors[0]);
-    if (data.logoUrl) params.set("logo", data.logoUrl);
 
-    return `/templates/default/${size.width}x${
+    // Map component data to template000's expected dynamic values
+    if (data.headline) params.set("s0_header", data.headline);
+    if (data.bodyCopy) params.set("s0_sub", data.bodyCopy);
+    if (data.ctaText) params.set("s0_cta", data.ctaText);
+    if (data.imageUrl) params.set("s0_bgr", data.imageUrl);
+    if (data.logoUrl) params.set("s0_logo", data.logoUrl);
+
+    // Colors are passed as pipe-delimited string (btnBg|btnText|accent)
+    if (data.colors && data.colors.length > 0) {
+      params.set("s0_colors", data.colors.slice(0, 3).join("|"));
+    }
+
+    // Enable grid8 debug mode for external playback control
+    params.set("grid8", "true");
+
+    return `/templates/template000/${size.width}x${
       size.height
     }/index.html?${params.toString()}`;
   };
@@ -197,7 +230,14 @@ export const AdPreviewCanvas = ({
               </div>
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="iconSm">
+          <Button
+            variant="ghost"
+            size="iconSm"
+            onClick={() => {
+              setReloadKey((prev) => prev + 1);
+              setCurrentTime(0);
+            }}
+          >
             <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
@@ -239,30 +279,30 @@ export const AdPreviewCanvas = ({
                     (Math.min(size.width, 400) / size.width),
                 }}
               >
-                {/* Fallback preview when no template exists */}
-                <div className="absolute inset-0 bg-gradient-to-br from-accent via-gold to-accent flex flex-col items-center justify-center p-4 text-center">
-                  <motion.div
-                    animate={isPlaying ? { scale: [1, 1.05, 1] } : {}}
-                    transition={{ duration: 1, repeat: Infinity }}
-                    className="text-lg font-bold text-accent-foreground"
-                  >
-                    {data.headline || "SUMMER SALE"}
-                  </motion.div>
-                  <motion.div
-                    animate={isPlaying ? { opacity: [1, 0.8, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="text-3xl font-extrabold text-accent-foreground"
-                  >
-                    50% OFF
-                  </motion.div>
-                  <motion.button
-                    animate={isPlaying ? { scale: [1, 1.02, 1] } : {}}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                    className="mt-2 px-4 py-1.5 bg-foreground text-background rounded-full font-semibold text-xs"
-                  >
-                    {data.ctaText || "Shop Now"}
-                  </motion.button>
-                </div>
+                {/* Actual template iframe */}
+                <iframe
+                  ref={(el) => {
+                    if (el) {
+                      iframeRefs.current.set(size.id, el);
+                    } else {
+                      iframeRefs.current.delete(size.id);
+                    }
+                  }}
+                  key={`${size.id}-${reloadKey}`}
+                  src={buildIframeSrc(size)}
+                  className="border-0"
+                  width={size.width}
+                  height={size.height}
+                  title={`Ad Preview - ${size.label}`}
+                  style={{
+                    transform: `scale(${Math.min(
+                      400 / size.width,
+                      400 / size.height,
+                      1
+                    )})`,
+                    transformOrigin: "top left",
+                  }}
+                />
               </div>
             </motion.div>
           ))}

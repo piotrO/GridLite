@@ -42,10 +42,10 @@ export function UrlInputStep({
           </p>
           <form onSubmit={onSubmit} className="space-y-4">
             <input
-              type="url"
+              type="text"
               value={urlInput}
               onChange={(e) => onUrlChange(e.target.value)}
-              placeholder="https://yourbrand.com"
+              placeholder="yourbrand.com"
               className="w-full h-14 rounded-xl border-2 border-border bg-card px-4 text-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-researcher focus:ring-4 focus:ring-researcher/10 transition-all"
               required
             />

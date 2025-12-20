@@ -12,6 +12,20 @@ const nextConfig = {
       },
     ],
   },
+
+  // Webpack configuration to handle Puppeteer
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Externalize puppeteer and related packages for server-side
+      config.externals = [
+        ...config.externals,
+        "puppeteer",
+        "puppeteer-extra",
+        "puppeteer-extra-plugin-stealth",
+      ];
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

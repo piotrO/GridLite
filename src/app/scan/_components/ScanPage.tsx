@@ -80,12 +80,15 @@ export default function ScanPage() {
   const [showSignIn, setShowSignIn] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const pendingActionRef = useRef<"strategist" | "dashboard" | null>(null);
+  const hasScannedRef = useRef(false);
 
   const [urlInput, setUrlInput] = useState(editingBrandKit?.url || initialUrl);
   const [isScanning, setIsScanning] = useState(
     !!initialUrl && !editingBrandKit
   );
   const [scanComplete, setScanComplete] = useState(!!editingBrandKit);
+  const [currentScanStep, setCurrentScanStep] = useState<string>("");
+  const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(
@@ -154,6 +157,13 @@ export default function ScanPage() {
     }
   }, [urlInput]);
 
+  // Reset scan ref when URL from landing page changes
+  useEffect(() => {
+    if (initialUrl) {
+      hasScannedRef.current = false;
+    }
+  }, [initialUrl]);
+
   // Initialize messages for editing mode
   useEffect(() => {
     if (editingBrandKit && messages.length === 0) {
@@ -191,6 +201,85 @@ export default function ScanPage() {
       return () => clearTimeout(timer);
     }
   }, [scanComplete, currentMessageIndex]);
+
+  // Scan brand with streaming API
+  const scanBrandWithStreaming = async (url: string) => {
+    try {
+      setScanError(null);
+      setCurrentScanStep("extracting_text");
+
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to scan website");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error("No response stream available");
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n").filter((line) => line.trim());
+
+        for (const line of lines) {
+          try {
+            const message = JSON.parse(line);
+
+            if (message.type === "status") {
+              setCurrentScanStep(message.step);
+            } else if (message.type === "complete") {
+              // Update brand data with real extracted data
+              setBrandData((prev) => ({
+                ...prev,
+                logo: message.data.logo,
+                colors: message.data.colors,
+                tagline: message.data.tagline,
+                tone: message.data.tone,
+                personality: message.data.voice,
+              }));
+              handleScanComplete();
+            } else if (message.type === "error") {
+              setScanError(message.message);
+              setIsScanning(false);
+            }
+          } catch (e) {
+            // Skip invalid JSON lines
+          }
+        }
+      }
+    } catch (error) {
+      setScanError(
+        error instanceof Error ? error.message : "Failed to scan website"
+      );
+      setIsScanning(false);
+    }
+  };
+
+  // Start scanning when isScanning becomes true
+  useEffect(() => {
+    console.log("Auto-scan useEffect:", {
+      isScanning,
+      urlInput,
+      editingBrandKit,
+      hasScanned: hasScannedRef.current,
+    });
+    if (isScanning && urlInput && !editingBrandKit && !hasScannedRef.current) {
+      console.log("Starting automatic scan for:", urlInput);
+      hasScannedRef.current = true;
+      scanBrandWithStreaming(urlInput);
+    }
+  }, [isScanning, urlInput, editingBrandKit]);
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,10 +381,28 @@ export default function ScanPage() {
           animate={{ opacity: 1 }}
           className="w-full max-w-lg relative z-10"
         >
-          <ScanningAnimation
-            url={urlInput || "example.com"}
-            onComplete={handleScanComplete}
-          />
+          {scanError ? (
+            <div className="text-center space-y-4">
+              <div className="text-red-500 font-semibold">
+                Error: {scanError}
+              </div>
+              <button
+                onClick={() => {
+                  setScanError(null);
+                  setIsScanning(false);
+                }}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <ScanningAnimation
+              url={urlInput || "example.com"}
+              onComplete={handleScanComplete}
+              currentStep={currentScanStep}
+            />
+          )}
         </motion.div>
       </div>
     );

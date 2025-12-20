@@ -4,16 +4,46 @@ import { Globe, Sparkles, Zap, Target } from "lucide-react";
 interface ScanningAnimationProps {
   url: string;
   onComplete: () => void;
+  currentStep?: string;
 }
 
 const scanSteps = [
-  { icon: Globe, label: "Analyzing website structure", color: "text-primary" },
-  { icon: Sparkles, label: "Extracting brand identity", color: "text-designer" },
-  { icon: Target, label: "Identifying target audience", color: "text-strategist" },
-  { icon: Zap, label: "Building your AI team", color: "text-accent" },
+  {
+    id: "extracting_text",
+    icon: Globe,
+    label: "Extracting website text",
+    color: "text-primary",
+  },
+  {
+    id: "extracting_logo",
+    icon: Sparkles,
+    label: "Finding brand logo",
+    color: "text-designer",
+  },
+  {
+    id: "analyzing_colors",
+    icon: Target,
+    label: "Analyzing brand colors",
+    color: "text-strategist",
+  },
+  {
+    id: "analyzing_ai",
+    icon: Zap,
+    label: "AI brand analysis",
+    color: "text-accent",
+  },
 ];
 
-export function ScanningAnimation({ url, onComplete }: ScanningAnimationProps) {
+export function ScanningAnimation({
+  url,
+  onComplete,
+  currentStep,
+}: ScanningAnimationProps) {
+  // Determine which steps are completed
+  const currentStepIndex = currentStep
+    ? scanSteps.findIndex((step) => step.id === currentStep)
+    : -1;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -75,35 +105,63 @@ export function ScanningAnimation({ url, onComplete }: ScanningAnimationProps) {
 
       {/* Scan steps */}
       <div className="space-y-3 w-full max-w-sm">
-        {scanSteps.map((step, index) => (
-          <motion.div
-            key={step.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 + index * 0.8 }}
-            onAnimationComplete={() => {
-              if (index === scanSteps.length - 1) {
-                setTimeout(onComplete, 1000);
-              }
-            }}
-            className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50"
-          >
+        {scanSteps.map((step, index) => {
+          const isCompleted = currentStepIndex > index;
+          const isActive = currentStepIndex === index;
+
+          return (
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.7 + index * 0.8, type: "spring" }}
+              key={step.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 + index * 0.2 }}
+              className={`flex items-center gap-3 p-3 rounded-lg ${
+                isActive
+                  ? "bg-secondary border-2 border-primary/50"
+                  : isCompleted
+                  ? "bg-secondary/30"
+                  : "bg-secondary/50"
+              }`}
             >
-              <step.icon className={`w-5 h-5 ${step.color}`} />
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.7 + index * 0.2, type: "spring" }}
+                className={isActive ? "animate-pulse" : ""}
+              >
+                <step.icon className={`w-5 h-5 ${step.color}`} />
+              </motion.div>
+              <span
+                className={`text-sm font-medium ${
+                  isActive
+                    ? "text-foreground font-semibold"
+                    : isCompleted
+                    ? "text-muted-foreground line-through"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {step.label}
+              </span>
+              {isActive && (
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="ml-auto h-1 bg-gradient-to-r from-primary to-accent rounded-full max-w-16"
+                />
+              )}
+              {isCompleted && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="ml-auto w-4 h-4 rounded-full bg-green-500 flex items-center justify-center"
+                >
+                  <span className="text-white text-xs">✓</span>
+                </motion.div>
+              )}
             </motion.div>
-            <span className="text-sm font-medium text-foreground">{step.label}</span>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: "100%" }}
-              transition={{ delay: 0.8 + index * 0.8, duration: 0.6 }}
-              className="ml-auto h-1 bg-gradient-to-r from-primary to-accent rounded-full max-w-16"
-            />
-          </motion.div>
-        ))}
+          );
+        })}
       </div>
     </motion.div>
   );

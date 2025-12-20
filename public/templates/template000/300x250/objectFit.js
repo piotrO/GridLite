@@ -1,0 +1,2 @@
+grid8player.effects['objectFit']={
+styles: `    `,  init(element, pos, size, props) {    this.dom = element;    const vars = props;    element.style.objectFit = ["cover","cover","contain","scale-down","fill"][vars.scaling]    element.style.overflow = vars.scaling<1?"visible":"hidden"    element.style.objectPosition = vars.align;  },   animate(timeline) {  },  onMouseClick() {  },  onMouseOver() {  },  onMouseOut() {  },  onSwipe(swipe) {  }};
