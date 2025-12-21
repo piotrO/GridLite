@@ -30,8 +30,20 @@ export function BrandIdentityCard({
       className="p-5 rounded-2xl bg-card border-2 border-border"
     >
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-researcher/20 flex items-center justify-center">
-          <span className="text-lg">{logo}</span>
+        <div className="w-8 h-8 rounded-lg bg-researcher/20 flex items-center justify-center overflow-hidden">
+          {logo.startsWith("http") || logo.startsWith("/") ? (
+            <img
+              src={logo}
+              alt="Brand logo"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                (e.target as HTMLImageElement).parentElement!.innerHTML = "🏢";
+              }}
+            />
+          ) : (
+            <span className="text-lg">{logo}</span>
+          )}
         </div>
         <div>
           <h3 className="font-semibold text-foreground">Brand Identity</h3>

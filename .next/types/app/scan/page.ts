@@ -1,4 +1,4 @@
-// File: /Users/piotrostiak/Dev/GridLite/src/app/scan/page.tsx
+// File: /Users/piotrostiak/Dev/ai/grid-lite/src/app/scan/page.tsx
 import * as entry from '../../../../src/app/scan/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

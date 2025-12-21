@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Type, FileText, MousePointer, Image, Plus } from "lucide-react";
 import { EditableText } from "@/components/EditableText";
 import { EditableTextarea } from "@/components/EditableTextarea";
-import { ImagePickerModal } from "@/components/ImagePickerModal";
-import { CollapsiblePanel } from "@/components/CollapsiblePanel";
+import { ImagePickerModal } from "./ImagePickerModal";
+import { CollapsiblePanel } from "./CollapsiblePanel";
 import { FormLabel } from "@/components/FormLabel";
 
 interface ContentData {

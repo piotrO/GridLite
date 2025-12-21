@@ -9,7 +9,7 @@ import { UrlInputStep } from "./UrlInputStep";
 import { BrandDataPanel } from "./BrandDataPanel";
 import { ChatInterface, PersonaType } from "@/components/ChatInterface";
 import { useAuth } from "@/contexts/AuthContext";
-import { useBrand } from "@/contexts/BrandContext";
+import { useBrand, BrandKit } from "@/contexts/BrandContext";
 import { useCredits } from "@/contexts/CreditContext";
 import { SignInModal } from "@/components/SignInModal";
 import { FontPickerModal } from "@/components/FontPickerModal";
@@ -73,63 +73,90 @@ export default function ScanPage() {
 
   const initialUrl = searchParams.get("url") || "";
   const editId = searchParams.get("edit");
+  const reanalyzeId = searchParams.get("reanalyze");
+
+  // Find the brand kit for edit or reanalyze
   const editingBrandKit = editId
     ? brandKits.find((kit) => kit.id === editId)
     : null;
+  const reanalyzingBrandKit = reanalyzeId
+    ? brandKits.find((kit) => kit.id === reanalyzeId)
+    : null;
+
+  // Current working brand kit (either editing or reanalyzing)
+  const workingBrandKit = editingBrandKit || reanalyzingBrandKit;
+  const isReanalyzeMode = !!reanalyzingBrandKit;
 
   const [showSignIn, setShowSignIn] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const pendingActionRef = useRef<"strategist" | "dashboard" | null>(null);
   const hasScannedRef = useRef(false);
 
-  const [urlInput, setUrlInput] = useState(editingBrandKit?.url || initialUrl);
+  const [urlInput, setUrlInput] = useState(workingBrandKit?.url || initialUrl);
   const [isScanning, setIsScanning] = useState(
-    !!initialUrl && !editingBrandKit
+    (!!initialUrl && !editingBrandKit) || isReanalyzeMode
   );
-  const [scanComplete, setScanComplete] = useState(!!editingBrandKit);
+  const [scanComplete, setScanComplete] = useState(!!editingBrandKit && !isReanalyzeMode);
   const [currentScanStep, setCurrentScanStep] = useState<string>("");
   const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(
-    editingBrandKit ? 3 : 0
+    (editingBrandKit && !isReanalyzeMode) ? 3 : 0
   );
-  const [showBrandData, setShowBrandData] = useState(!!editingBrandKit);
+  const [showBrandData, setShowBrandData] = useState(!!editingBrandKit && !isReanalyzeMode);
 
   const [brandData, setBrandData] = useState<BrandData>(
-    editingBrandKit
+    workingBrandKit
       ? {
-          name: editingBrandKit.name,
-          url: editingBrandKit.url,
-          industry: editingBrandKit.industry,
-          tagline: editingBrandKit.tagline,
-          logo: editingBrandKit.logo,
-          colors: editingBrandKit.colors,
-          font: editingBrandKit.font,
-          tone: editingBrandKit.tone,
-          personality: editingBrandKit.personality,
-          audiences: editingBrandKit.audiences,
-        }
+        name: workingBrandKit.name,
+        url: workingBrandKit.url,
+        industry: workingBrandKit.industry,
+        tagline: workingBrandKit.tagline,
+        logo: workingBrandKit.logo,
+        colors: workingBrandKit.colors,
+        font: workingBrandKit.font,
+        tone: workingBrandKit.tone,
+        personality: workingBrandKit.personality,
+        audiences: workingBrandKit.audiences,
+      }
       : getDefaultBrandData(urlInput || "example.com")
   );
 
-  const initialMessages: Omit<Message, "id" | "timestamp">[] = editingBrandKit
+  const initialMessages: Omit<Message, "id" | "timestamp">[] = editingBrandKit && !isReanalyzeMode
     ? [
+      {
+        persona: "researcher",
+        content: `Welcome back! 👋 I see you're editing ${brandData.name}'s brand kit.`,
+      },
+      {
+        persona: "researcher",
+        content:
+          "Feel free to update any of the brand details. I'm here to help!",
+      },
+      {
+        persona: "researcher",
+        content: "When you're done, save changes or head to The Strategist.",
+      },
+    ]
+    : isReanalyzeMode
+      ? [
         {
           persona: "researcher",
-          content: `Welcome back! 👋 I see you're editing ${brandData.name}'s brand kit.`,
+          content: `Hey there! 👋 I've reanalyzed ${brandData.name}'s website with fresh data!`,
         },
         {
           persona: "researcher",
           content:
-            "Feel free to update any of the brand details. I'm here to help!",
+            "I've updated the brand details while preserving your existing Grid8 data.",
         },
         {
           persona: "researcher",
-          content: "When you're done, save changes or head to The Strategist.",
+          content:
+            "Review the changes and approve when you're ready.",
         },
       ]
-    : [
+      : [
         {
           persona: "researcher",
           content: `Hey there! 👋 I've just finished scanning ${brandData.name}'s website!`,
@@ -164,9 +191,9 @@ export default function ScanPage() {
     }
   }, [initialUrl]);
 
-  // Initialize messages for editing mode
+  // Initialize messages for editing mode (not reanalyze mode)
   useEffect(() => {
-    if (editingBrandKit && messages.length === 0) {
+    if (editingBrandKit && !isReanalyzeMode && messages.length === 0) {
       setMessages(
         initialMessages.map((msg, i) => ({
           id: `msg-${i}`,
@@ -175,7 +202,7 @@ export default function ScanPage() {
         }))
       );
     }
-  }, [editingBrandKit]);
+  }, [editingBrandKit, isReanalyzeMode]);
 
   // Typing effect for messages
   useEffect(() => {
@@ -266,20 +293,23 @@ export default function ScanPage() {
     }
   };
 
-  // Start scanning when isScanning becomes true
+  // Start scanning when isScanning becomes true (including reanalyze mode)
   useEffect(() => {
     console.log("Auto-scan useEffect:", {
       isScanning,
       urlInput,
       editingBrandKit,
+      isReanalyzeMode,
       hasScanned: hasScannedRef.current,
     });
-    if (isScanning && urlInput && !editingBrandKit && !hasScannedRef.current) {
+    // Scan if: (new scan or reanalyze mode) AND haven't scanned yet
+    const shouldScan = isScanning && urlInput && !hasScannedRef.current && (!editingBrandKit || isReanalyzeMode);
+    if (shouldScan) {
       console.log("Starting automatic scan for:", urlInput);
       hasScannedRef.current = true;
       scanBrandWithStreaming(urlInput);
     }
-  }, [isScanning, urlInput, editingBrandKit]);
+  }, [isScanning, urlInput, editingBrandKit, isReanalyzeMode]);
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,10 +339,10 @@ export default function ScanPage() {
       const responses =
         credits > 0
           ? [
-              "Great observation! I've noted that.",
-              "Interesting point! I'll refine that detail.",
-              "Perfect catch! I've made that adjustment.",
-            ]
+            "Great observation! I've noted that.",
+            "Interesting point! I'll refine that detail.",
+            "Perfect catch! I've made that adjustment.",
+          ]
           : ["I'd love to help, but you're out of credits."];
       setMessages((prev) => [
         ...prev,
@@ -326,9 +356,14 @@ export default function ScanPage() {
     }, 1500);
   };
 
-  const saveBrandKit = () => {
-    if (editingBrandKit) updateBrandKit(editingBrandKit.id, brandData);
-    else addBrandKit(brandData);
+  const saveBrandKit = async () => {
+    if (workingBrandKit) {
+      // Update existing brand kit (edit or reanalyze mode)
+      // Mark as no longer needing reanalysis since we just reanalyzed it
+      await updateBrandKit(workingBrandKit.id, { ...brandData, needsReanalysis: false });
+    } else {
+      await addBrandKit(brandData);
+    }
   };
 
   const handleApprove = () => {
@@ -359,8 +394,8 @@ export default function ScanPage() {
     pendingActionRef.current = null;
   };
 
-  // Step 1: URL Input
-  if (!isScanning && !editingBrandKit) {
+  // Step 1: URL Input (but not for reanalyze mode - go straight to scanning)
+  if (!isScanning && !workingBrandKit) {
     return (
       <UrlInputStep
         urlInput={urlInput}

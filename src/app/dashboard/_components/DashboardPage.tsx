@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Palette, Globe, Image } from "lucide-react";
@@ -14,9 +15,10 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { AddNewCard } from "@/components/AddNewCard";
 import { EmptyState } from "@/components/EmptyState";
 import { GradientBackground } from "@/components/GradientBackground";
-import { CreditsBanner } from "@/components/CreditsBanner";
-import { BrandKitCard } from "@/components/BrandKitCard";
-import { CampaignCard } from "@/components/CampaignCard";
+import { CreditsBanner } from "./CreditsBanner";
+import { BrandKitCard } from "./BrandKitCard";
+import { CampaignCard } from "./CampaignCard";
+import { DeleteBrandModal } from "./DeleteBrandModal";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -25,6 +27,9 @@ export default function DashboardPage() {
   const { brandKits, activeBrandKit, setActiveBrandKit, deleteBrandKit } =
     useBrand();
   const { credits } = useCredits();
+
+  // Delete modal state
+  const [brandToDelete, setBrandToDelete] = useState<BrandKit | null>(null);
 
   const handleNewCampaign = () => {
     if (!activeBrandKit) {
@@ -53,6 +58,19 @@ export default function DashboardPage() {
   const handleEditBrandKit = (kit: BrandKit) => {
     setActiveBrandKit(kit);
     router.push(`/scan?edit=${kit.id}`);
+  };
+
+  const handleReanalyzeBrandKit = (kit: BrandKit) => {
+    // Navigate to scan page with brand ID to preserve existing data while reanalyzing
+    setActiveBrandKit(kit);
+    router.push(`/scan?reanalyze=${kit.id}`);
+  };
+
+  const handleDeleteBrandKit = async () => {
+    if (brandToDelete) {
+      await deleteBrandKit(brandToDelete.id);
+      setBrandToDelete(null);
+    }
   };
 
   return (
@@ -115,9 +133,11 @@ export default function DashboardPage() {
                     colors={kit.colors}
                     createdAt={kit.createdAt}
                     isActive={activeBrandKit?.id === kit.id}
+                    needsReanalysis={kit.needsReanalysis}
                     onClick={() => handleSelectBrandKit(kit)}
                     onEdit={() => handleEditBrandKit(kit)}
-                    onDelete={() => deleteBrandKit(kit.id)}
+                    onDelete={() => setBrandToDelete(kit)}
+                    onReanalyze={() => handleReanalyzeBrandKit(kit)}
                     delay={index * 0.1}
                   />
                 ))}
@@ -189,6 +209,14 @@ export default function DashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Delete Brand Confirmation Modal */}
+      <DeleteBrandModal
+        isOpen={!!brandToDelete}
+        onClose={() => setBrandToDelete(null)}
+        onConfirm={handleDeleteBrandKit}
+        brandName={brandToDelete?.name || ""}
+      />
     </div>
   );
 }

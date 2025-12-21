@@ -27,10 +27,10 @@ import { GradientBackground } from "@/components/GradientBackground";
 import {
   ExportProgressCard,
   ExportCompleteCard,
-} from "@/components/ExportStatusCards";
-import { PlatformSelectionCard } from "@/components/PlatformSelectionCard";
-import { ExportSummaryCard } from "@/components/ExportSummaryCard";
-import { ExportFormatsCard, AdSizesCard } from "@/components/ExportCards";
+} from "./ExportStatusCards";
+import { PlatformSelectionCard } from "./PlatformSelectionCard";
+import { ExportSummaryCard } from "./ExportSummaryCard";
+import { ExportFormatsCard, AdSizesCard } from "./ExportCards";
 
 const adPlatforms = [
   { id: "google-studio", name: "Google Web Designer", logo: "🎨" },

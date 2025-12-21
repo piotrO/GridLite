@@ -1744,6 +1744,9 @@ h1,
 .border-accent\/30{
   border-color: hsl(var(--accent) / 0.3);
 }
+.border-amber-500\/50{
+  border-color: rgb(245 158 11 / 0.5);
+}
 .border-background{
   border-color: hsl(var(--background));
 }
@@ -1839,6 +1842,9 @@ h1,
 }
 .bg-accent\/20{
   background-color: hsl(var(--accent) / 0.2);
+}
+.bg-amber-500\/20{
+  background-color: rgb(245 158 11 / 0.2);
 }
 .bg-background{
   background-color: hsl(var(--background));
@@ -2401,6 +2407,10 @@ h1,
 .text-accent-foreground{
   color: hsl(var(--accent-foreground));
 }
+.text-amber-600{
+  --tw-text-opacity: 1;
+  color: rgb(217 119 6 / var(--tw-text-opacity, 1));
+}
 .text-background{
   color: hsl(var(--background));
 }
@@ -2875,6 +2885,11 @@ h1,
   --tw-scale-x: 1.1;
   --tw-scale-y: 1.1;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+.hover\:border-amber-500:hover{
+  --tw-border-opacity: 1;
+  border-color: rgb(245 158 11 / var(--tw-border-opacity, 1));
 }
 
 .hover\:border-border:hover{
@@ -4124,11 +4139,6 @@ h1,
     line-height: 2.5rem;
   }
 
-  .md\:text-5xl{
-    font-size: 3rem;
-    line-height: 1;
-  }
-
   .md\:text-6xl{
     font-size: 3.75rem;
     line-height: 1;
@@ -4210,11 +4220,6 @@ h1,
 
   .lg\:text-right{
     text-align: right;
-  }
-
-  .lg\:text-6xl{
-    font-size: 3.75rem;
-    line-height: 1;
   }
 
   .lg\:text-7xl{

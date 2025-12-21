@@ -16,7 +16,7 @@ import {
 import { StudioHeader } from "@/components/StudioHeader";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DownloadableAssetCard } from "@/components/AdSizeCard";
-import { PlatformGuidesCard } from "@/components/PlatformGuidesCard";
+import { PlatformGuidesCard } from "./PlatformGuidesCard";
 import { GradientBackground } from "@/components/GradientBackground";
 
 const adSizes = [

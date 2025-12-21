@@ -33,6 +33,7 @@ export function SignInModal({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -41,6 +42,7 @@ export function SignInModal({
     if (!email || !password) return;
 
     setIsLoading(true);
+    setError(null);
     try {
       await login(email, password);
       onOpenChange(false);
@@ -49,8 +51,8 @@ export function SignInModal({
       } else {
         router.push(redirectTo);
       }
-    } catch {
-      // Handle error
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -105,6 +107,12 @@ export function SignInModal({
                 />
               </div>
             </div>
+
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
 
             <Button
               type="submit"

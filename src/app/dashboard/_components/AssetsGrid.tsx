@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ImageBrowser } from "@/components/ImageBrowser";
-import { VideoPlayerModal } from "@/components/VideoPlayerModal";
-import { MediaGeneratorModal } from "@/components/MediaGeneratorModal";
 import { FontPickerModal } from "@/components/FontPickerModal";
 import { RenameModal } from "@/components/RenameModal";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { VideoCard } from "@/components/VideoCard";
-import { SoundCard } from "@/components/SoundCard";
-import { FontCard } from "@/components/FontCard";
 import { AssetToolbar } from "@/components/AssetToolbar";
 import { Image, Video, Type, Music } from "lucide-react";
+import { VideoPlayerModal } from "./VideoPlayerModal";
+import { MediaGeneratorModal } from "./MediaGeneratorModal";
+import { VideoCard } from "./VideoCard";
+import { SoundCard } from "./SoundCard";
+import { FontCard } from "./FontCard";
 
 const mockImages = [
   "https://images.unsplash.com/photo-1557821552-17105176677c?w=400&h=400&fit=crop",
