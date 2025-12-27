@@ -1,7 +1,7 @@
 {
+  "/(landing)/page": "app/(landing)/page.js",
   "/scan/page": "app/scan/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/scan/route": "app/api/scan/route.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js",
   "/api/brands/route": "app/api/brands/route.js"
 }

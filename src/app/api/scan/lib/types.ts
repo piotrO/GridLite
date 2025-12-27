@@ -1,26 +1,18 @@
 export interface ScanResult {
-    logo: string;
-    colors: string[];
-    tagline: string;
-    voice: string[];
-    tone: string;
-    logoDescription?: string;
-    brandSummary?: string;
-    visualKeyword?: string;
-    headline?: string;
-    sub?: string;
-    cta?: string;
+  logo: string;
+  colors: string[];
+  tagline: string;
+  voice: string[];
+  tone: string;
+  brandSummary?: string;
+  targetAudiences?: string[];
 }
 
 export interface AIAnalysisResult {
-    colors: string[];
-    tagline: string;
-    voice: string[];
-    tone: string;
-    logoDescription?: string;
-    brandSummary?: string;
-    visualKeyword?: string;
-    headline?: string;
-    sub?: string;
-    cta?: string;
+  colors: string[];
+  tagline: string;
+  voice: string[];
+  tone: string;
+  brandSummary?: string;
+  targetAudiences?: string[];
 }
