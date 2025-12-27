@@ -8,6 +8,7 @@ import {
 import { extractLogo } from "./lib/logo-extractor";
 import { analyzeWithAI, isRateLimitError } from "./lib/ai-analyzer";
 import { parseUrl } from "./lib/url-utils";
+import { extractWebsiteText } from "./lib/text-extractor";
 
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
           sendStatus("analyzing_colors");
           const screenshotBuffer = await captureScreenshot(session.page);
 
+          // STEP 3.5: Extract raw text for Strategy phase
+          const rawWebsiteText = await extractWebsiteText(session.page);
+
           // Close browser before AI analysis
           await closeBrowser(browser);
           browser = null;
@@ -74,15 +78,15 @@ export async function POST(request: NextRequest) {
           const finalData: ScanResult = {
             logo: logoUrl || "🚀",
             colors: finalColors,
+            businessName: aiData.businessName,
+            shortName: aiData.shortName,
             tagline: aiData.tagline || "Innovation meets excellence",
             voice: aiData.voice || ["Innovative", "Trustworthy", "Modern"],
             tone: aiData.tone || "Professional yet approachable",
-            logoDescription: aiData.logoDescription,
+            industry: aiData.industry,
             brandSummary: aiData.brandSummary,
-            visualKeyword: aiData.visualKeyword,
-            headline: aiData.headline,
-            sub: aiData.sub,
-            cta: aiData.cta,
+            targetAudiences: aiData.targetAudiences,
+            rawWebsiteText,
           };
 
           const completeMessage =

@@ -19,6 +19,26 @@ import { CreditsBanner } from "./CreditsBanner";
 import { BrandKitCard } from "./BrandKitCard";
 import { CampaignCard } from "./CampaignCard";
 import { DeleteBrandModal } from "./DeleteBrandModal";
+import { ReanalyzeUrlModal } from "./ReanalyzeUrlModal";
+
+/**
+ * Check if a URL is valid for reanalysis
+ * Returns false if URL is empty, default, or example.com
+ */
+function hasValidUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  const normalized = url.toLowerCase().trim();
+  if (!normalized) return false;
+  if (
+    normalized === "example.com" ||
+    normalized === "https://example.com" ||
+    normalized === "http://example.com"
+  )
+    return false;
+  if (normalized === "yourbrand.com" || normalized === "https://yourbrand.com")
+    return false;
+  return true;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -30,6 +50,10 @@ export default function DashboardPage() {
 
   // Delete modal state
   const [brandToDelete, setBrandToDelete] = useState<BrandKit | null>(null);
+  // Reanalyze modal state (for brands without valid URL)
+  const [brandToReanalyze, setBrandToReanalyze] = useState<BrandKit | null>(
+    null
+  );
 
   const handleNewCampaign = () => {
     if (!activeBrandKit) {
@@ -61,9 +85,25 @@ export default function DashboardPage() {
   };
 
   const handleReanalyzeBrandKit = (kit: BrandKit) => {
-    // Navigate to scan page with brand ID to preserve existing data while reanalyzing
     setActiveBrandKit(kit);
-    router.push(`/scan?reanalyze=${kit.id}`);
+    // Check if the brand has a valid URL
+    if (hasValidUrl(kit.url)) {
+      // Has valid URL - go directly to scan
+      router.push(`/scan?reanalyze=${kit.id}`);
+    } else {
+      // No valid URL - show modal to enter URL
+      setBrandToReanalyze(kit);
+    }
+  };
+
+  const handleReanalyzeWithUrl = (url: string) => {
+    if (brandToReanalyze) {
+      // Navigate to scan with both the brand ID and the new URL
+      router.push(
+        `/scan?reanalyze=${brandToReanalyze.id}&url=${encodeURIComponent(url)}`
+      );
+      setBrandToReanalyze(null);
+    }
   };
 
   const handleDeleteBrandKit = async () => {
@@ -216,6 +256,14 @@ export default function DashboardPage() {
         onClose={() => setBrandToDelete(null)}
         onConfirm={handleDeleteBrandKit}
         brandName={brandToDelete?.name || ""}
+      />
+
+      {/* Reanalyze URL Modal (for brands without valid URL) */}
+      <ReanalyzeUrlModal
+        isOpen={!!brandToReanalyze}
+        onClose={() => setBrandToReanalyze(null)}
+        onSubmit={handleReanalyzeWithUrl}
+        brandName={brandToReanalyze?.name || ""}
       />
     </div>
   );

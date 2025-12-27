@@ -17,6 +17,8 @@ export function TargetAudiencesCard({
   audiences,
   delay = 0.6,
 }: TargetAudiencesCardProps) {
+  if (!audiences || audiences.length === 0) return null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -29,7 +31,7 @@ export function TargetAudiencesCard({
         <h3 className="font-semibold text-foreground">Target Audiences</h3>
       </div>
       <div className="space-y-3">
-        {audiences.map((audience, i) => (
+        {audiences.slice(0, 3).map((audience, i) => (
           <div key={i} className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-researcher/20 flex items-center justify-center shrink-0 mt-0.5">
               <span className="text-xs font-bold text-researcher">{i + 1}</span>

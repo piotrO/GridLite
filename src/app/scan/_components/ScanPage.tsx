@@ -11,6 +11,7 @@ import { ChatInterface, PersonaType } from "@/components/ChatInterface";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand, BrandKit } from "@/contexts/BrandContext";
 import { useCredits } from "@/contexts/CreditContext";
+import { useCampaign } from "@/contexts/CampaignContext";
 import { SignInModal } from "@/components/SignInModal";
 import { FontPickerModal } from "@/components/FontPickerModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -25,6 +26,7 @@ interface Message {
 
 interface BrandData {
   name: string;
+  shortName?: string;
   url: string;
   industry: string;
   tagline: string;
@@ -33,6 +35,7 @@ interface BrandData {
   font: string;
   tone: string;
   personality: string[];
+  brandSummary?: string;
   audiences: { name: string; description: string }[];
 }
 
@@ -49,6 +52,7 @@ function extractBrandName(url: string): string {
 
 const getDefaultBrandData = (url: string): BrandData => ({
   name: extractBrandName(url),
+  shortName: extractBrandName(url),
   url,
   industry: "Technology & Software",
   tagline: "Building the future, one pixel at a time",
@@ -57,10 +61,11 @@ const getDefaultBrandData = (url: string): BrandData => ({
   font: "Inter / Plus Jakarta Sans",
   tone: "Professional yet approachable",
   personality: ["Innovative", "Trustworthy", "Modern"],
+  brandSummary: "A premium technology company focused on innovation.",
   audiences: [
     { name: "Tech Professionals", description: "Ages 25-45, decision makers" },
-    { name: "Startup Founders", description: "Entrepreneurs seeking growth" },
-    { name: "Creative Teams", description: "Designers and developers" },
+    { name: "Early Adopters", description: "Innovation enthusiasts" },
+    { name: "Digital Businesses", description: "Companies seeking growth" },
   ],
 });
 
@@ -70,6 +75,7 @@ export default function ScanPage() {
   const { isAuthenticated, logout } = useAuth();
   const { brandKits, addBrandKit, updateBrandKit } = useBrand();
   const { credits, useCredit } = useCredits();
+  const { setRawWebsiteText } = useCampaign();
 
   const initialUrl = searchParams.get("url") || "";
   const editId = searchParams.get("edit");
@@ -96,82 +102,88 @@ export default function ScanPage() {
   const [isScanning, setIsScanning] = useState(
     (!!initialUrl && !editingBrandKit) || isReanalyzeMode
   );
-  const [scanComplete, setScanComplete] = useState(!!editingBrandKit && !isReanalyzeMode);
+  const [scanComplete, setScanComplete] = useState(
+    !!editingBrandKit && !isReanalyzeMode
+  );
   const [currentScanStep, setCurrentScanStep] = useState<string>("");
   const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(
-    (editingBrandKit && !isReanalyzeMode) ? 3 : 0
+    editingBrandKit && !isReanalyzeMode ? 3 : 0
   );
-  const [showBrandData, setShowBrandData] = useState(!!editingBrandKit && !isReanalyzeMode);
+  const [showBrandData, setShowBrandData] = useState(
+    !!editingBrandKit && !isReanalyzeMode
+  );
 
   const [brandData, setBrandData] = useState<BrandData>(
     workingBrandKit
       ? {
-        name: workingBrandKit.name,
-        url: workingBrandKit.url,
-        industry: workingBrandKit.industry,
-        tagline: workingBrandKit.tagline,
-        logo: workingBrandKit.logo,
-        colors: workingBrandKit.colors,
-        font: workingBrandKit.font,
-        tone: workingBrandKit.tone,
-        personality: workingBrandKit.personality,
-        audiences: workingBrandKit.audiences,
-      }
+          name: workingBrandKit.name,
+          url: workingBrandKit.url,
+          industry: workingBrandKit.industry,
+          tagline: workingBrandKit.tagline,
+          logo: workingBrandKit.logo,
+          colors: workingBrandKit.colors,
+          font: workingBrandKit.font,
+          tone: workingBrandKit.tone,
+          personality: workingBrandKit.personality,
+          audiences: workingBrandKit.audiences,
+          brandSummary: workingBrandKit.brandSummary,
+        }
       : getDefaultBrandData(urlInput || "example.com")
   );
 
-  const initialMessages: Omit<Message, "id" | "timestamp">[] = editingBrandKit && !isReanalyzeMode
-    ? [
-      {
-        persona: "researcher",
-        content: `Welcome back! 👋 I see you're editing ${brandData.name}'s brand kit.`,
-      },
-      {
-        persona: "researcher",
-        content:
-          "Feel free to update any of the brand details. I'm here to help!",
-      },
-      {
-        persona: "researcher",
-        content: "When you're done, save changes or head to The Strategist.",
-      },
-    ]
-    : isReanalyzeMode
+  const initialMessages: Omit<Message, "id" | "timestamp">[] =
+    editingBrandKit && !isReanalyzeMode
       ? [
-        {
-          persona: "researcher",
-          content: `Hey there! 👋 I've reanalyzed ${brandData.name}'s website with fresh data!`,
-        },
-        {
-          persona: "researcher",
-          content:
-            "I've updated the brand details while preserving your existing Grid8 data.",
-        },
-        {
-          persona: "researcher",
-          content:
-            "Review the changes and approve when you're ready.",
-        },
-      ]
+          {
+            persona: "researcher",
+            content: `Welcome back! 👋 I see you're editing ${brandData.name}'s brand kit.`,
+          },
+          {
+            persona: "researcher",
+            content:
+              "Feel free to update any of the brand details. I'm here to help!",
+          },
+          {
+            persona: "researcher",
+            content:
+              "When you're done, save changes or head to The Strategist.",
+          },
+        ]
+      : isReanalyzeMode
+      ? [
+          {
+            persona: "researcher",
+            content: `Hey there! 👋 I've reanalyzed ${brandData.name}'s website with fresh data!`,
+          },
+          {
+            persona: "researcher",
+            content:
+              "I've updated the brand details while preserving your existing Grid8 data.",
+          },
+          {
+            persona: "researcher",
+            content: "Review the changes and approve when you're ready.",
+          },
+        ]
       : [
-        {
-          persona: "researcher",
-          content: `Hey there! 👋 I've just finished scanning ${brandData.name}'s website!`,
-        },
-        {
-          persona: "researcher",
-          content:
-            "I've extracted the brand identity, colors, typography, voice, and audiences.",
-        },
-        {
-          persona: "researcher",
-          content:
-            "Feel free to ask me to adjust anything, or approve to continue.",
-        },
-      ];
+          {
+            persona: "researcher",
+            content: `Hey there! 👋 I've just finished scanning ${brandData.name}'s website!`,
+          },
+          {
+            persona: "researcher",
+            content:
+              "I've extracted the brand identity, colors, typography, voice, and audiences.",
+          },
+          {
+            persona: "researcher",
+            content:
+              "Feel free to ask me to adjust anything, or approve to continue.",
+          },
+        ];
 
   // Update brand data when URL changes
   useEffect(() => {
@@ -266,15 +278,34 @@ export default function ScanPage() {
             if (message.type === "status") {
               setCurrentScanStep(message.step);
             } else if (message.type === "complete") {
+              // Debug: log what we received from the API
+              console.log("[ScanPage] Received from API:", {
+                businessName: message.data.businessName,
+                shortName: message.data.shortName,
+                brandSummary: message.data.brandSummary,
+              });
+
               // Update brand data with real extracted data
               setBrandData((prev) => ({
                 ...prev,
+                name:
+                  message.data.businessName ||
+                  message.data.shortName ||
+                  prev.name,
+                shortName: message.data.shortName || prev.shortName,
                 logo: message.data.logo,
                 colors: message.data.colors,
                 tagline: message.data.tagline,
                 tone: message.data.tone,
                 personality: message.data.voice,
+                industry: message.data.industry || prev.industry,
+                brandSummary: message.data.brandSummary || "",
+                audiences: message.data.targetAudiences || prev.audiences,
               }));
+              // Store rawWebsiteText for Strategy phase
+              if (message.data.rawWebsiteText) {
+                setRawWebsiteText(message.data.rawWebsiteText);
+              }
               handleScanComplete();
             } else if (message.type === "error") {
               setScanError(message.message);
@@ -303,7 +334,11 @@ export default function ScanPage() {
       hasScanned: hasScannedRef.current,
     });
     // Scan if: (new scan or reanalyze mode) AND haven't scanned yet
-    const shouldScan = isScanning && urlInput && !hasScannedRef.current && (!editingBrandKit || isReanalyzeMode);
+    const shouldScan =
+      isScanning &&
+      urlInput &&
+      !hasScannedRef.current &&
+      (!editingBrandKit || isReanalyzeMode);
     if (shouldScan) {
       console.log("Starting automatic scan for:", urlInput);
       hasScannedRef.current = true;
@@ -339,10 +374,10 @@ export default function ScanPage() {
       const responses =
         credits > 0
           ? [
-            "Great observation! I've noted that.",
-            "Interesting point! I'll refine that detail.",
-            "Perfect catch! I've made that adjustment.",
-          ]
+              "Great observation! I've noted that.",
+              "Interesting point! I'll refine that detail.",
+              "Perfect catch! I've made that adjustment.",
+            ]
           : ["I'd love to help, but you're out of credits."];
       setMessages((prev) => [
         ...prev,
@@ -360,7 +395,10 @@ export default function ScanPage() {
     if (workingBrandKit) {
       // Update existing brand kit (edit or reanalyze mode)
       // Mark as no longer needing reanalysis since we just reanalyzed it
-      await updateBrandKit(workingBrandKit.id, { ...brandData, needsReanalysis: false });
+      await updateBrandKit(workingBrandKit.id, {
+        ...brandData,
+        needsReanalysis: false,
+      });
     } else {
       await addBrandKit(brandData);
     }
@@ -499,6 +537,7 @@ export default function ScanPage() {
             onFontClick={() => setShowFontPicker(true)}
             onApprove={handleApprove}
             onSaveToDashboard={handleSaveToDashboard}
+            onReanalyze={() => scanBrandWithStreaming(brandData.url)}
           />
         </div>
       </div>

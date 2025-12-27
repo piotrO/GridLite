@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Zap,
@@ -16,14 +16,16 @@ import {
   Link,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChatInterface, PersonaType } from "@/components/ChatInterface";
+import { ChatInterface } from "@/components/ChatInterface";
 import { AdPreviewCanvas } from "./AdPreviewCanvas";
 import { BrandAssetCard } from "./BrandAssetCard";
 import { TemplateSelector } from "./TemplateSelector";
 import { ContentPanel } from "./ContentPanel";
+import { DesignerLoadingState } from "./DesignerLoadingState";
+import { useDesigner } from "./useDesigner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand, BrandKit } from "@/contexts/BrandContext";
-import { useCredits } from "@/contexts/CreditContext";
+import { useCampaign } from "@/contexts/CampaignContext";
 import { CreditWallet } from "@/components/CreditWallet";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -45,35 +47,21 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 
-interface Message {
-  id: string;
-  persona: PersonaType;
-  content: string;
-  timestamp: Date;
-}
-
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    persona: "strategist",
-    content:
-      "Welcome to the Creative Studio! I've prepared your campaign based on the strategy we discussed. The Designer is ready to show you some concepts.",
-    timestamp: new Date(),
-  },
-  {
-    id: "2",
-    persona: "designer",
-    content:
-      "I've created a bold Summer Sale design using your brand colors. The animation emphasizes the 50% discount to grab attention. What do you think?",
-    timestamp: new Date(),
-  },
-];
-
 export default function StudioPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const { brandKits, activeBrandKit, setActiveBrandKit } = useBrand();
-  const { credits, useCredit } = useCredits();
+  const { strategySession } = useCampaign();
+
+  // Use the Designer hook for real AI integration
+  const {
+    messages,
+    isTyping,
+    isLoading,
+    loadingStatus,
+    creativeData,
+    handleSend,
+  } = useDesigner();
 
   const initialBrand = activeBrandKit || {
     name: "Your Brand",
@@ -83,16 +71,19 @@ export default function StudioPage() {
     logo: "🚀",
   };
 
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [selectedTemplate, setSelectedTemplate] = useState("1");
-  const [isTyping, setIsTyping] = useState(false);
   const [brand, setBrand] = useState(initialBrand);
+
+  // Use strategy data for content if available, otherwise defaults
   const [content, setContent] = useState({
-    headline: "SUMMER SALE",
-    bodyCopy: "Don't miss out on our biggest sale of the year!",
-    ctaText: "Shop Now",
+    headline: strategySession.strategy?.headline || "SUMMER SALE",
+    bodyCopy:
+      strategySession.strategy?.subheadline ||
+      "Don't miss out on our biggest sale of the year!",
+    ctaText: strategySession.strategy?.callToAction || "Shop Now",
     imageUrl: "",
   });
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -109,74 +100,13 @@ export default function StudioPage() {
         description: "Share this link with anyone to preview your ad.",
       });
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast({
         title: "Failed to copy",
         description: "Please copy the link manually.",
         variant: "destructive",
       });
     }
-  };
-
-  const handleSendMessage = (messageContent: string) => {
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      persona: "user",
-      content: messageContent,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    setIsTyping(true);
-
-    // Consume 1 credit for AI chat
-    if (credits > 0) {
-      useCredit();
-    }
-
-    // Simulate AI response
-    setTimeout(() => {
-      const responses: Message[] = [];
-
-      if (credits === 0) {
-        responses.push({
-          id: (Date.now() + 1).toString(),
-          persona: "strategist",
-          content:
-            "I'd love to help, but you're out of credits. Purchase more to continue working with the team!",
-          timestamp: new Date(),
-        });
-      } else if (
-        messageContent.toLowerCase().includes("logo") ||
-        messageContent.toLowerCase().includes("bigger")
-      ) {
-        responses.push({
-          id: (Date.now() + 1).toString(),
-          persona: "designer",
-          content:
-            "Done! I've increased the logo size and repositioned it for better visibility. The canvas is updating now.",
-          timestamp: new Date(),
-        });
-      } else if (messageContent.toLowerCase().includes("color")) {
-        responses.push({
-          id: (Date.now() + 1).toString(),
-          persona: "designer",
-          content:
-            "Great idea! I can adjust the color scheme. Would you like me to make it more vibrant, or try a different palette from your brand colors?",
-          timestamp: new Date(),
-        });
-      } else {
-        responses.push({
-          id: (Date.now() + 1).toString(),
-          persona: "strategist",
-          content:
-            "That's a great suggestion! Let me think about how that aligns with our campaign goals...",
-          timestamp: new Date(),
-        });
-      }
-
-      setMessages((prev) => [...prev, ...responses]);
-      setIsTyping(false);
-    }, 1500);
   };
 
   const handleBackClick = () => {
@@ -188,10 +118,18 @@ export default function StudioPage() {
     setBrand(kit);
   };
 
+  // Show loading state while Designer is analyzing
+  if (isLoading) {
+    return (
+      <DesignerLoadingState status={loadingStatus} brandName={brand.name} />
+    );
+  }
+
   return (
     <div className="h-screen bg-background flex flex-col relative">
       {/* Designer Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--designer)/0.08)] via-transparent to-[hsl(var(--designer)/0.03)] pointer-events-none" />
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -203,12 +141,17 @@ export default function StudioPage() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-designer to-accent flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
             <span className="font-semibold text-foreground">
               GridLite Studio
             </span>
+            {creativeData && (
+              <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-designer/10">
+                {creativeData.conceptName}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -339,9 +282,10 @@ export default function StudioPage() {
             <div className="flex-1 overflow-hidden">
               <ChatInterface
                 messages={messages}
-                onSend={handleSendMessage}
+                onSend={handleSend}
                 isTyping={isTyping}
                 typingPersona="designer"
+                placeholder="Ask Davinci about the design..."
               />
             </div>
           </motion.div>
@@ -367,13 +311,22 @@ export default function StudioPage() {
           >
             <AdPreviewCanvas
               selectedTemplate={selectedTemplate}
-              adName={`${brand.name} Summer Sale`}
+              adName={`${brand.name} ${
+                strategySession.strategy?.campaignAngle || "Campaign"
+              }`}
               data={{
                 headline: content.headline,
                 bodyCopy: content.bodyCopy,
                 ctaText: content.ctaText,
                 imageUrl: content.imageUrl,
-                colors: brand.colors,
+                colors: creativeData?.colorScheme
+                  ? [
+                      creativeData.colorScheme.primary,
+                      creativeData.colorScheme.secondary,
+                      creativeData.colorScheme.accent,
+                      creativeData.colorScheme.background,
+                    ]
+                  : brand.colors,
                 logoUrl: brand.logo,
               }}
             />

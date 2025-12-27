@@ -14,26 +14,32 @@ If the screenshot contains text like "Access Denied", "Cloudflare", "Verify you 
 Extract the following and return ONLY raw JSON:
 
 1. "colors": The 3 dominant brand hex colors from the website.
-2. "tagline": A concise brand tagline (max 10 words) based on the website content.
-3. "voice": Array of 3 adjectives describing the brand voice.
-4. "tone": Professional description of brand tone (max 50 words).
-5. "brandSummary": What does this company sell/do? (1-2 sentences, max 30 words).
-6. "targetAudiences": Array of up to 3 target audience descriptions (e.g., "Tech-savvy millennials", "Small business owners", "Health-conscious parents").
+2. "businessName": The official full company/brand name (e.g., "Apple Inc.", "The Coca-Cola Company").
+3. "shortName": The short/common brand name used in everyday speech (e.g., "Apple", "Coca-Cola").
+4. "tagline": A concise brand tagline (max 10 words) based on the website content.
+5. "voice": Array of 3 adjectives describing the brand voice.
+6. "tone": Professional description of brand tone (max 50 words).
+7. "industry": The industry/sector this company operates in (e.g., "Technology & Software", "E-commerce", "Healthcare", "Finance", "Marketing").
+8. "brandSummary": What does this company sell/do? (1-2 sentences, max 30 words).
+9. "targetAudiences": Array of up to 3 target audiences, each with "name" (short label, 2-4 words) and "description" (brief context, max 10 words).
 
 Return only raw JSON in this exact format: 
-{ "colors": ["#...", "#...", "#..."], "tagline": "...", "voice": ["...", "...", "..."], "tone": "...", "brandSummary": "...", "targetAudiences": ["...", "...", "..."] }
+{ "colors": ["#...", "#...", "#..."], "businessName": "...", "shortName": "...", "tagline": "...", "voice": ["...", "...", "..."], "tone": "...", "industry": "...", "brandSummary": "...", "targetAudiences": [{"name": "...", "description": "..."}, ...] }
 `;
 
 const DEFAULT_AI_RESULT: AIAnalysisResult = {
   colors: ["#4F46E5", "#F97316", "#10B981"],
+  businessName: "Premium Tech Company Inc.",
+  shortName: "Premium Tech",
   tagline: "Building the future, one pixel at a time",
   voice: ["Innovative", "Trustworthy", "Modern"],
   tone: "Professional yet approachable",
+  industry: "Technology & Software",
   brandSummary: "A premium technology company focused on innovation.",
   targetAudiences: [
-    "Tech-savvy professionals",
-    "Early adopters",
-    "Digital-first businesses",
+    { name: "Tech Professionals", description: "Ages 25-45, decision makers" },
+    { name: "Early Adopters", description: "Innovation enthusiasts" },
+    { name: "Digital Businesses", description: "Companies seeking growth" },
   ],
 };
 

@@ -17,6 +17,7 @@ import {
   convertGrid8BrandToBrandKit,
   createLocalBrandKit,
   getBrandLogoUrl,
+  uploadBrandAvatar,
 } from "@/services/brand-service";
 
 // Grid8 API brand type
@@ -28,14 +29,27 @@ export interface Grid8Brand {
   limits: {
     totalUserCount: number;
   };
-  notes: {
-    innovation: string;
-    book: string;
-    _id: string;
+  notes?: {
+    innovation?: string;
+    book?: string;
+    _id?: string;
   };
   createdAt: string;
   updatedAt: string | null;
-  // Optional fields that may come from extended brand data
+  // Brand profile data from AI analysis
+  brandProfile?: {
+    url?: string;
+    industry?: string;
+    tagline?: string;
+    colors?: string[];
+    font?: string;
+    tone?: string;
+    personality?: string[];
+    brandSummary?: string;
+    targetAudiences?: { name: string; description: string }[];
+    analyzedAt?: string;
+  };
+  // Legacy fields (for backwards compatibility)
   url?: string;
   industry?: string;
   tagline?: string;
@@ -44,6 +58,7 @@ export interface Grid8Brand {
   font?: string;
   tone?: string;
   personality?: string[];
+  brandSummary?: string;
   audiences?: { name: string; description: string }[];
 }
 
@@ -52,6 +67,7 @@ export interface BrandKit {
   id: string;
   grid8Id?: string; // Reference to Grid8 brand ID
   name: string;
+  shortName?: string;
   url: string;
   industry: string;
   tagline: string;
@@ -60,6 +76,7 @@ export interface BrandKit {
   font: string;
   tone: string;
   personality: string[];
+  brandSummary?: string;
   audiences: { name: string; description: string }[];
   createdAt: Date;
   needsReanalysis: boolean; // Flag for brands that need URL re-analysis
@@ -147,13 +164,22 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, token, fetchGrid8Brands]);
 
-  // Create brand kit - also creates on Grid8
+  // Create brand kit - also creates on Grid8 with full brand profile
   const addBrandKit = async (
     brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">
   ): Promise<BrandKit> => {
     if (token) {
       try {
-        const grid8Data = await createBrandOnGrid8(token, brand.name);
+        // Pass full brand data to Grid8 so it can store the brandProfile
+        const grid8Data = await createBrandOnGrid8(token, brand.name, brand);
+
+        // Upload logo if it's a valid URL
+        if (brand.logo && brand.logo.startsWith("http")) {
+          // Fire and forget - don't block on avatar upload
+          uploadBrandAvatar(token, grid8Data._id, brand.logo).catch((err) =>
+            console.error("Avatar upload failed:", err)
+          );
+        }
 
         const newKit: BrandKit = {
           ...brand,
@@ -186,8 +212,28 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     // Update on Grid8 if it has a grid8Id
     if (kit?.grid8Id && token) {
       try {
+        // Build updated brandProfile from the combined data
+        const updatedKit = { ...kit, ...brand };
+        const brandProfile = {
+          url: updatedKit.url,
+          logo: updatedKit.logo,
+          businessName: updatedKit.name,
+          shortName: updatedKit.shortName || updatedKit.name,
+          industry: updatedKit.industry,
+          tagline: updatedKit.tagline,
+          colors: updatedKit.colors,
+          font: updatedKit.font,
+          tone: updatedKit.tone,
+          personality: updatedKit.personality,
+          brandSummary: updatedKit.brandSummary,
+          targetAudiences: updatedKit.audiences,
+          analyzedAt: new Date().toISOString(),
+        };
         await updateBrandOnGrid8(token, kit.grid8Id, {
           name: brand.name ?? kit.name,
+          notes: {
+            book: JSON.stringify(brandProfile),
+          },
         });
       } catch (error) {
         console.error("Failed to update brand on Grid8:", error);

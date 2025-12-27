@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Check, ArrowRight } from "lucide-react";
+import { Sparkles, Check, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandIdentityCard } from "./BrandIdentityCard";
 import { ColorsTypographyCard } from "./ColorsTypographyCard";
@@ -10,6 +10,7 @@ import { TargetAudiencesCard } from "./TargetAudiencesCard";
 
 interface BrandData {
   name: string;
+  shortName?: string;
   url: string;
   industry: string;
   tagline: string;
@@ -18,6 +19,7 @@ interface BrandData {
   font: string;
   tone: string;
   personality: string[];
+  brandSummary?: string;
   audiences: { name: string; description: string }[];
 }
 
@@ -28,6 +30,7 @@ interface BrandDataPanelProps {
   onFontClick: () => void;
   onApprove: () => void;
   onSaveToDashboard: () => void;
+  onReanalyze?: () => void;
 }
 
 export function BrandDataPanel({
@@ -37,6 +40,7 @@ export function BrandDataPanel({
   onFontClick,
   onApprove,
   onSaveToDashboard,
+  onReanalyze,
 }: BrandDataPanelProps) {
   return (
     <div className="space-y-4">
@@ -52,13 +56,21 @@ export function BrandDataPanel({
               <Sparkles className="w-4 h-4 text-researcher" />
               <span>Scanned brand profile for {brandData.name}</span>
             </div>
-
             <BrandIdentityCard
               logo={brandData.logo}
-              name={brandData.name}
+              businessName={brandData.name}
+              shortName={brandData.shortName}
+              url={brandData.url}
               industry={brandData.industry}
               tagline={brandData.tagline}
-              onNameChange={(name) => onBrandDataChange({ ...brandData, name })}
+              brandSummary={brandData.brandSummary}
+              onBusinessNameChange={(name) =>
+                onBrandDataChange({ ...brandData, name })
+              }
+              onShortNameChange={(shortName) =>
+                onBrandDataChange({ ...brandData, shortName })
+              }
+              onUrlChange={(url) => onBrandDataChange({ ...brandData, url })}
               onTaglineChange={(tagline) =>
                 onBrandDataChange({ ...brandData, tagline })
               }
@@ -97,14 +109,27 @@ export function BrandDataPanel({
                 <span>Approve & Meet The Strategist</span>
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
-              <Button
-                onClick={onSaveToDashboard}
-                variant="outline"
-                size="lg"
-                className="w-full"
-              >
-                Save Brand Kit & Go to Dashboard
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={onSaveToDashboard}
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                >
+                  Save Brand Kit
+                </Button>
+                {onReanalyze && (
+                  <Button
+                    onClick={onReanalyze}
+                    variant="outline"
+                    size="lg"
+                    className="w-full"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Reanalyze
+                  </Button>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

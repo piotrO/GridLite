@@ -1,24 +1,35 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Globe } from "lucide-react";
 import { EditableText } from "@/components/EditableText";
 
 interface BrandIdentityCardProps {
   logo: string;
-  name: string;
+  businessName: string;
+  shortName?: string;
+  url: string;
   industry: string;
   tagline: string;
-  onNameChange: (name: string) => void;
+  brandSummary?: string;
+  onBusinessNameChange: (name: string) => void;
+  onShortNameChange?: (shortName: string) => void;
+  onUrlChange: (url: string) => void;
   onTaglineChange: (tagline: string) => void;
   delay?: number;
 }
 
 export function BrandIdentityCard({
   logo,
-  name,
+  businessName,
+  shortName,
+  url,
   industry,
   tagline,
-  onNameChange,
+  brandSummary,
+  onBusinessNameChange,
+  onShortNameChange,
+  onUrlChange,
   onTaglineChange,
   delay = 0.3,
 }: BrandIdentityCardProps) {
@@ -46,23 +57,28 @@ export function BrandIdentityCard({
           )}
         </div>
         <div>
-          <h3 className="font-semibold text-foreground">Brand Identity</h3>
+          <EditableText
+            value={businessName}
+            onChange={onBusinessNameChange}
+            className="font-semibold text-foreground"
+          />
           <p className="text-xs text-muted-foreground">{industry}</p>
         </div>
       </div>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Business Name
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 shrink-0">
+            <Globe className="w-3 h-3" />
+            URL
           </label>
           <EditableText
-            value={name}
-            onChange={onNameChange}
-            className="text-base"
+            value={url}
+            onChange={onUrlChange}
+            className="text-sm text-researcher"
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-muted-foreground shrink-0">
             Tagline
           </label>
           <EditableText
@@ -71,6 +87,14 @@ export function BrandIdentityCard({
             className="text-sm"
           />
         </div>
+        {brandSummary && brandSummary.length > 0 && (
+          <div className="flex items-start gap-2 pt-2 border-t border-border">
+            <label className="text-xs font-medium text-muted-foreground shrink-0 pt-0.5">
+              About
+            </label>
+            <p className="text-sm text-foreground">{brandSummary}</p>
+          </div>
+        )}
       </div>
     </motion.div>
   );
