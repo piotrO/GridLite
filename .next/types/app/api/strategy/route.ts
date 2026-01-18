@@ -1,4 +1,4 @@
-// File: /Users/piotrostiak/Dev/GridLite/src/app/api/strategy/route.ts
+// File: /Users/piotrostiak/Dev/ai/grid-lite/src/app/api/strategy/route.ts
 import * as entry from '../../../../../src/app/api/strategy/route.js'
 import type { NextRequest } from 'next/server.js'
 

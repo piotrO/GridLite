@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   Move,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useCredits } from "@/contexts/CreditContext";
 import { UnlockModal } from "@/components/UnlockModal";
+import { useAdPreviewBlob } from "@/hooks/useAdPreviewBlob";
 
 interface AdSize {
   id: string;
@@ -51,6 +53,122 @@ interface AdPreviewCanvasProps {
   data?: Partial<AdCanvasData>;
 }
 
+/**
+ * Individual ad preview component that uses Blob URL
+ */
+interface AdPreviewItemProps {
+  size: AdSize;
+  templatePath: string;
+  data: Partial<AdCanvasData>;
+  reloadKey: number;
+  onIframeRef: (sizeId: string, el: HTMLIFrameElement | null) => void;
+}
+
+const AdPreviewItem = ({
+  size,
+  templatePath,
+  data,
+  reloadKey,
+  onIframeRef,
+}: AdPreviewItemProps) => {
+  // Memoize the data object to prevent unnecessary re-renders
+  const previewData = useMemo(
+    () => ({
+      headline: data.headline,
+      bodyCopy: data.bodyCopy,
+      ctaText: data.ctaText,
+      imageUrl: data.imageUrl,
+      logoUrl: data.logoUrl,
+      colors: data.colors,
+    }),
+    [
+      data.headline,
+      data.bodyCopy,
+      data.ctaText,
+      data.imageUrl,
+      data.logoUrl,
+      data.colors,
+    ]
+  );
+
+  const { blobUrl, isLoading, error, refresh } = useAdPreviewBlob({
+    templatePath,
+    size: size.id,
+    data: previewData,
+    debounceMs: 300,
+  });
+
+  // Trigger refresh when reloadKey changes
+  useEffect(() => {
+    if (reloadKey > 0) {
+      refresh();
+    }
+  }, [reloadKey, refresh]);
+
+  const scale = Math.min(400 / size.width, 400 / size.height, 1);
+
+  return (
+    <motion.div
+      key={size.id}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="flex flex-col gap-2"
+    >
+      <div className="text-xs text-muted-foreground text-center font-medium">
+        {size.label} ({size.id})
+      </div>
+      <div
+        className="rounded-xl overflow-hidden shadow-lg border-2 border-border bg-card relative"
+        style={{
+          width: Math.min(size.width, 400),
+          height: Math.min(size.height, 400) * (Math.min(size.width, 400) / size.width),
+        }}
+      >
+        {/* Loading state */}
+        {isLoading && !blobUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-destructive/10">
+            <div className="text-xs text-destructive text-center p-2">
+              Failed to load preview
+              <br />
+              <button
+                onClick={refresh}
+                className="underline mt-1 hover:text-destructive/80"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Actual template iframe with Blob URL */}
+        {blobUrl && (
+          <iframe
+            ref={(el) => onIframeRef(size.id, el)}
+            key={`${size.id}-${reloadKey}-blob`}
+            src={blobUrl}
+            className="border-0"
+            width={size.width}
+            height={size.height}
+            title={`Ad Preview - ${size.label}`}
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+          />
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 export const AdPreviewCanvas = ({
   selectedTemplate,
   adName = "Summer Sale Banner",
@@ -69,6 +187,11 @@ export const AdPreviewCanvas = ({
   const [reloadKey, setReloadKey] = useState(0);
   const iframeRefs = useRef<Map<string, HTMLIFrameElement>>(new Map());
   const duration = 5;
+
+  // Template path for the selected template
+  // Note: Currently all templates use the same template000 folder
+  // In the future, this can be extended to support multiple template folders
+  const templatePath = `/templates/template000`;
 
   // Playback sync effect
   useEffect(() => {
@@ -136,28 +259,16 @@ export const AdPreviewCanvas = ({
     setIsDragging(false);
   };
 
-  const buildIframeSrc = (size: AdSize) => {
-    const params = new URLSearchParams();
-
-    // Map component data to template000's expected dynamic values
-    if (data.headline) params.set("s0_header", data.headline);
-    if (data.bodyCopy) params.set("s0_sub", data.bodyCopy);
-    if (data.ctaText) params.set("s0_cta", data.ctaText);
-    if (data.imageUrl) params.set("s0_bgr", data.imageUrl);
-    if (data.logoUrl) params.set("s0_logo", data.logoUrl);
-
-    // Colors are passed as pipe-delimited string (btnBg|btnText|accent)
-    if (data.colors && data.colors.length > 0) {
-      params.set("s0_colors", data.colors.slice(0, 3).join("|"));
-    }
-
-    // Enable grid8 debug mode for external playback control
-    params.set("grid8", "true");
-
-    return `/templates/template000/${size.width}x${
-      size.height
-    }/index.html?${params.toString()}`;
-  };
+  const handleIframeRef = useCallback(
+    (sizeId: string, el: HTMLIFrameElement | null) => {
+      if (el) {
+        iframeRefs.current.set(sizeId, el);
+      } else {
+        iframeRefs.current.delete(sizeId);
+      }
+    },
+    []
+  );
 
   const selectedAdSizes = AD_SIZES.filter((s) => selectedSizes.includes(s.id));
 
@@ -260,51 +371,14 @@ export const AdPreviewCanvas = ({
           className="p-8 flex flex-wrap gap-6 items-start justify-center min-w-max"
         >
           {selectedAdSizes.map((size) => (
-            <motion.div
+            <AdPreviewItem
               key={size.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex flex-col gap-2"
-            >
-              <div className="text-xs text-muted-foreground text-center font-medium">
-                {size.label} ({size.id})
-              </div>
-              <div
-                className="rounded-xl overflow-hidden shadow-lg border-2 border-border bg-card relative"
-                style={{
-                  width: Math.min(size.width, 400),
-                  height:
-                    Math.min(size.height, 400) *
-                    (Math.min(size.width, 400) / size.width),
-                }}
-              >
-                {/* Actual template iframe */}
-                <iframe
-                  ref={(el) => {
-                    if (el) {
-                      iframeRefs.current.set(size.id, el);
-                    } else {
-                      iframeRefs.current.delete(size.id);
-                    }
-                  }}
-                  key={`${size.id}-${reloadKey}`}
-                  src={buildIframeSrc(size)}
-                  className="border-0"
-                  width={size.width}
-                  height={size.height}
-                  title={`Ad Preview - ${size.label}`}
-                  style={{
-                    transform: `scale(${Math.min(
-                      400 / size.width,
-                      400 / size.height,
-                      1
-                    )})`,
-                    transformOrigin: "top left",
-                  }}
-                />
-              </div>
-            </motion.div>
+              size={size}
+              templatePath={templatePath}
+              data={data}
+              reloadKey={reloadKey}
+              onIframeRef={handleIframeRef}
+            />
           ))}
         </motion.div>
 
