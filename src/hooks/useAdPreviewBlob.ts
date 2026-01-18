@@ -124,7 +124,7 @@ export function useAdPreviewBlob({
                 // Find the dynamicData initialization and inject colors
                 html = html.replace(
                     /grid8player\.dynamicData\s*=\s*dynamicData;/,
-                    `dynamicData["s0_colors"] = "${colorString}";\n      grid8player.dynamicData = dynamicData;`
+                    `dynamicData["colors"] = "${colorString}";\n      grid8player.dynamicData = dynamicData;`
                 );
             }
 

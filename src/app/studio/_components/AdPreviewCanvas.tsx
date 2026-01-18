@@ -31,6 +31,7 @@ interface AdSize {
 }
 
 const AD_SIZES: AdSize[] = [
+  { id: "300x600", label: "Halfpage", width: 300, height: 600 },
   { id: "300x250", label: "Medium Rectangle", width: 300, height: 250 },
   { id: "728x90", label: "Leaderboard", width: 728, height: 90 },
   { id: "1080x1080", label: "Social Square", width: 1080, height: 1080 },
@@ -45,6 +46,11 @@ interface AdCanvasData {
   imageUrl: string;
   colors: string[];
   logoUrl: string;
+  layerModifications?: Array<{
+    layerName: string;
+    positionDelta?: { x?: number; y?: number };
+    scaleFactor?: number;
+  }>;
 }
 
 interface AdPreviewCanvasProps {
@@ -80,6 +86,7 @@ const AdPreviewItem = ({
       imageUrl: data.imageUrl,
       logoUrl: data.logoUrl,
       colors: data.colors,
+      layerModifications: data.layerModifications,
     }),
     [
       data.headline,
@@ -88,6 +95,7 @@ const AdPreviewItem = ({
       data.imageUrl,
       data.logoUrl,
       data.colors,
+      data.layerModifications,
     ]
   );
 
@@ -105,7 +113,12 @@ const AdPreviewItem = ({
     }
   }, [reloadKey, refresh]);
 
+  // Calculate scale to fit within 400x400 max display area
   const scale = Math.min(400 / size.width, 400 / size.height, 1);
+
+  // Container should match the scaled iframe dimensions
+  const containerWidth = size.width * scale;
+  const containerHeight = size.height * scale;
 
   return (
     <motion.div
@@ -121,8 +134,8 @@ const AdPreviewItem = ({
       <div
         className="rounded-xl overflow-hidden shadow-lg border-2 border-border bg-card relative"
         style={{
-          width: Math.min(size.width, 400),
-          height: Math.min(size.height, 400) * (Math.min(size.width, 400) / size.width),
+          width: containerWidth,
+          height: containerHeight,
         }}
       >
         {/* Loading state */}
@@ -178,7 +191,7 @@ export const AdPreviewCanvas = ({
   const { credits, useCredit } = useCredits();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [selectedSizes, setSelectedSizes] = useState<string[]>(["300x250"]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(["300x600"]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -189,9 +202,7 @@ export const AdPreviewCanvas = ({
   const duration = 5;
 
   // Template path for the selected template
-  // Note: Currently all templates use the same template000 folder
-  // In the future, this can be extended to support multiple template folders
-  const templatePath = `/templates/template000`;
+  const templatePath = `/templates/${selectedTemplate}`;
 
   // Playback sync effect
   useEffect(() => {
@@ -219,6 +230,7 @@ export const AdPreviewCanvas = ({
           grid8player?: { timelineMaster?: { progress: (p: number) => void } };
         };
         if (iframeWindow?.grid8player?.timelineMaster) {
+          iframeWindow.grid8player.pause();
           iframeWindow.grid8player.timelineMaster.progress(progress);
         }
       } catch (e) {

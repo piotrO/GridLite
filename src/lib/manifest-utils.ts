@@ -141,11 +141,17 @@ export interface DynamicValueData {
     imageUrl?: string;
     logoUrl?: string;
     colors?: string[];
+    layerModifications?: Array<{
+        layerName: string;
+        positionDelta?: { x?: number; y?: number };
+        scaleFactor?: number;
+    }>;
 }
 
 /**
  * Apply dynamic values from the UI to the manifest
  * This updates the defaultValue fields in the manifest's dynamicValues settings
+ * and applies any layer modifications (position/scale changes)
  */
 export function applyDynamicValues(
     manifest: Record<string, unknown>,
@@ -163,24 +169,24 @@ export function applyDynamicValues(
         defaultValue?: string;
     }> | undefined;
 
-    if (!dynamicValues) return newManifest;
+    if (dynamicValues) {
+        // Map UI field names to manifest dynamic value names
+        const fieldMapping: Record<string, string> = {
+            headline: "s0_headline",
+            bodyCopy: "s0_bodycopy",
+            ctaText: "s0_ctaText",
+            imageUrl: "s0_imageUrl",
+            logoUrl: "s0_logoUrl",
+        };
 
-    // Map UI field names to manifest dynamic value names
-    const fieldMapping: Record<string, string> = {
-        headline: "s0_header",
-        bodyCopy: "s0_sub",
-        ctaText: "s0_cta",
-        imageUrl: "s0_bgr",
-        logoUrl: "s0_logo",
-    };
-
-    // Update each dynamic value
-    for (const [uiField, manifestName] of Object.entries(fieldMapping)) {
-        const value = data[uiField as keyof DynamicValueData];
-        if (value && typeof value === "string") {
-            const dynamicValue = dynamicValues.find((dv) => dv.name === manifestName);
-            if (dynamicValue) {
-                dynamicValue.defaultValue = value;
+        // Update each dynamic value
+        for (const [uiField, manifestName] of Object.entries(fieldMapping)) {
+            const value = data[uiField as keyof DynamicValueData];
+            if (value && typeof value === "string") {
+                const dynamicValue = dynamicValues.find((dv) => dv.name === manifestName);
+                if (dynamicValue) {
+                    dynamicValue.defaultValue = value;
+                }
             }
         }
     }
@@ -191,6 +197,61 @@ export function applyDynamicValues(
         // We'll inject them as a dynamicData override in the HTML
         // Store them in a custom field for later use
         (newManifest as Record<string, unknown>).__colors = data.colors;
+    }
+
+    // Apply layer modifications if provided
+    if (data.layerModifications && data.layerModifications.length > 0) {
+        const layers = newManifest.layers as Array<{
+            name: string;
+            shots?: Array<{
+                pos: { x: number; y: number };
+                size: { w: number; h: number; initW?: number; initH?: number };
+            }>;
+        }> | undefined;
+
+        if (layers) {
+            for (const mod of data.layerModifications) {
+                const layer = layers.find(
+                    (l) => l.name.toLowerCase() === mod.layerName.toLowerCase()
+                );
+                if (!layer?.shots) continue;
+
+                for (const shot of layer.shots) {
+                    // Apply position delta
+                    if (mod.positionDelta) {
+                        if (mod.positionDelta.x !== undefined) {
+                            shot.pos.x += mod.positionDelta.x;
+                        }
+                        if (mod.positionDelta.y !== undefined) {
+                            shot.pos.y += mod.positionDelta.y;
+                        }
+                    }
+
+                    // Apply scale factor by modifying size values
+                    if (mod.scaleFactor && mod.scaleFactor !== 1) {
+                        // Calculate center point before scaling
+                        const centerX = shot.pos.x + shot.size.w / 2;
+                        const centerY = shot.pos.y + shot.size.h / 2;
+
+                        // Scale the size values
+                        shot.size.w *= mod.scaleFactor;
+                        shot.size.h *= mod.scaleFactor;
+
+                        // Also scale initW and initH (used by Grid8 player)
+                        if (shot.size.initW !== undefined) {
+                            shot.size.initW *= mod.scaleFactor;
+                        }
+                        if (shot.size.initH !== undefined) {
+                            shot.size.initH *= mod.scaleFactor;
+                        }
+
+                        // Adjust position to keep center point
+                        shot.pos.x = centerX - shot.size.w / 2;
+                        shot.pos.y = centerY - shot.size.h / 2;
+                    }
+                }
+            }
+        }
     }
 
     return newManifest;

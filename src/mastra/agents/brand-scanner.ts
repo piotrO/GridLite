@@ -54,7 +54,7 @@ Return a JSON object with the complete brand analysis:
   "targetAudiences": [{"name": "...", "description": "..."}],
   "rawWebsiteText": "<extracted text for strategy>"
 }`,
-  model: "google/gemini-2.0-flash",
+  model: "google/gemini-2.5-flash",
   tools: {
     "browser-session": browserSessionTool,
     "close-browser": closeBrowserTool,

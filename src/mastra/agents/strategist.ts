@@ -32,6 +32,18 @@ export const strategistAgent = new Agent({
    - Their target audiences
    - Industry best practices for display ads
 
+4. **IMPORTANT - Visual Story:**
+   Think about the ONE hero visual that tells this brand's story. Consider:
+   - What's the brand's most ICONIC product or symbol?
+   - What emotional moment captures the brand experience?
+   - What image would a customer instantly recognize as THIS brand?
+   
+   For example:
+   - McDonald's → Golden fries or someone enjoying a Big Mac
+   - Nike → Athlete in motion, determination on face
+   - Apple → Clean product shot, beautiful design
+   - Starbucks → Cozy moment with a warm cup
+
 **Output Format:**
 Return a JSON object with the following structure:
 {
@@ -43,13 +55,14 @@ Return a JSON object with the following structure:
     "subheadline": "Supporting message - max 12 words",
     "rationale": "Why this approach works for them (2-3 sentences)",
     "callToAction": "Primary CTA button text (2-4 words)",
+    "heroVisualConcept": "ONE sentence describing the perfect hero image that captures this brand's essence. Be specific about the product/subject, mood, and emotional connection.",
     "adFormats": ["300x250", "728x90", "160x600"],
     "targetingTips": ["Audience targeting tip 1", "Audience targeting tip 2"]
   }
 }
 
 IMPORTANT: Return ONLY the JSON, no markdown formatting or additional text.`,
-  model: "google/gemini-2.0-flash",
+  model: "google/gemini-2.5-flash",
 });
 
 /**
@@ -89,5 +102,5 @@ Return JSON in this format:
 
 Use a casual, friendly tone. Use emojis sparingly (🎯 💡 ✨).
 IMPORTANT: Always return valid JSON, no markdown.`,
-  model: "google/gemini-2.0-flash",
+  model: "google/gemini-2.5-flash",
 });

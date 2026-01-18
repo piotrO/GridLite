@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDesignerWorkflow } from "@/mastra";
-import {
-  generateDesignerChatResponse,
+import { generateImage, getImageDataUrl } from "@/mastra/tools";
+import { generateDesignerChatResponse } from "./lib/designer";
+import type {
   BrandProfile,
   StrategyData,
   CampaignData,
   CreativeDirection,
-} from "./lib/designer";
+} from "@/types/designer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120; // Allow extra time for image generation
 
 interface DesignerRequest {
   // Brand profile (required)
   brandProfile: BrandProfile;
+  // Brand ID for image upload (optional)
+  brandId?: string;
 
   // Strategy from Phase 2 (required for initial)
   strategy?: StrategyData;
@@ -25,6 +29,7 @@ interface DesignerRequest {
   mode?: "initial" | "chat";
   userMessage?: string;
   currentCreative?: CreativeDirection["creative"];
+  currentContent?: { headline: string; bodyCopy: string; ctaText: string };
   conversationHistory?: { role: "user" | "assistant"; content: string }[];
 }
 
@@ -48,12 +53,44 @@ export async function POST(request: NextRequest) {
         body.currentCreative,
         body.userMessage,
         body.conversationHistory || [],
+        body.currentContent,
       );
+
+      // Check if the response includes an image generation request
+      let imageUrl: string | undefined;
+      if (response.imageGenerationRequest) {
+        try {
+          console.log(
+            "[Designer] Generating image:",
+            response.imageGenerationRequest.prompt
+          );
+          const imageResult = await generateImage({
+            prompt: response.imageGenerationRequest.prompt,
+            style: response.imageGenerationRequest.style || "hero",
+            industry: body.brandProfile.industry,
+            moodKeywords: body.currentCreative?.moodKeywords,
+          });
+          
+          if (imageResult.success && imageResult.result) {
+            imageUrl = getImageDataUrl(imageResult.result);
+            console.log("[Designer] Image generated successfully");
+          } else {
+            console.error("[Designer] Image generation failed:", imageResult.error);
+          }
+        } catch (imageError) {
+          console.error("[Designer] Image generation failed:", imageError);
+          // Continue without image - don't fail the whole request
+        }
+      }
 
       return NextResponse.json({
         type: "chat",
         message: response.message,
         updatedCreative: response.updatedCreative,
+        layerModifications: response.layerModifications,
+        imageUrl,
+        needsClarification: response.needsClarification,
+        clarificationContext: response.clarificationContext,
       });
     }
 
@@ -108,17 +145,67 @@ export async function POST(request: NextRequest) {
           const workflowResult = await streamResult.result;
 
           if (workflowResult.status === "success" && workflowResult.result) {
+            const creativeResult = workflowResult.result as {
+              greeting: string;
+              creative: {
+                heroImagePrompt?: string;
+                imageDirection?: string;
+                moodKeywords?: string[];
+                [key: string]: unknown;
+              };
+            };
+
+            // Generate an initial image based on the creative direction
+            let imageUrl: string | undefined;
+
+            if (body.brandId) {
+              try {
+                sendStatus("generating_image");
+
+                // Use heroImagePrompt directly if available
+                const imagePrompt = creativeResult.creative.heroImagePrompt ||
+                  `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
+
+                console.log("[Designer] Generating initial image:", imagePrompt);
+
+                const imageResult = await generateImage({
+                  prompt: imagePrompt,
+                  style: "hero",
+                  industry: body.brandProfile.industry,
+                  moodKeywords: creativeResult.creative.moodKeywords,
+                });
+
+                if (imageResult.success && imageResult.result) {
+                  imageUrl = getImageDataUrl(imageResult.result);
+                  console.log("[Designer] Initial image generated successfully");
+                } else {
+                  console.error("[Designer] Initial image generation failed:", imageResult.error);
+                }
+              } catch (imageError) {
+                console.error("[Designer] Initial image generation failed:", imageError);
+                // Continue without image - don't fail the whole request
+              }
+            }
+
+            console.log("[Designer] Sending complete message with imageUrl:", imageUrl ? "yes (length: " + imageUrl.length + ")" : "no");
             const completeMessage =
               JSON.stringify({
                 type: "complete",
-                data: workflowResult.result,
+                data: {
+                  ...workflowResult.result,
+                  imageUrl, // Include generated image URL
+                },
               }) + "\n";
+            console.log("[Designer] Complete message size:", completeMessage.length);
             controller.enqueue(encoder.encode(completeMessage));
+            console.log("[Designer] Complete message enqueued, closing stream");
           } else {
+            console.error("[Designer] Workflow failed:", workflowResult);
             sendError("Creative generation failed");
           }
 
           controller.close();
+          console.log("[Designer] Stream closed successfully");
         } catch (error) {
           sendError(
             error instanceof Error ? error.message : "Unknown error occurred",

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { User, Lightbulb, Palette, Search, Link } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 export type PersonaType = "strategist" | "designer" | "researcher" | "traffic_manager" | "user";
@@ -94,7 +96,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
             {config.name}
           </span>
         )}
-        <p className="text-sm text-foreground leading-relaxed">{message.content}</p>
+        {/* Content */}
+        <div className={cn(
+          "text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words",
+          // Custom prose overrides for specific personas if needed,
+          // though usually prose-invert handles dark backgrounds well.
+          // We might need to handle specific text colors if the bubble background is light/dark.
+          config.textColor
+        )}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
       </div>
     </motion.div>
   );

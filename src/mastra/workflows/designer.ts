@@ -1,11 +1,7 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
-import {
-  generateInitialCreative,
-  BrandProfile,
-  StrategyData,
-  CampaignData,
-} from "@/app/api/designer/lib/designer";
+import { mastra } from "@/mastra";
+import type { BrandProfile, StrategyData, CampaignData } from "@/types/designer";
 
 /**
  * Brand profile schema for designer input.
@@ -41,6 +37,7 @@ const StrategyDataSchema = z.object({
   subheadline: z.string(),
   rationale: z.string(),
   callToAction: z.string(),
+  heroVisualConcept: z.string().optional(),
   adFormats: z.array(z.string()),
   targetingTips: z.array(z.string()),
 });
@@ -88,12 +85,104 @@ const CreativeOutputSchema = z.object({
     layoutSuggestion: z.string(),
     animationIdeas: z.array(z.string()),
     moodKeywords: z.array(z.string()),
-    imageDirection: z.string(),
+    heroImagePrompt: z.string().optional(),
+    imageDirection: z.string().optional(),
   }),
 });
 
 /**
- * Step 1: Generate creative direction with Designer persona
+ * Build context prompt for the designer agent.
+ */
+function buildContextPrompt(
+  brand: BrandProfile,
+  strategy: StrategyData,
+  campaign: CampaignData | null
+): string {
+  return `
+## Brand Information
+- Name: ${brand.name}
+- Industry: ${brand.industry || "Not specified"}
+- Tagline: ${brand.tagline || "None provided"}
+- About: ${brand.brandSummary || "No description available"}
+- Brand Voice: ${brand.tone || "Professional"}
+- Brand Colors: ${brand.colors?.join(", ") || "Not specified"}
+- Personality: ${brand.personality?.join(", ") || "Not specified"}
+
+## Target Audiences
+${brand.audiences && brand.audiences.length > 0
+    ? brand.audiences.map((a) => `- ${a.name}: ${a.description}`).join("\n")
+    : "- General consumers"
+  }
+
+## Approved Campaign Strategy
+- Type: ${strategy.recommendation}
+- Campaign Angle: "${strategy.campaignAngle}"
+- Headline: "${strategy.headline}"
+- Subheadline: "${strategy.subheadline}"
+- CTA: "${strategy.callToAction}"
+- Hero Visual Concept: "${strategy.heroVisualConcept || "Not specified"}"
+- Ad Formats: ${strategy.adFormats.join(", ")}
+
+## Campaign Data
+${campaign
+    ? `
+- Current Promotions: ${campaign.currentPromos.join(", ") || "None"}
+- Key Products: ${campaign.keyProducts.join(", ")}
+- USPs: ${campaign.uniqueSellingPoints.join(", ")}
+`
+    : "No additional campaign data available."
+  }
+
+Based on this information, create a cohesive visual direction that brings this campaign to life.
+`;
+}
+
+/**
+ * Parse designer response from the agent.
+ */
+function parseDesignerResponse(responseText: string, brand: BrandProfile) {
+  try {
+    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonString = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
+    return JSON.parse(jsonString);
+  } catch {
+    // Fallback response using brand colors if available
+    const primaryColor = brand.colors?.[0] || "#4F46E5";
+    const secondaryColor = brand.colors?.[1] || "#F97316";
+
+    return {
+      greeting: `Hey! 🎨 I've been studying your brand and the campaign strategy, and I'm really excited about the creative possibilities here! Let me show you what I have in mind.`,
+      creative: {
+        conceptName: "Bold Impact",
+        visualStyle: "Modern and Dynamic",
+        colorScheme: {
+          primary: primaryColor,
+          secondary: secondaryColor,
+          accent: "#10B981",
+          background: "#FFFFFF",
+        },
+        typography: {
+          headlineStyle: "Bold Sans-Serif",
+          bodyStyle: "Clean Sans-Serif",
+        },
+        layoutSuggestion:
+          "Hero headline at top with strong visual center and CTA button prominently placed at bottom.",
+        animationIdeas: [
+          "Fade-in headline with subtle slide",
+          "Pulsing CTA button to draw attention",
+        ],
+        moodKeywords: ["Professional", "Trustworthy", "Modern"],
+        heroImagePrompt:
+          "Professional hero image for digital advertising, clean composition, modern style",
+        imageDirection:
+          "Clean product shots or abstract brand imagery with strong contrast.",
+      },
+    };
+  }
+}
+
+/**
+ * Step 1: Generate creative direction with Designer agent
  */
 const generateCreativeStep = createStep({
   id: "generate-creative",
@@ -103,17 +192,25 @@ const generateCreativeStep = createStep({
     const { brandProfile, strategy, campaignData } = inputData;
 
     try {
-      const result = await generateInitialCreative(
+      const agent = mastra.getAgent("designer");
+      const contextPrompt = buildContextPrompt(
         brandProfile as BrandProfile,
         strategy as StrategyData,
         (campaignData as CampaignData) || null,
       );
 
+      const result = await agent.generate([
+        { role: "user", content: contextPrompt },
+      ]);
+
+      const parsed = parseDesignerResponse(result.text, brandProfile as BrandProfile);
+
       return {
-        greeting: result.greeting,
-        creative: result.creative,
+        greeting: parsed.greeting,
+        creative: parsed.creative,
       };
     } catch (error) {
+      console.error("[Designer Workflow] Error:", error);
       // Return fallback creative direction
       const primaryColor = brandProfile.colors?.[0] || "#4F46E5";
       const secondaryColor = brandProfile.colors?.[1] || "#F97316";
@@ -140,6 +237,8 @@ const generateCreativeStep = createStep({
             "Pulsing CTA button to draw attention",
           ],
           moodKeywords: ["Professional", "Trustworthy", "Modern"],
+          heroImagePrompt:
+            "Professional hero image for digital advertising, clean composition, modern style",
           imageDirection:
             "Clean product shots or abstract brand imagery with strong contrast.",
         },
@@ -152,7 +251,7 @@ const generateCreativeStep = createStep({
  * Designer Workflow
  *
  * A single-step workflow that generates creative direction:
- * 1. Generate creative with Designer persona (Davinci)
+ * 1. Generate creative with Designer agent (Davinci)
  */
 export const designerWorkflow = createWorkflow({
   id: "designer",
