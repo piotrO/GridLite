@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScanResult } from "./lib/types";
-import {
-  createBrowserSession,
-  captureScreenshot,
-  closeBrowser,
-} from "./lib/browser";
-import { extractLogo } from "./lib/logo-extractor";
-import { analyzeWithAI, isRateLimitError } from "./lib/ai-analyzer";
+import { getBrandScanWorkflow } from "@/mastra";
 import { parseUrl } from "./lib/url-utils";
-import { extractWebsiteText } from "./lib/text-extractor";
 
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * POST /api/scan
+ *
+ * Scans a website URL and extracts comprehensive brand information using
+ * the Mastra BrandScan workflow.
+ *
+ * Request body: { url: string }
+ * Response: Streaming response with status updates and final result
+ */
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
 
@@ -24,15 +26,13 @@ export async function POST(request: NextRequest) {
     if (!normalizedUrl) {
       return NextResponse.json(
         { error: "Invalid URL provided" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Create a streaming response
     const stream = new ReadableStream({
       async start(controller) {
-        let browser = null;
-
         const sendStatus = (step: string) => {
           const message = JSON.stringify({ type: "status", step }) + "\n";
           controller.enqueue(encoder.encode(message));
@@ -44,66 +44,81 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          // STEP 1: Launch browser and navigate
+          // Get the workflow
+          const workflow = getBrandScanWorkflow();
+
+          // Send status updates as workflow progresses
+          sendStatus("starting_scan");
+
+          // Create a run
+          const run = await workflow.createRunAsync();
+
           sendStatus("extracting_text");
-          const session = await createBrowserSession(normalizedUrl);
-          browser = session.browser;
 
-          // STEP 2: Extract Logo
-          sendStatus("extracting_logo");
-          const logoUrl = await extractLogo(session.page, normalizedUrl);
+          // Start the workflow and stream events
+          const streamResult = await run.stream({
+            inputData: { url: normalizedUrl },
+          });
 
-          // STEP 3: Take screenshot for AI analysis
-          sendStatus("analyzing_colors");
-          const screenshotBuffer = await captureScreenshot(session.page);
+          // Track which steps have completed for status updates
+          const completedSteps = new Set<string>();
 
-          // STEP 3.5: Extract raw text for Strategy phase
-          const rawWebsiteText = await extractWebsiteText(session.page);
+          // Process stream events
+          for await (const event of streamResult.fullStream) {
+            // Check for step completion events
+            if (event.type === "workflow-step-finish" && event.payload?.id) {
+              const stepId = event.payload.id;
 
-          // Close browser before AI analysis
-          await closeBrowser(browser);
-          browser = null;
+              // Only send status once per step
+              if (!completedSteps.has(stepId)) {
+                completedSteps.add(stepId);
 
-          // STEP 4: AI Analysis with Gemini
-          sendStatus("analyzing_ai");
-          const aiData = await analyzeWithAI(screenshotBuffer);
+                const statusMap: Record<string, string> = {
+                  "launch-browser": "extracting_text",
+                  "extract-logo": "extracting_logo",
+                  "capture-screenshot": "analyzing_colors",
+                  "extract-text": "extracting_text",
+                  "analyze-with-ai": "analyzing_ai",
+                };
 
-          // Ensure we have colors
-          const finalColors =
-            aiData.colors && aiData.colors.length > 0
-              ? aiData.colors.slice(0, 4)
-              : ["#4F46E5", "#F97316", "#10B981", "#8B5CF6"];
+                if (statusMap[stepId]) {
+                  sendStatus(statusMap[stepId]);
+                }
+              }
+            }
+          }
 
-          // STEP 5: Send final result
-          const finalData: ScanResult = {
-            logo: logoUrl || "🚀",
-            colors: finalColors,
-            businessName: aiData.businessName,
-            shortName: aiData.shortName,
-            tagline: aiData.tagline || "Innovation meets excellence",
-            voice: aiData.voice || ["Innovative", "Trustworthy", "Modern"],
-            tone: aiData.tone || "Professional yet approachable",
-            industry: aiData.industry,
-            brandSummary: aiData.brandSummary,
-            targetAudiences: aiData.targetAudiences,
-            rawWebsiteText,
-          };
+          // Get the final result
+          const workflowResult = await streamResult.result;
 
-          const completeMessage =
-            JSON.stringify({ type: "complete", data: finalData }) + "\n";
-          controller.enqueue(encoder.encode(completeMessage));
+          if (workflowResult.status === "success" && workflowResult.result) {
+            const finalResult = workflowResult.result as ScanResult;
+            const completeMessage =
+              JSON.stringify({ type: "complete", data: finalResult }) + "\n";
+            controller.enqueue(encoder.encode(completeMessage));
+          } else {
+            // Handle workflow failure
+            const errorMessage =
+              workflowResult.status === "failed"
+                ? "Workflow failed to complete"
+                : "Workflow completed but no result was returned";
+            sendError(errorMessage);
+          }
+
           controller.close();
         } catch (error) {
-          await closeBrowser(browser);
-
-          if (error instanceof Error && isRateLimitError(error)) {
+          // Check for rate limit errors
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          if (
+            errorMessage.includes("429") ||
+            errorMessage.toLowerCase().includes("too many requests")
+          ) {
             sendError(
-              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again."
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
             );
           } else {
-            sendError(
-              error instanceof Error ? error.message : "Unknown error occurred"
-            );
+            sendError(errorMessage);
           }
           controller.close();
         }
@@ -122,7 +137,7 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error ? error.message : "Failed to process request",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,8 +1,0 @@
-{
-  "/(landing)/page": "app/(landing)/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/strategy/page": "app/strategy/page.js",
-  "/studio/page": "app/studio/page.js",
-  "/api/designer/route": "app/api/designer/route.js",
-  "/_not-found/page": "app/_not-found/page.js"
-}

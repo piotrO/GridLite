@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDesignerWorkflow } from "@/mastra";
 import {
-  generateInitialCreative,
   generateDesignerChatResponse,
   BrandProfile,
   StrategyData,
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!body.brandProfile) {
       return NextResponse.json(
         { error: "brandProfile is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         body.brandProfile,
         body.currentCreative,
         body.userMessage,
-        body.conversationHistory || []
+        body.conversationHistory || [],
       );
 
       return NextResponse.json({
@@ -57,11 +57,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Initial creative generation (streaming)
+    // Initial creative generation (streaming via Mastra workflow)
     if (!body.strategy) {
       return NextResponse.json(
         { error: "strategy is required for initial creative generation" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -78,40 +78,50 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          // Status: Analyzing brand
+          const workflow = getDesignerWorkflow();
+
           sendStatus("analyzing_brand");
 
-          // Small delay for UX
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          const run = await workflow.createRunAsync();
 
-          // Status: Reviewing strategy
+          // Small delay for UX (matches original behavior)
+          await new Promise((resolve) => setTimeout(resolve, 500));
           sendStatus("reviewing_strategy");
 
           await new Promise((resolve) => setTimeout(resolve, 500));
-
-          // Status: Creating visuals
           sendStatus("creating_visuals");
 
-          const result = await generateInitialCreative(
-            body.brandProfile,
-            body.strategy!,
-            body.campaignData || null
-          );
+          const streamResult = await run.stream({
+            inputData: {
+              brandProfile: body.brandProfile,
+              strategy: body.strategy,
+              campaignData: body.campaignData || null,
+            },
+          });
 
-          // Send final result
-          const completeMessage =
-            JSON.stringify({
-              type: "complete",
-              data: {
-                greeting: result.greeting,
-                creative: result.creative,
-              },
-            }) + "\n";
-          controller.enqueue(encoder.encode(completeMessage));
+          // Consume the stream
+          for await (const _event of streamResult.fullStream) {
+            // We already sent status updates manually
+          }
+
+          // Get the final result
+          const workflowResult = await streamResult.result;
+
+          if (workflowResult.status === "success" && workflowResult.result) {
+            const completeMessage =
+              JSON.stringify({
+                type: "complete",
+                data: workflowResult.result,
+              }) + "\n";
+            controller.enqueue(encoder.encode(completeMessage));
+          } else {
+            sendError("Creative generation failed");
+          }
+
           controller.close();
         } catch (error) {
           sendError(
-            error instanceof Error ? error.message : "Unknown error occurred"
+            error instanceof Error ? error.message : "Unknown error occurred",
           );
           controller.close();
         }
@@ -130,7 +140,7 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error ? error.message : "Failed to process request",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

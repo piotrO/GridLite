@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createBrowserSession, closeBrowser } from "../scan/lib/browser";
-import { extractWebsiteText } from "../scan/lib/text-extractor";
-import { parseUrl } from "../scan/lib/url-utils";
-import { extractCampaignData, CampaignData } from "./lib/strategy-analyzer";
+import { getStrategyWorkflow } from "@/mastra";
 import {
-  generateInitialStrategy,
   generateChatResponse,
   BrandProfileInput,
   StrategyDocument,
@@ -40,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!body.brandProfile) {
       return NextResponse.json(
         { error: "brandProfile is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -50,7 +46,7 @@ export async function POST(request: NextRequest) {
         body.brandProfile,
         body.currentStrategy,
         body.userMessage,
-        body.conversationHistory || []
+        body.conversationHistory || [],
       );
 
       return NextResponse.json({
@@ -60,11 +56,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Initial strategy generation (streaming)
+    // Initial strategy generation (streaming via Mastra workflow)
     const stream = new ReadableStream({
       async start(controller) {
-        let browser = null;
-
         const sendStatus = (step: string) => {
           const message = JSON.stringify({ type: "status", step }) + "\n";
           controller.enqueue(encoder.encode(message));
@@ -76,61 +70,61 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          let websiteText = body.rawWebsiteText;
-          let campaignData: CampaignData;
+          const workflow = getStrategyWorkflow();
 
-          // If no raw text provided, do text-only rescan
-          if (!websiteText && body.websiteUrl) {
-            sendStatus("scanning_website");
-            const normalizedUrl = parseUrl(body.websiteUrl);
+          sendStatus("starting_strategy");
 
-            if (!normalizedUrl) {
-              sendError("Invalid website URL");
-              controller.close();
-              return;
+          const run = await workflow.createRunAsync();
+
+          const streamResult = await run.stream({
+            inputData: {
+              brandProfile: body.brandProfile,
+              rawWebsiteText: body.rawWebsiteText,
+              websiteUrl: body.websiteUrl,
+            },
+          });
+
+          // Track completed steps
+          const completedSteps = new Set<string>();
+
+          for await (const event of streamResult.fullStream) {
+            if (event.type === "workflow-step-finish" && event.payload?.id) {
+              const stepId = event.payload.id;
+
+              if (!completedSteps.has(stepId)) {
+                completedSteps.add(stepId);
+
+                const statusMap: Record<string, string> = {
+                  "fetch-website-text": "scanning_website",
+                  "extract-campaign-data": "analyzing_content",
+                  "generate-strategy": "generating_strategy",
+                };
+
+                if (statusMap[stepId]) {
+                  sendStatus(statusMap[stepId]);
+                }
+              }
             }
-
-            const session = await createBrowserSession(normalizedUrl);
-            browser = session.browser;
-            websiteText = await extractWebsiteText(session.page);
-            await closeBrowser(browser);
-            browser = null;
           }
 
-          // If we still have no text, use brand info as fallback
-          if (!websiteText) {
-            websiteText = `${body.brandProfile.name}. ${
-              body.brandProfile.brandSummary || ""
-            } ${body.brandProfile.tagline || ""}`;
+          // Get the final result
+          const workflowResult = await streamResult.result;
+
+          if (workflowResult.status === "success" && workflowResult.result) {
+            const completeMessage =
+              JSON.stringify({
+                type: "complete",
+                data: workflowResult.result,
+              }) + "\n";
+            controller.enqueue(encoder.encode(completeMessage));
+          } else {
+            sendError("Strategy generation failed");
           }
 
-          // Extract campaign data from website text
-          sendStatus("analyzing_content");
-          campaignData = await extractCampaignData(websiteText);
-
-          // Generate strategy with Strategist persona
-          sendStatus("generating_strategy");
-          const result = await generateInitialStrategy(
-            body.brandProfile,
-            campaignData
-          );
-
-          // Send final result
-          const completeMessage =
-            JSON.stringify({
-              type: "complete",
-              data: {
-                greeting: result.greeting,
-                strategy: result.strategy,
-                campaignData,
-              },
-            }) + "\n";
-          controller.enqueue(encoder.encode(completeMessage));
           controller.close();
         } catch (error) {
-          await closeBrowser(browser);
           sendError(
-            error instanceof Error ? error.message : "Unknown error occurred"
+            error instanceof Error ? error.message : "Unknown error occurred",
           );
           controller.close();
         }
@@ -149,7 +143,7 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error ? error.message : "Failed to process request",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
