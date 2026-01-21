@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
+import { ExportSession, LayerModification } from "@/types/export-types";
+import { DynamicValueData } from "@/lib/manifest-utils";
 
 export interface Campaign {
   id: string;
@@ -33,7 +35,7 @@ export interface StrategySession {
   } | null;
 }
 
-// Design session state for passing data between Strategy → Studio
+// Design session state for passing data between Strategy → Studio → Export
 export interface DesignSession {
   creative: {
     conceptName: string;
@@ -53,6 +55,10 @@ export interface DesignSession {
     moodKeywords: string[];
     imageDirection: string;
   } | null;
+  // AI-generated hero image URL (base64 data URI or remote URL)
+  imageUrl: string | null;
+  // Brand logo URL (from brand kit)
+  logoUrl: string | null;
 }
 
 interface CampaignContextType {
@@ -69,7 +75,15 @@ interface CampaignContextType {
   // Design session management
   designSession: DesignSession;
   setCreative: (creative: DesignSession["creative"]) => void;
+  setImageUrl: (imageUrl: string | null) => void;
+  setLogoUrl: (logoUrl: string | null) => void;
   clearDesignSession: () => void;
+
+  // Export session management
+  exportSession: ExportSession | null;
+  setExportSession: (session: ExportSession) => void;
+  updateExportSession: (updates: Partial<ExportSession>) => void;
+  clearExportSession: () => void;
 }
 
 const initialCampaigns: Campaign[] = [
@@ -104,6 +118,8 @@ const emptyStrategySession: StrategySession = {
 
 const emptyDesignSession: DesignSession = {
   creative: null,
+  imageUrl: null,
+  logoUrl: null,
 };
 
 const CampaignContext = createContext<CampaignContextType | undefined>(
@@ -116,6 +132,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     useState<StrategySession>(emptyStrategySession);
   const [designSession, setDesignSession] =
     useState<DesignSession>(emptyDesignSession);
+  const [exportSession, setExportSessionState] = useState<ExportSession | null>(null);
 
   const setCampaignStatus = (id: string, status: Campaign["status"]) => {
     setCampaigns((prev) =>
@@ -145,8 +162,28 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setDesignSession((prev) => ({ ...prev, creative }));
   };
 
+  const setImageUrl = (imageUrl: string | null) => {
+    setDesignSession((prev) => ({ ...prev, imageUrl }));
+  };
+
+  const setLogoUrl = (logoUrl: string | null) => {
+    setDesignSession((prev) => ({ ...prev, logoUrl }));
+  };
+
   const clearDesignSession = () => {
     setDesignSession(emptyDesignSession);
+  };
+
+  const setExportSession = (session: ExportSession) => {
+    setExportSessionState(session);
+  };
+
+  const updateExportSession = (updates: Partial<ExportSession>) => {
+    setExportSessionState((prev) => prev ? { ...prev, ...updates } : null);
+  };
+
+  const clearExportSession = () => {
+    setExportSessionState(null);
   };
 
   return (
@@ -161,7 +198,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         clearStrategySession,
         designSession,
         setCreative,
+        setImageUrl,
+        setLogoUrl,
         clearDesignSession,
+        exportSession,
+        setExportSession,
+        updateExportSession,
+        clearExportSession,
       }}
     >
       {children}
@@ -176,3 +219,6 @@ export function useCampaign() {
   }
   return context;
 }
+
+// Re-export types for convenience
+export type { ExportSession, LayerModification, DynamicValueData };

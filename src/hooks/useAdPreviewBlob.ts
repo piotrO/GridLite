@@ -102,6 +102,14 @@ export function useAdPreviewBlob({
             // Parse the manifest
             const baseManifest = parseManifestJs(manifestJs);
 
+            // Debug: Log data being applied
+            console.log("[useAdPreviewBlob] Applying dynamic values:", {
+                headline: data.headline,
+                bodyCopy: data.bodyCopy?.substring(0, 30) + "...",
+                layerModifications: data.layerModifications,
+                hasColors: !!data.colors?.length,
+            });
+
             // Apply dynamic values
             const modifiedManifest = applyDynamicValues(baseManifest, data);
 
@@ -165,7 +173,9 @@ export function useAdPreviewBlob({
                 setIsLoading(false);
             }
         }
-    }, [templatePath, size, data]);
+    // Stringify data for stable dependency comparison (detects deep changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [templatePath, size, JSON.stringify(data)]);
 
     // Debounced effect to regenerate blob when inputs change
     useEffect(() => {

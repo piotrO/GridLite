@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Download, FileArchive } from "lucide-react";
+import { Download, FileArchive, Loader2, Check } from "lucide-react";
 import { PersonaType } from "@/components/ChatInterface";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
+import { useCampaign } from "@/contexts/CampaignContext";
+import { toast } from "@/hooks/use-toast";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -19,13 +21,18 @@ import { DownloadableAssetCard } from "@/components/AdSizeCard";
 import { PlatformGuidesCard } from "./PlatformGuidesCard";
 import { GradientBackground } from "@/components/GradientBackground";
 
-const adSizes = [
-  { id: "300x250", name: "Medium Rectangle", dimensions: "300 × 250" },
-  { id: "728x90", name: "Leaderboard", dimensions: "728 × 90" },
-  { id: "160x600", name: "Wide Skyscraper", dimensions: "160 × 600" },
-  { id: "320x50", name: "Mobile Banner", dimensions: "320 × 50" },
-  { id: "1080x1080", name: "Social Square", dimensions: "1080 × 1080" },
-];
+// Size name mapping
+const sizeNames: Record<string, string> = {
+  "300x250": "Medium Rectangle",
+  "728x90": "Leaderboard",
+  "160x600": "Wide Skyscraper",
+  "300x600": "Half Page",
+  "320x50": "Mobile Banner",
+  "320x100": "Large Mobile Banner",
+  "970x250": "Billboard",
+  "970x90": "Large Leaderboard",
+  "1080x1080": "Social Square",
+};
 
 const platformGuides = {
   "google-ads": {
@@ -87,7 +94,19 @@ const mockResponses: Record<string, string> = {
 
 export default function MediaBuyerPage() {
   const router = useRouter();
+  const { exportSession } = useCampaign();
   const [downloadedFiles, setDownloadedFiles] = useState<string[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingSize, setDownloadingSize] = useState<string | null>(null);
+
+  // Build ad sizes from export session or use defaults
+  const adSizes = exportSession?.selectedSizes?.map((id) => ({
+    id,
+    name: sizeNames[id] || id,
+    dimensions: id.replace("x", " × "),
+  })) || [
+    { id: "300x600", name: "Half Page", dimensions: "300 × 600" },
+  ];
 
   const [messages, setMessages] = useState<
     { id: string; persona: PersonaType; content: string; timestamp: Date }[]
@@ -95,8 +114,9 @@ export default function MediaBuyerPage() {
     {
       id: "1",
       persona: "traffic_manager",
-      content:
-        "Great work! I've packaged all your industry-standard formats. Download them below, and follow my guides to get them live.",
+      content: exportSession
+        ? `Great work! Your ${adSizes.length} creative${adSizes.length > 1 ? "s have" : " has"} been exported. Download them below, and follow my guides to get them live.`
+        : "Great work! I've packaged all your industry-standard formats. Download them below, and follow my guides to get them live.",
       timestamp: new Date(),
     },
   ]);
@@ -142,15 +162,93 @@ export default function MediaBuyerPage() {
     }, 1500);
   };
 
+  // Download a single size or all sizes
+  const downloadZip = async (sizes: string[]) => {
+    if (!exportSession) {
+      toast({
+        title: "No export data",
+        description: "Please export from the Studio first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDownloading(true);
+    if (sizes.length === 1) {
+      setDownloadingSize(sizes[0]);
+    }
+
+    try {
+      const response = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templatePath: exportSession.templatePath,
+          sizes,
+          dynamicValues: exportSession.dynamicValues,
+          layerModifications: exportSession.layerModifications,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Download failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = sizes.length === 1 
+        ? `${sizes[0]}-export.zip`
+        : `campaign-export-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Mark as downloaded
+      setDownloadedFiles((prev) => [...new Set([...prev, ...sizes])]);
+      
+      toast({
+        title: "Download complete! 📦",
+        description: sizes.length === 1 
+          ? `${sizes[0]} has been downloaded.`
+          : `${sizes.length} sizes have been downloaded.`,
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        title: "Download failed",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+      setDownloadingSize(null);
+    }
+  };
+
   const handleDownload = (sizeId: string) => {
+    downloadZip([sizeId]);
+  };
+
+  const handleDownloadAll = () => {
+    downloadZip(adSizes.map((s) => s.id));
+  };
+
+  const handleDownloadSelected = () => {
+    if (downloadedFiles.length === 0) return;
+    // Re-download selected files
+    downloadZip(downloadedFiles);
+  };
+
+  const toggleSelection = (sizeId: string) => {
     setDownloadedFiles((prev) =>
       prev.includes(sizeId)
         ? prev.filter((id) => id !== sizeId)
         : [...prev, sizeId]
     );
   };
-
-  const handleDownloadAll = () => setDownloadedFiles(adSizes.map((s) => s.id));
 
   return (
     <div className="h-screen flex flex-col bg-background relative">
@@ -211,16 +309,23 @@ export default function MediaBuyerPage() {
                     <CardTitle className="text-lg flex items-center gap-2">
                       <FileArchive className="w-5 h-5 text-primary" />
                       Campaign Assets
+                      {exportSession?.exportedAt && (
+                        <span className="text-xs text-muted-foreground font-normal">
+                          (exported {new Date(exportSession.exportedAt).toLocaleTimeString()})
+                        </span>
+                      )}
                     </CardTitle>
                     <div className="flex gap-2">
-                      {downloadedFiles.length > 0 && (
-                        <Button variant="outline" className="gap-2">
+                      <Button 
+                        onClick={handleDownloadAll} 
+                        className="gap-2"
+                        disabled={isDownloading}
+                      >
+                        {isDownloading && !downloadingSize ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
                           <Download className="w-4 h-4" />
-                          Download Selected ({downloadedFiles.length})
-                        </Button>
-                      )}
-                      <Button onClick={handleDownloadAll} className="gap-2">
-                        <Download className="w-4 h-4" />
+                        )}
                         Download All
                       </Button>
                     </div>
@@ -228,12 +333,28 @@ export default function MediaBuyerPage() {
                   <CardContent>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {adSizes.map((size) => (
-                        <DownloadableAssetCard
+                        <div
                           key={size.id}
-                          size={size}
-                          isSelected={downloadedFiles.includes(size.id)}
-                          onToggle={() => handleDownload(size.id)}
-                        />
+                          className="relative group border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
+                          onClick={() => handleDownload(size.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-foreground">{size.name}</p>
+                              <p className="text-sm text-muted-foreground">{size.dimensions}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {downloadedFiles.includes(size.id) && (
+                                <Check className="w-4 h-4 text-green-500" />
+                              )}
+                              {downloadingSize === size.id ? (
+                                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                              ) : (
+                                <Download className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </CardContent>

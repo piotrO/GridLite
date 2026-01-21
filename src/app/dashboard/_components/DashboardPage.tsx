@@ -128,13 +128,13 @@ export default function DashboardPage() {
             className="flex items-center justify-between"
           >
             <TabsList className="bg-muted/50">
-              <TabsTrigger value="brand-kits" className="gap-2">
-                <Palette className="w-4 h-4" />
-                Brand Kits
-              </TabsTrigger>
               <TabsTrigger value="campaigns" className="gap-2">
                 <Globe className="w-4 h-4" />
                 Campaigns
+              </TabsTrigger>
+              <TabsTrigger value="brand-kits" className="gap-2">
+                <Palette className="w-4 h-4" />
+                Brand Kits
               </TabsTrigger>
               <TabsTrigger value="assets" className="gap-2">
                 <Image className="w-4 h-4" />

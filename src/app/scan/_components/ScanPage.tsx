@@ -446,15 +446,16 @@ export default function ScanPage() {
 
   // Step 2: Scanning Animation
   if (!scanComplete) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6 relative">
-        <GradientBackground colorVar="researcher" />
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="w-full max-w-lg relative z-10"
-        >
-          {scanError ? (
+    // Show error state
+    if (scanError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-6 relative">
+          <GradientBackground colorVar="researcher" />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="w-full max-w-lg relative z-10"
+          >
             <div className="text-center space-y-4">
               <div className="text-red-500 font-semibold">
                 Error: {scanError}
@@ -469,15 +470,18 @@ export default function ScanPage() {
                 Try Again
               </button>
             </div>
-          ) : (
-            <ScanningAnimation
-              url={urlInput || "example.com"}
-              onComplete={handleScanComplete}
-              currentStep={currentScanStep}
-            />
-          )}
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // Show scanning animation (includes its own full-page layout)
+    return (
+      <ScanningAnimation
+        url={urlInput || "example.com"}
+        onComplete={handleScanComplete}
+        currentStep={currentScanStep}
+      />
     );
   }
 

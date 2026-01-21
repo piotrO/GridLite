@@ -191,16 +191,24 @@ export function applyDynamicValues(
         }
     }
 
-    // Handle colors separately (they need to be joined with |)
+    // Handle colors - add them to settings.defaults.colors as pipe-separated string
+    // This is how Grid8 templates read dynamic data (via grid8player.dynamicData)
     if (data.colors && data.colors.length > 0) {
-        // Colors are applied via the globalScripts in the template's HTML
-        // We'll inject them as a dynamicData override in the HTML
-        // Store them in a custom field for later use
+        if (!settings.defaults) {
+            settings.defaults = {};
+        }
+        // Join colors with pipe separator (Grid8 format)
+        (settings.defaults as Record<string, string>).colors = data.colors.slice(0, 3).join("|");
+        
+        // Also store as __colors for extraction by useAdPreviewBlob
+        // This allows injecting colors into dynamicData directly
         (newManifest as Record<string, unknown>).__colors = data.colors;
     }
 
     // Apply layer modifications if provided
     if (data.layerModifications && data.layerModifications.length > 0) {
+        console.log("[ManifestUtils] Applying layer modifications:", data.layerModifications);
+        
         const layers = newManifest.layers as Array<{
             name: string;
             shots?: Array<{
@@ -210,13 +218,30 @@ export function applyDynamicValues(
         }> | undefined;
 
         if (layers) {
+            console.log("[ManifestUtils] Available layers:", layers.map(l => l.name));
+            
             for (const mod of data.layerModifications) {
                 const layer = layers.find(
                     (l) => l.name.toLowerCase() === mod.layerName.toLowerCase()
                 );
-                if (!layer?.shots) continue;
+                
+                if (!layer) {
+                    console.warn("[ManifestUtils] Layer not found:", mod.layerName);
+                    continue;
+                }
+                if (!layer.shots) {
+                    console.warn("[ManifestUtils] Layer has no shots:", mod.layerName);
+                    continue;
+                }
+
+                console.log(`[ManifestUtils] Modifying layer "${mod.layerName}":`, {
+                    positionDelta: mod.positionDelta,
+                    scaleFactor: mod.scaleFactor
+                });
 
                 for (const shot of layer.shots) {
+                    const oldPos = { x: shot.pos.x, y: shot.pos.y };
+                    
                     // Apply position delta
                     if (mod.positionDelta) {
                         if (mod.positionDelta.x !== undefined) {
@@ -249,8 +274,12 @@ export function applyDynamicValues(
                         shot.pos.x = centerX - shot.size.w / 2;
                         shot.pos.y = centerY - shot.size.h / 2;
                     }
+                    
+                    console.log(`[ManifestUtils] Layer "${mod.layerName}" position changed:`, oldPos, "->", shot.pos);
                 }
             }
+        } else {
+            console.warn("[ManifestUtils] No layers array in manifest");
         }
     }
 

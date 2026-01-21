@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         try {
           const workflow = getStrategyWorkflow();
 
-          sendStatus("starting_strategy");
+          sendStatus("scanning_website");
 
           const run = await workflow.createRunAsync();
 
@@ -88,10 +88,12 @@ export async function POST(request: NextRequest) {
           const completedSteps = new Set<string>();
 
           for await (const event of streamResult.fullStream) {
-            if (event.type === "workflow-step-finish" && event.payload?.id) {
-              const stepId = event.payload.id;
+            // Mastra workflow events use "workflow-step-start" type
+            if (event.type === "workflow-step-start" && "payload" in event) {
+              const payload = event.payload as { stepId?: string };
+              const stepId = payload?.stepId;
 
-              if (!completedSteps.has(stepId)) {
+              if (stepId && !completedSteps.has(stepId)) {
                 completedSteps.add(stepId);
 
                 const statusMap: Record<string, string> = {

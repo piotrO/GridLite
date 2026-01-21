@@ -65,19 +65,27 @@ export async function POST(request: NextRequest) {
 
           // Process stream events
           for await (const event of streamResult.fullStream) {
-            // Check for step completion events
-            if (event.type === "workflow-step-finish" && event.payload?.id) {
-              const stepId = event.payload.id;
+            // Check for step START events to show progress as steps begin
+            // Mastra workflow events use "workflow-step-start" type
+            if (event.type === "workflow-step-start" && "payload" in event) {
+              const payload = event.payload as Record<string, unknown>;
+              // Try different possible locations for stepId
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as string | undefined;
 
               // Only send status once per step
-              if (!completedSteps.has(stepId)) {
+              if (stepId && !completedSteps.has(stepId)) {
                 completedSteps.add(stepId);
 
+                // Map workflow steps to UI progress steps
+                // Workflow order: launch-browser → extract-logo → capture-screenshot → extract-text → analyze-with-ai
+                // UI order: extracting_text → extracting_logo → analyzing_colors → analyzing_ai
+                // Note: extract-text happens after capture-screenshot, so we skip it to avoid going backwards
                 const statusMap: Record<string, string> = {
                   "launch-browser": "extracting_text",
                   "extract-logo": "extracting_logo",
                   "capture-screenshot": "analyzing_colors",
-                  "extract-text": "extracting_text",
+                  // "extract-text" is skipped - happens after capture-screenshot but would map to step 1
                   "analyze-with-ai": "analyzing_ai",
                 };
 

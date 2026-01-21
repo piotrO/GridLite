@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Download,
   FileArchive,
@@ -12,9 +12,10 @@ import {
 } from "lucide-react";
 import { UnlockModal } from "@/components/UnlockModal";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import { useCredits } from "@/contexts/CreditContext";
+import { useCampaign } from "@/contexts/CampaignContext";
 import { PersonaType } from "@/components/ChatInterface";
 import {
   ResizableHandle,
@@ -31,6 +32,7 @@ import {
 import { PlatformSelectionCard } from "./PlatformSelectionCard";
 import { ExportSummaryCard } from "./ExportSummaryCard";
 import { ExportFormatsCard, AdSizesCard } from "./ExportCards";
+import { AdSize } from "@/types/export-types";
 
 const adPlatforms = [
   { id: "google-studio", name: "Google Web Designer", logo: "🎨" },
@@ -75,22 +77,42 @@ const exportFormats = [
   },
 ];
 
-const adSizes = [
-  { id: "300x250", name: "Medium Rectangle", dimensions: "300 × 250" },
-  { id: "728x90", name: "Leaderboard", dimensions: "728 × 90" },
-  { id: "160x600", name: "Wide Skyscraper", dimensions: "160 × 600" },
-  { id: "320x50", name: "Mobile Banner", dimensions: "320 × 50" },
-];
-
 export default function ExportPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { credits, useCredit } = useCredits();
+  const { exportSession, setExportSession, designSession, strategySession } = useCampaign();
+  
   const [selectedFormats, setSelectedFormats] = useState<string[]>(["html5"]);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportComplete, setExportComplete] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [availableSizes, setAvailableSizes] = useState<AdSize[]>([]);
+
+  // Get template from URL params or default
+  const templatePath = searchParams.get("template") || "test-template";
+
+  // Fetch available sizes on mount
+  useEffect(() => {
+    const fetchSizes = async () => {
+      try {
+        const res = await fetch(`/api/export?template=${templatePath}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableSizes(data.sizes);
+        }
+      } catch (error) {
+        console.error("Failed to fetch available sizes:", error);
+        // Fallback to hardcoded sizes
+        setAvailableSizes([
+          { id: "300x600", name: "Half Page", dimensions: "300 × 600", available: true },
+        ]);
+      }
+    };
+    fetchSizes();
+  }, [templatePath]);
 
   const [chatMessages, setChatMessages] = useState<
     { id: string; persona: PersonaType; content: string; timestamp: Date }[]
@@ -168,21 +190,65 @@ export default function ExportPage() {
 
     for (let i = 0; i < totalCreditCost; i++) useCredit();
     setIsExporting(true);
-    setExportProgress(0);
+    setExportProgress(10);
 
-    const interval = setInterval(() => {
-      setExportProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsExporting(false);
-          setExportComplete(true);
-          toast({ title: "Export complete!" });
-          setTimeout(() => router.push("/launch"), 1000);
-          return 100;
+    try {
+      // Build dynamic values from context or URL params
+      const dynamicValues = {
+        headline: searchParams.get("headline") || strategySession.strategy?.headline || "SUMMER SALE",
+        bodyCopy: searchParams.get("bodyCopy") || strategySession.strategy?.subheadline || "Don't miss out!",
+        ctaText: searchParams.get("ctaText") || strategySession.strategy?.callToAction || "Shop Now",
+        imageUrl: searchParams.get("imageUrl") || designSession.imageUrl || "",
+        logoUrl: designSession.logoUrl || "",
+        colors: designSession.creative?.colorScheme 
+          ? [
+              designSession.creative.colorScheme.primary,
+              designSession.creative.colorScheme.secondary,
+              designSession.creative.colorScheme.accent,
+            ]
+          : undefined,
+      };
+
+      // Parse layer modifications from URL if present
+      let layerModifications;
+      const layerModsParam = searchParams.get("layerModifications");
+      if (layerModsParam) {
+        try {
+          layerModifications = JSON.parse(layerModsParam);
+        } catch {
+          console.warn("Failed to parse layer modifications");
         }
-        return prev + 10;
+      }
+
+      setExportProgress(50);
+
+      // Save export session to context for Launch page (actual download happens there)
+      setExportSession({
+        templatePath,
+        selectedSizes: availableSizes.filter(s => s.available).map(s => s.id),
+        dynamicValues,
+        layerModifications: layerModifications || [],
+        exportedAt: new Date(),
       });
-    }, 300);
+
+      setExportProgress(100);
+      setIsExporting(false);
+      setExportComplete(true);
+      toast({ title: "Ready to launch! 🚀", description: "Head to the Launch page to download your creatives." });
+
+      // Navigate to launch page after a short delay
+      setTimeout(() => router.push("/launch"), 1000);
+
+    } catch (error) {
+      console.error("Export error:", error);
+      setIsExporting(false);
+      setExportProgress(0);
+      toast({ 
+        title: "Export failed", 
+        description: "Please try again.", 
+        variant: "destructive" 
+      });
+    }
   };
 
   const exportButton = (
@@ -204,7 +270,7 @@ export default function ExportPage() {
       ) : (
         <>
           <Download className="h-4 w-4" />
-          Launch
+          Export & Launch
         </>
       )}
     </Button>
@@ -241,10 +307,15 @@ export default function ExportPage() {
                 onSelect={setSelectedPlatform}
                 visible={selectedFormats.includes("html5")}
               />
-              <AdSizesCard sizes={adSizes} />
+              <AdSizesCard 
+                sizes={availableSizes.length > 0 
+                  ? availableSizes.map(s => ({ id: s.id, name: s.name, dimensions: s.dimensions }))
+                  : [{ id: "300x600", name: "Half Page", dimensions: "300 × 600" }]
+                } 
+              />
               <ExportSummaryCard
                 formatCount={selectedFormats.length}
-                sizeCount={adSizes.length}
+                sizeCount={availableSizes.length || 1}
                 platformName={
                   selectedFormats.includes("html5")
                     ? adPlatforms.find((p) => p.id === selectedPlatform)?.name

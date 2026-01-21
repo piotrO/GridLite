@@ -1,10 +1,37 @@
-body {
+/* ===========================================
+   COLOR SYSTEM - CSS Custom Properties
+   These are default values, overridden by JS
+   =========================================== */
+:root {
+    /* Brand colors (injected dynamically via JS) */
+    --color-primary: #3B82F6;
+    --color-secondary: #10B981;
+    --color-accent: #F59E0B;
+
+    /* Auto-calculated contrast text colors (set by JS) */
+    --text-on-primary: #ffffff;
+    --text-on-secondary: #ffffff;
+    --text-on-accent: #1a1a1a;
+
+    /* Semantic colors for ad elements */
+    --shape1-fill: var(--color-primary);
+    --shape2-fill: var(--color-secondary);
+    --cta-bg: var(--color-accent);
+    --cta-text: var(--text-on-accent);
+    --cta-border: var(--color-accent);
+    --headline-color: var(--text-on-primary);
+    --body-color: var(--text-on-primary);
 }
 
+body {}
+
 * {
-    -webkit-user-select: none; /* Safari */
-    -ms-user-select: none; /* IE 10 and IE 11 */
-    user-select: none; /* Standard syntax */
+    -webkit-user-select: none;
+    /* Safari */
+    -ms-user-select: none;
+    /* IE 10 and IE 11 */
+    user-select: none;
+    /* Standard syntax */
     -webkit-user-drag: none;
     -khtml-user-drag: none;
     -moz-user-drag: none;
@@ -42,12 +69,12 @@ body {
 
 }
 
-div#ad::after{
-    content:'';
-    inset:0;
-    position:absolute;
-    border:1px solid black;
-    z-index:999999;
+div#ad::after {
+    content: '';
+    inset: 0;
+    position: absolute;
+    border: 1px solid black;
+    z-index: 999999;
     pointer-events: none;
 }
 
@@ -84,7 +111,8 @@ div#ad::after{
     object-fit: cover;
     /* pointer-events:none; */
 }
-.cssMask{
+
+.cssMask {
     z-index: -100;
     visibility: hidden !important;
 }
@@ -169,7 +197,8 @@ div#ad::after{
 .hidden8 {
     visibility: hidden;
 }
-.hidden8 *{
+
+.hidden8 * {
     visibility: hidden !important;
 }
 
@@ -265,9 +294,11 @@ input[type="range"]::-webkit-slider-runnable-track {
 
 /* slider thumb */
 input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; /* Override default look */
+    -webkit-appearance: none;
+    /* Override default look */
     appearance: none;
-    margin-top: -7px; /* Centers thumb on the track */
+    margin-top: -7px;
+    /* Centers thumb on the track */
     border-radius: 8px;
     /*custom styles*/
     background-color: #081EE0;
@@ -287,9 +318,11 @@ input[type="range"]::-moz-range-track {
 
 /* slider thumb */
 input[type="range"]::-moz-range-thumb {
-    -webkit-appearance: none; /* Override default look */
+    -webkit-appearance: none;
+    /* Override default look */
     appearance: none;
-    margin-top: -7px; /* Centers thumb on the track */
+    margin-top: -7px;
+    /* Centers thumb on the track */
     border-radius: 8px;
     /*custom styles*/
     background-color: #081EE0;

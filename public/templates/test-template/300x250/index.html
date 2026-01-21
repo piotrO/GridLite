@@ -215,6 +215,7 @@
             dynamicData[key] = value;
         })
         grid8player.dynamicData = dynamicData;
+        applyBrandColors();
         if (dynamicData['showDebug'] == "true" || dynamicData['grid8'] == "true") {
             grid8player.debug(true);
         } else {
