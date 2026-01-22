@@ -57,7 +57,11 @@ export interface LayerModification {
 }
 
 interface UseDesignerProps {
-  onCopyChange?: (copy: { headline?: string; bodyCopy?: string; ctaText?: string }) => void;
+  onCopyChange?: (copy: {
+    headline?: string;
+    bodyCopy?: string;
+    ctaText?: string;
+  }) => void;
   onLayerChange?: (modifications: LayerModification[]) => void;
   onImageChange?: (imageUrl: string) => void;
   currentContent?: { headline: string; bodyCopy: string; ctaText: string };
@@ -74,7 +78,8 @@ interface UseDesignerReturn {
 }
 
 export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
-  const { onCopyChange, onLayerChange, onImageChange, currentContent } = props || {};
+  const { onCopyChange, onLayerChange, onImageChange, currentContent } =
+    props || {};
   const { activeBrandKit } = useBrand();
   const { token } = useAuth();
   const { credits, useCredit } = useCredits();
@@ -89,7 +94,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(
-    "Connecting with The Designer..."
+    "Connecting with The Designer...",
   );
   const [creativeData, setCreativeData] = useState<CreativeData | null>(null);
   const [conversationHistory, setConversationHistory] = useState<
@@ -111,7 +116,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
       logo: activeBrandKit?.logo,
       audiences: activeBrandKit?.audiences,
     }),
-    [activeBrandKit]
+    [activeBrandKit],
   );
 
   // Handle creative complete
@@ -161,7 +166,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
 
       setIsLoading(false);
     },
-    [setCreative]
+    [setCreative],
   );
 
   // Handle error
@@ -218,13 +223,16 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-            console.log("[useDesigner] Stream ended, remaining buffer:", buffer.length);
+            console.log(
+              "[useDesigner] Stream ended, remaining buffer:",
+              buffer.length,
+            );
             break;
           }
 
           // Append new data to buffer
           buffer += decoder.decode(value, { stream: true });
-          
+
           // Process complete lines from buffer
           const lines = buffer.split("\n");
           // Keep the last incomplete line in the buffer
@@ -240,19 +248,27 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
 
               if (message.type === "status") {
                 setLoadingStatus(
-                  STATUS_MESSAGES[message.step] || "Working on it..."
+                  STATUS_MESSAGES[message.step] || "Working on it...",
                 );
               } else if (message.type === "complete") {
-                console.log("[useDesigner] Complete message received, imageUrl:", message.data?.imageUrl ? "yes" : "no");
+                console.log(
+                  "[useDesigner] Complete message received, imageUrl:",
+                  message.data?.imageUrl ? "yes" : "no",
+                );
                 handleCreativeComplete(message.data);
               } else if (message.type === "error") {
                 console.error("Designer error:", message.message);
                 handleError(
-                  `Hey! 🎨 I've been studying your brand and I'm ready to create something amazing! Let me show you what I have in mind.`
+                  `Hey! 🎨 I've been studying your brand and I'm ready to create something amazing! Let me show you what I have in mind.`,
                 );
               }
             } catch (parseError) {
-              console.warn("[useDesigner] Failed to parse line (length:", trimmedLine.length, "):", parseError);
+              console.warn(
+                "[useDesigner] Failed to parse line (length:",
+                trimmedLine.length,
+                "):",
+                parseError,
+              );
               // If parse failed, the message might be incomplete - put it back in buffer
               // But only if it looks like it could be JSON
               if (trimmedLine.startsWith("{")) {
@@ -264,7 +280,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
       } catch (error) {
         console.error("Failed to fetch creative:", error);
         handleError(
-          `Hello! 🎨 I'm Davinci, your Creative Director. I'm excited to bring ${brand.name}'s campaign to life visually!`
+          `Hello! 🎨 I'm Davinci, your Creative Director. I'm excited to bring ${brand.name}'s campaign to life visually!`,
         );
       }
     };
@@ -294,7 +310,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
         });
       }
     },
-    [setCreative, onCopyChange]
+    [setCreative, onCopyChange],
   );
 
   // Handle chat send
@@ -324,7 +340,10 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
         setIsTyping(true);
 
         // Check if this looks like an image request (for UX feedback)
-        const looksLikeImageRequest = /\b(image|picture|photo|visual|generate|create|new image|different image)\b/i.test(message);
+        const looksLikeImageRequest =
+          /\b(image|picture|photo|visual|generate|create|new image|different image)\b/i.test(
+            message,
+          );
         if (looksLikeImageRequest) {
           setIsGeneratingImage(true);
         }
@@ -403,7 +422,12 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
       buildBrandProfile,
       creativeData,
       applyCreativeUpdate,
-    ]
+      onLayerChange,
+      onImageChange,
+      currentContent,
+      token,
+      brandId,
+    ],
   );
 
   return {
