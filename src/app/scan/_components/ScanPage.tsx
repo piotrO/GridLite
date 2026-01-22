@@ -404,28 +404,28 @@ export default function ScanPage() {
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!isAuthenticated) {
       pendingActionRef.current = "strategist";
       setShowSignIn(true);
       return;
     }
-    saveBrandKit();
+    await saveBrandKit();
     router.push("/strategy");
   };
 
-  const handleSaveToDashboard = () => {
+  const handleSaveToDashboard = async () => {
     if (!isAuthenticated) {
       pendingActionRef.current = "dashboard";
       setShowSignIn(true);
       return;
     }
-    saveBrandKit();
+    await saveBrandKit();
     router.push("/dashboard");
   };
 
-  const handleSignInSuccess = () => {
-    saveBrandKit();
+  const handleSignInSuccess = async () => {
+    await saveBrandKit();
     router.push(
       pendingActionRef.current === "strategist" ? "/strategy" : "/dashboard"
     );

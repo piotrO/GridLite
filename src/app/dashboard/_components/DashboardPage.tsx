@@ -54,6 +54,8 @@ export default function DashboardPage() {
   const [brandToReanalyze, setBrandToReanalyze] = useState<BrandKit | null>(
     null
   );
+  // Navigation loading state
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const handleNewCampaign = () => {
     if (!activeBrandKit) {
@@ -64,6 +66,7 @@ export default function DashboardPage() {
   };
 
   const handleNewBrandKit = () => {
+    setIsNavigating(true);
     router.push("/scan?url=");
   };
 
@@ -121,7 +124,7 @@ export default function DashboardPage() {
       <div className="container mx-auto px-6 py-10">
         <CreditsBanner credits={credits} />
 
-        <Tabs defaultValue="brand-kits" className="space-y-8">
+        <Tabs defaultValue="campaigns" className="space-y-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -150,6 +153,7 @@ export default function DashboardPage() {
               description="Manage your brand identities and assets"
               actionLabel="Add Brand Kit"
               onAction={handleNewBrandKit}
+              actionLoading={isNavigating}
             />
 
             {brandKits.length === 0 ? (
@@ -184,6 +188,7 @@ export default function DashboardPage() {
                 <AddNewCard
                   label="Add Brand Kit"
                   onClick={handleNewBrandKit}
+                  loading={isNavigating}
                   delay={brandKits.length * 0.1}
                 />
               </div>

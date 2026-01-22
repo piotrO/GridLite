@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { LucideIcon, Plus } from "lucide-react";
+import { LucideIcon, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SectionHeaderProps {
@@ -11,6 +11,7 @@ interface SectionHeaderProps {
   actionIcon?: LucideIcon;
   onAction?: () => void;
   actionDisabled?: boolean;
+  actionLoading?: boolean;
   actionVariant?: "hero" | "default" | "outline";
 }
 
@@ -21,6 +22,7 @@ export function SectionHeader({
   actionIcon: ActionIcon = Plus,
   onAction,
   actionDisabled = false,
+  actionLoading = false,
   actionVariant = "hero",
 }: SectionHeaderProps) {
   return (
@@ -40,12 +42,17 @@ export function SectionHeader({
           variant={actionVariant}
           size="lg"
           onClick={onAction}
-          disabled={actionDisabled}
+          disabled={actionDisabled || actionLoading}
         >
-          <ActionIcon className="w-5 h-5 mr-2" />
+          {actionLoading ? (
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          ) : (
+            <ActionIcon className="w-5 h-5 mr-2" />
+          )}
           {actionLabel}
         </Button>
       )}
     </motion.div>
   );
 }
+

@@ -11,8 +11,20 @@ export const AdPreviewItem = ({
   reloadKey,
   onIframeRef,
 }: AdPreviewItemProps) => {
+  // Filter layer modifications for this specific size
+  // Apply if: sizes is undefined, includes "all", or includes this size.id
+  const filteredLayerMods = useMemo(() => {
+    if (!data.layerModifications) return [];
+    return data.layerModifications.filter((mod) => {
+      // No sizes specified = apply to all
+      if (!mod.sizes || mod.sizes.length === 0) return true;
+      // Check if "all" is in sizes or this specific size is included
+      return mod.sizes.includes("all") || mod.sizes.includes(size.id);
+    });
+  }, [data.layerModifications, size.id]);
+
   // Stringify arrays for stable dependency comparison
-  const layerModsJson = JSON.stringify(data.layerModifications || []);
+  const layerModsJson = JSON.stringify(filteredLayerMods);
   const colorsJson = JSON.stringify(data.colors || []);
 
   // Memoize the data object to prevent unnecessary re-renders
@@ -24,7 +36,7 @@ export const AdPreviewItem = ({
       imageUrl: data.imageUrl,
       logoUrl: data.logoUrl,
       colors: data.colors,
-      layerModifications: data.layerModifications,
+      layerModifications: filteredLayerMods,
     }),
     [
       data.headline,
@@ -34,6 +46,7 @@ export const AdPreviewItem = ({
       data.logoUrl,
       colorsJson,
       layerModsJson,
+      filteredLayerMods,
     ]
   );
 

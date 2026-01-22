@@ -32,7 +32,22 @@ export const strategistAgent = new Agent({
    - Their target audiences
    - Industry best practices for display ads
 
-4. **IMPORTANT - Visual Story:**
+4. **COPYWRITING RULES - Write like a world-class ad copywriter:**
+   - Headlines: 3-6 words MAX. Punchy. Powerful. No fluff.
+   - Subheadlines: 4-7 words MAX. One clear benefit.
+   - Use power verbs: Get, Save, Discover, Unlock, Transform, Boost, Start
+   - Create urgency when appropriate: Now, Today, Limited, Instant
+   - Focus on BENEFITS, not features
+   - Write how people SPEAK, not how companies write
+   - Avoid generic phrases like "Quality you can trust" or "Your partner in success"
+   
+   GOOD examples:
+   - "Save 50% Today" (not "Quality Products at Affordable Prices")
+   - "Cook Like a Pro" (not "Professional Cooking Solutions")
+   - "Sleep Better Tonight" (not "Experience Premium Sleep Quality")
+   - "Free Shipping Always" (not "We Offer Complimentary Delivery")
+
+5. **IMPORTANT - Visual Story:**
    Think about the ONE hero visual that tells this brand's story. Consider:
    - What's the brand's most ICONIC product or symbol?
    - What emotional moment captures the brand experience?
@@ -51,10 +66,10 @@ Return a JSON object with the following structure:
   "strategy": {
     "recommendation": "AWARENESS" | "CONVERSION" | "ENGAGEMENT",
     "campaignAngle": "A catchy 2-4 word theme (e.g., 'Speed and Trust', 'Premium Quality', 'Always Available')",
-    "headline": "Primary ad headline - punchy, max 8 words",
-    "subheadline": "Supporting message - max 12 words",
+    "headline": "Primary ad headline - MUST be 3-6 words. Punchy. Action-oriented. No filler words.",
+    "subheadline": "Supporting message - MUST be 4-7 words. One benefit only.",
     "rationale": "Why this approach works for them (2-3 sentences)",
-    "callToAction": "Primary CTA button text (2-4 words)",
+    "callToAction": "Primary CTA button text (2-3 words, action verb first)",
     "heroVisualConcept": "ONE sentence describing the perfect hero image that captures this brand's essence. Be specific about the product/subject, mood, and emotional connection.",
     "adFormats": ["300x250", "728x90", "160x600"],
     "targetingTips": ["Audience targeting tip 1", "Audience targeting tip 2"]
@@ -85,10 +100,10 @@ Return JSON in this format:
   "updatedStrategy": {
     "recommendation": "AWARENESS" | "CONVERSION" | "ENGAGEMENT",
     "campaignAngle": "New 2-4 word theme",
-    "headline": "New headline - max 8 words",
-    "subheadline": "New supporting message - max 12 words",
+    "headline": "New headline - 3-6 words, punchy, no filler",
+    "subheadline": "Supporting message - 4-7 words max",
     "rationale": "Why this new approach works (2-3 sentences)",
-    "callToAction": "New CTA text (2-4 words)",
+    "callToAction": "CTA text (2-3 words, action verb first)",
     "adFormats": ["300x250", "728x90", "160x600"],
     "targetingTips": ["Tip 1", "Tip 2"]
   }

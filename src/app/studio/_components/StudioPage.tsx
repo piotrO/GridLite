@@ -69,6 +69,7 @@ export default function StudioPage() {
       layerName: string;
       positionDelta?: { x?: number; y?: number };
       scaleFactor?: number;
+      sizes?: string[]; // Specific sizes to apply to (e.g., ["300x600"] or ["all"])
     }>
   >([]);
 
