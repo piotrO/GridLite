@@ -39,6 +39,7 @@ export const strategistAgent = new Agent({
    - Create urgency when appropriate: Now, Today, Limited, Instant
    - Focus on BENEFITS, not features
    - Write how people SPEAK, not how companies write
+   - Avoid using the company name in the copy 
    - Avoid generic phrases like "Quality you can trust" or "Your partner in success"
    
    GOOD examples:

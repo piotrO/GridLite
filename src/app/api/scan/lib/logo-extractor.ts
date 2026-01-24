@@ -1,128 +1,203 @@
 import { Page } from "playwright";
 
 /**
- * Resolves a URL against a base URL, handling absolute URLs and data URIs.
+ * Resolves a URL against a base URL.
  */
 function resolveUrl(url: string, baseUrl: string): string {
-    if (url.startsWith("http") || url.startsWith("data:")) return url;
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("data:")) return url;
+  try {
     return new URL(url, baseUrl).href;
+  } catch (e) {
+    return "";
+  }
 }
 
 /**
- * Serializes an SVG element to a data URL.
- */
-function svgToDataUrl(svg: SVGElement): string {
-    const svgString = new XMLSerializer().serializeToString(svg);
-    return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
-}
-
-/**
- * Attempts to extract a logo URL from the page using multiple strategies.
- * Priority: actual logo elements > og:image > fallbacks
+ * Extracts the main logo using a weighted scoring system.
  */
 export async function extractLogo(
-    page: Page,
-    baseUrl: string
+  page: Page,
+  baseUrl: string,
 ): Promise<string | null> {
-    // Wait for network to settle - logos often lazy-load
-    await page
-        .waitForLoadState("networkidle", { timeout: 5000 })
-        .catch(() => {});
+  // 1. Wait for layout stability
+  await page.waitForLoadState("domcontentloaded");
+  // Optional: wait slightly for JS-injected logos
+  await page.waitForTimeout(1000);
 
-    // 1. First priority: img with "logo" in class/id/alt (anywhere on page)
-    const logoImg = await page.evaluate(() => {
-        const imgs = Array.from(document.querySelectorAll("img"));
-        const logo = imgs.find(
-            (img) =>
-                /logo/i.test(img.className || "") ||
-                /logo/i.test(img.id || "") ||
-                /logo/i.test(img.alt || "")
-        );
-        return logo?.src || null;
+  // 2. Execute scoring logic inside the browser context
+  const bestLogo = await page.evaluate((currentBaseUrl) => {
+    interface ScoredImage {
+      src: string;
+      score: number;
+      reason: string[]; // For debugging
+    }
+
+    const candidates: ScoredImage[] = [];
+    const origin = new URL(currentBaseUrl).origin;
+
+    // Helper to serialize SVG
+    const svgToDataUrl = (svg: SVGElement) => {
+      const svgString = new XMLSerializer().serializeToString(svg);
+      return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
+    };
+
+    // Select all potential logo elements (images and SVGs)
+    const elements = Array.from(document.querySelectorAll("img, svg"));
+
+    elements.forEach((el) => {
+      let score = 0;
+      const reasons: string[] = [];
+      const rect = el.getBoundingClientRect();
+
+      // --- FILTER: INVALID CANDIDATES ---
+
+      // Skip invisible elements
+      if (
+        rect.width === 0 ||
+        rect.height === 0 ||
+        el.style.display === "none" ||
+        el.style.visibility === "hidden"
+      )
+        return;
+      // Skip tiny icons (tracking pixels, list bullets)
+      if (rect.width < 20 || rect.height < 20) return;
+      // Skip massive hero images (likely backgrounds)
+      if (rect.width > 600 || rect.height > 400) return;
+
+      // --- SCORING: DOM HIERARCHY ---
+
+      // Check ancestors for Header or Footer
+      const header = el.closest(
+        'header, nav, [role="banner"], .header, #header',
+      );
+      const footer = el.closest("footer, .footer, #footer");
+
+      if (header) {
+        score += 50;
+        reasons.push("in-header");
+      }
+      if (footer) {
+        score -= 30; // Logos in footer are rarely the "main" logo
+        reasons.push("in-footer");
+      }
+
+      // --- SCORING: LINK DESTINATION (CRITICAL) ---
+
+      const parentLink = el.closest("a");
+      if (parentLink) {
+        const href = parentLink.href;
+        // Clean trailing slashes for comparison
+        const linkUrl = href.replace(/\/$/, "");
+        const rootUrl = origin.replace(/\/$/, "");
+
+        // Points if it links to Home
+        if (
+          linkUrl === rootUrl ||
+          linkUrl === currentBaseUrl.replace(/\/$/, "")
+        ) {
+          score += 60;
+          reasons.push("links-to-home");
+        }
+      }
+
+      // --- SCORING: TEXT MATCHING ---
+
+      const attributes = [
+        el.id,
+        el.className.toString(),
+        el.getAttribute("alt"),
+        (el as HTMLImageElement).src,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (attributes.includes("logo")) {
+        score += 20;
+        reasons.push("keyword-logo");
+      }
+      if (attributes.includes("brand")) {
+        score += 10;
+        reasons.push("keyword-brand");
+      }
+      if (attributes.includes("icon")) {
+        score -= 10; // "menu-icon", "search-icon" usually aren't logos
+        reasons.push("keyword-icon");
+      }
+
+      // --- SCORING: POSITIONING ---
+
+      // Logos are usually in the top 150px of the page
+      if (rect.top < 150) {
+        score += 20;
+        reasons.push("top-of-page");
+      }
+      // Logos are usually Left or Center
+      // (Assuming standard LTR layout, max width 1920)
+      if (
+        rect.left < 50 ||
+        rect.left + rect.width / 2 < window.innerWidth / 2 + 200
+      ) {
+        score += 10;
+        reasons.push("position-left-center");
+      }
+
+      // --- EXTRACT SOURCE ---
+
+      let src = "";
+      if (el.tagName.toLowerCase() === "img") {
+        src =
+          (el as HTMLImageElement).currentSrc || (el as HTMLImageElement).src;
+      } else if (el.tagName.toLowerCase() === "svg") {
+        src = svgToDataUrl(el as SVGElement);
+      }
+
+      if (src && src !== window.location.href) {
+        candidates.push({ src, score, reason: reasons });
+      }
     });
 
-    if (logoImg) {
-        return resolveUrl(logoImg, baseUrl);
-    }
+    // Sort by score descending
+    candidates.sort((a, b) => b.score - a.score);
 
-    // 2. SVG inside element with "logo" in class (page-wide)
-    const logoSvg = await page.evaluate(() => {
-        // Try elements with "logo" in class that contain SVG
-        const logoContainer = document.querySelector(
-            '[class*="logo" i]'
-        ) as HTMLElement;
-        const svg = logoContainer?.querySelector("svg") as SVGElement;
+    // Debug: Print top candidates to console (visible in Playwright execution context)
+    // console.table(candidates.slice(0, 3));
 
-        if (svg) {
-            const svgString = new XMLSerializer().serializeToString(svg);
-            return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
-        }
+    return candidates.length > 0 ? candidates[0] : null;
+  }, baseUrl);
 
-        // Also try SVG with logo in its own class
-        const directSvg = document.querySelector(
-            'svg[class*="logo" i]'
-        ) as SVGElement;
-        if (directSvg) {
-            const svgString = new XMLSerializer().serializeToString(directSvg);
-            return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
-        }
+  // 3. Post-Processing & Fallbacks
 
-        return null;
-    });
+  // If we found a high-confidence match (score > 60 roughly implies header + home link)
+  if (bestLogo && bestLogo.score >= 50) {
+    return resolveUrl(bestLogo.src, baseUrl);
+  }
 
-    if (logoSvg) {
-        return logoSvg;
-    }
+  // 4. Fallback: Meta tags (High quality but generic)
+  // If DOM scoring failed or confidence is low, trust the OpenGraph image
+  const ogImage = await page
+    .$eval('meta[property="og:image"], meta[name="og:image"]', (el) =>
+      el.getAttribute("content"),
+    )
+    .catch(() => null);
 
-    // 3. Header/nav logo (both img and SVG)
-    const headerLogo = await page.evaluate(() => {
-        const headerNav = document.querySelector(
-            'header, nav, [role="banner"]'
-        );
-        if (!headerNav) return null;
+  if (ogImage) {
+    return resolveUrl(ogImage, baseUrl);
+  }
 
-        // Check for first img in home link
-        const homeImg = headerNav.querySelector(
-            'a[href="/"] img:first-of-type'
-        ) as HTMLImageElement;
-        if (homeImg?.src) return homeImg.src;
+  // 5. Fallback: Return the low-confidence DOM match if it exists
+  if (bestLogo) {
+    return resolveUrl(bestLogo.src, baseUrl);
+  }
 
-        // Check for SVG in home link
-        const homeSvg = headerNav.querySelector('a[href="/"] svg') as SVGElement;
-        if (homeSvg) {
-            const svgString = new XMLSerializer().serializeToString(homeSvg);
-            return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
-        }
+  // 6. Final Fallback: Apple Touch Icon
+  const touchIcon = await page
+    .$eval('link[rel="apple-touch-icon"]', (el) => el.getAttribute("href"))
+    .catch(() => null);
 
-        return null;
-    });
+  if (touchIcon) {
+    return resolveUrl(touchIcon, baseUrl);
+  }
 
-    if (headerLogo) {
-        return headerLogo.startsWith("data:")
-            ? headerLogo
-            : resolveUrl(headerLogo, baseUrl);
-    }
-
-    // 4. Try og:image (often social share images, so lower priority)
-    const ogImage = await page
-        .$eval(
-            'meta[property="og:image"], meta[name="og:image"]',
-            (el) => el.getAttribute("content")
-        )
-        .catch(() => null);
-
-    if (ogImage) {
-        return resolveUrl(ogImage, baseUrl);
-    }
-
-    // 5. Last resort: apple-touch-icon (higher res than favicon)
-    const touchIcon = await page
-        .$eval('link[rel="apple-touch-icon"]', (el) => el.getAttribute("href"))
-        .catch(() => null);
-
-    if (touchIcon) {
-        return resolveUrl(touchIcon, baseUrl);
-    }
-
-    return null;
+  return null;
 }
