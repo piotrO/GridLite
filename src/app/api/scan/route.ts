@@ -33,65 +33,89 @@ export async function POST(request: NextRequest) {
     // Create a streaming response
     const stream = new ReadableStream({
       async start(controller) {
-        const sendStatus = (step: string) => {
-          const message = JSON.stringify({ type: "status", step }) + "\n";
+        const sendEvent = (event: any) => {
+          const message = JSON.stringify(event) + "\n";
           controller.enqueue(encoder.encode(message));
         };
 
         const sendError = (message: string) => {
-          const errorMsg = JSON.stringify({ type: "error", message }) + "\n";
-          controller.enqueue(encoder.encode(errorMsg));
+          sendEvent({ type: "error", message });
         };
 
         try {
           // Get the workflow
           const workflow = getBrandScanWorkflow();
 
-          // Send status updates as workflow progresses
-          sendStatus("starting_scan");
+          // Define step labels for the UI
+          const stepLabels: Record<string, string> = {
+            "launch-browser": "Initializing secure browser session",
+            "extract-fonts": "Analyzing typography and fonts",
+            "extract-logo": "Locating brand identity assets",
+            "capture-screenshot": "Capturing visual interface",
+            "extract-text": "Reading website content and copy",
+            "extract-colors-multi": "Extracting color palette",
+            "determine-brand-colors": "Refining brand colors",
+            "analyze-with-ai": "Generating meaningful insights",
+          };
+
+          // Send initial pending steps so UI knows what to expect
+          sendEvent({
+            type: "init",
+            steps: Object.keys(stepLabels).map((id) => ({
+              id,
+              label: stepLabels[id],
+            })),
+          });
 
           // Create a run
           const run = await workflow.createRun();
-
-          sendStatus("extracting_text");
 
           // Start the workflow and stream events
           const streamResult = await run.stream({
             inputData: { url: normalizedUrl },
           });
 
-          // Track which steps have completed for status updates
-          const completedSteps = new Set<string>();
-
           // Process stream events
           for await (const event of streamResult.fullStream) {
-            // Check for step START events to show progress as steps begin
-            // Mastra workflow events use "workflow-step-start" type
+            // Step Start
             if (event.type === "workflow-step-start" && "payload" in event) {
               const payload = event.payload as Record<string, unknown>;
-              // Try different possible locations for stepId
+              // Try different possible locations for stepId - Mastra structure can vary
               const step = payload?.step as Record<string, unknown> | undefined;
-              const stepId = (payload?.stepId || step?.id || payload?.id) as string | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-              // Only send status once per step
-              if (stepId && !completedSteps.has(stepId)) {
-                completedSteps.add(stepId);
+              if (stepId && stepLabels[stepId]) {
+                sendEvent({
+                  type: "step_start",
+                  stepId,
+                  label: stepLabels[stepId],
+                });
+              }
+            }
 
-                // Map workflow steps to UI progress steps
-                // Workflow order: launch-browser → extract-logo → capture-screenshot → extract-text → analyze-with-ai
-                // UI order: extracting_text → extracting_logo → analyzing_colors → analyzing_ai
-                // Note: extract-text happens after capture-screenshot, so we skip it to avoid going backwards
-                const statusMap: Record<string, string> = {
-                  "launch-browser": "extracting_text",
-                  "extract-logo": "extracting_logo",
-                  "capture-screenshot": "analyzing_colors",
-                  // "extract-text" is skipped - happens after capture-screenshot but would map to step 1
-                  "analyze-with-ai": "analyzing_ai",
-                };
+            // Step Complete
+            if (
+              event.type === "workflow-step-completed" &&
+              "payload" in event
+            ) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-                if (statusMap[stepId]) {
-                  sendStatus(statusMap[stepId]);
-                }
+              // Check success status from the result
+              const result = payload?.result as any;
+              const success = result?.success !== false; // Default to true unless explicitly false
+
+              if (stepId && stepLabels[stepId]) {
+                sendEvent({
+                  type: "step_complete",
+                  stepId,
+                  success,
+                });
               }
             }
           }
@@ -101,9 +125,7 @@ export async function POST(request: NextRequest) {
 
           if (workflowResult.status === "success" && workflowResult.result) {
             const finalResult = workflowResult.result as ScanResult;
-            const completeMessage =
-              JSON.stringify({ type: "complete", data: finalResult }) + "\n";
-            controller.enqueue(encoder.encode(completeMessage));
+            sendEvent({ type: "complete", data: finalResult });
           } else {
             // Handle workflow failure
             const errorMessage =

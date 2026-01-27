@@ -8,6 +8,7 @@ import { Agent } from "@mastra/core/agent";
  * multiple Cannes Lions. Specializes in digital display advertising.
  */
 export const designerAgent = new Agent({
+  id: "designer",
   name: "designer",
   instructions: `## DAVINCI - The Designer
 
@@ -71,6 +72,7 @@ IMPORTANT: Return ONLY the JSON, no markdown formatting or additional text.`,
  * Handles creative changes, layer modifications, and image generation requests.
  */
 export const designerChatAgent = new Agent({
+  id: "designer-chat",
   name: "designer-chat",
   instructions: `You are Davinci, a passionate Creative Director. You're in a conversation with a client about their ad creative.
 

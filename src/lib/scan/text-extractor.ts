@@ -15,16 +15,33 @@ export async function extractWebsiteText(page: Page): Promise<string> {
   $("script, style, noscript, svg, iframe").remove();
 
   // Strict Noise Filtering: Remove elements with specific keywords in class/id
-  const noiseKeywords = ["cart", "search", "login", "account", "signin", "signup"];
+  const noiseKeywords = [
+    "cart",
+    "search",
+    "login",
+    "account",
+    "signin",
+    "signup",
+  ];
   noiseKeywords.forEach((keyword) => {
     $(`[class*="${keyword}"], [id*="${keyword}"]`).remove();
   });
-  
+
   // Also remove links with exact utility text
-  $("a").filter((_, el) => {
-    const text = $(el).text().trim().toLowerCase();
-    return ["cart", "search", "log in", "sign in", "sign up", "account", "menu"].includes(text);
-  }).remove();
+  $("a")
+    .filter((_, el) => {
+      const text = $(el).text().trim().toLowerCase();
+      return [
+        "cart",
+        "search",
+        "log in",
+        "sign in",
+        "sign up",
+        "account",
+        "menu",
+      ].includes(text);
+    })
+    .remove();
 
   // 1. Metadata
   const title = $("title").text().trim();
@@ -39,22 +56,20 @@ export async function extractWebsiteText(page: Page): Promise<string> {
   $("h1, h2").each((_, el) => {
     const $el = $(el);
     const text = $el.text().trim();
-;
     if (!text || text.length > 200) return;
-    
- 
+
     let context = "";
     // Check next sibling for context
     const nextEl = $el.next();
     if (nextEl.is("p, h3, span") && nextEl.text().length < 300) {
       context = nextEl.text().trim();
-    } 
+    }
     // If no sibling context, check parent's other children if closely related
     else {
-        const parentP = $el.parent().find("p").first();
-        if (parentP.length && parentP.text().length < 300) {
-             context = parentP.text().trim();
-        }
+      const parentP = $el.parent().find("p").first();
+      if (parentP.length && parentP.text().length < 300) {
+        context = parentP.text().trim();
+      }
     }
 
     heroes.push(`Header: ${text}${context ? `\nSubtext: ${context}` : ""}`);
@@ -63,49 +78,62 @@ export async function extractWebsiteText(page: Page): Promise<string> {
   // 3. Brand Story (Narrative Isolation)
   // Look for "About" sections or long paragraphs not in product cards
   const storySentences: string[] = [];
-  
+
   // Prioritize #about or .about sections
-  $("#about, .about, .about-us").find("p").each((_, el) => {
+  $("#about, .about, .about-us")
+    .find("p")
+    .each((_, el) => {
       const text = $(el).text().trim();
       if (text.length > 50) storySentences.push(text);
-  });
+    });
 
   // If no explicit about section, look for long paragraphs in main content
   if (storySentences.length === 0) {
-      $("p").each((_, el) => {
-          const $el = $(el);
-          // Avoid product cards
-          if ($el.closest('[class*="product"], [class*="item"], [class*="card"]').length > 0) return;
-          
-          const text = $el.text().trim();
-          if (text.length > 150) storySentences.push(text);
-      });
+    $("p").each((_, el) => {
+      const $el = $(el);
+      // Avoid product cards
+      if (
+        $el.closest('[class*="product"], [class*="item"], [class*="card"]')
+          .length > 0
+      )
+        return;
+
+      const text = $el.text().trim();
+      if (text.length > 150) storySentences.push(text);
+    });
   }
 
   // 4. Product Catalog (Commercial Isolation)
   const products: string[] = [];
   // Find price patterns
   const priceRegex = /[$€£]\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*[$€£]/;
-  
-  $("body").find("*").filter((_, el) => {
+
+  $("body")
+    .find("*")
+    .filter((_, el) => {
       return priceRegex.test($(el).text()) && $(el).children().length === 0; // Leaf nodes with price
-  }).each((_, el) => {
+    })
+    .each((_, el) => {
       const $el = $(el);
       const price = $el.text().trim();
-      
+
       // Traverse up to find a container that might have a title
-      const productCard = $el.closest('[class*="product"], [class*="card"], [class*="item"], div');
+      const productCard = $el.closest(
+        '[class*="product"], [class*="card"], [class*="item"], div',
+      );
       if (productCard.length) {
-          // Find a title within this card
-           const titleEl = productCard.find("h3, h4, h5, strong, .title, .product-title").first();
-           if (titleEl.length) {
-               const title = titleEl.text().trim();
-               if(title && price) {
-                   products.push(`Product: ${title} | Price: ${price}`);
-               }
-           }
+        // Find a title within this card
+        const titleEl = productCard
+          .find("h3, h4, h5, strong, .title, .product-title")
+          .first();
+        if (titleEl.length) {
+          const title = titleEl.text().trim();
+          if (title && price) {
+            products.push(`Product: ${title} | Price: ${price}`);
+          }
+        }
       }
-  });
+    });
 
   // 5. Calls to Action (Buttons/Links)
   const ctas: string[] = [];
@@ -169,18 +197,23 @@ ${storySentences.slice(0, 5).join("\n\n")}
 </BRAND_STORY>
 
 <PRODUCT_CATALOG>
-${[...new Set(products)].slice(0, 10).map(p => `- ${p}`).join("\n")}
+${[...new Set(products)]
+  .slice(0, 10)
+  .map((p) => `- ${p}`)
+  .join("\n")}
 </PRODUCT_CATALOG>
 
 <CTAS>
-${[...new Set(ctas)].slice(0, 15).map(c => `- ${c}`).join("\n")}
+${[...new Set(ctas)]
+  .slice(0, 15)
+  .map((c) => `- ${c}`)
+  .join("\n")}
 </CTAS>
 
 <SOCIALS>
-${[...new Set(socialLinks)].map(s => `- ${s}`).join("\n")}
+${[...new Set(socialLinks)].map((s) => `- ${s}`).join("\n")}
 </SOCIALS>
 `.trim();
-console.log(output);
   return output;
 }
 
@@ -189,7 +222,7 @@ console.log(output);
  * Reuses browser session utilities but skips screenshot.
  */
 export async function scrapeTextOnly(
-  page: Page
+  page: Page,
 ): Promise<{ text: string; title: string }> {
   const [text, title] = await Promise.all([
     extractWebsiteText(page),
@@ -198,4 +231,3 @@ export async function scrapeTextOnly(
 
   return { text, title };
 }
-

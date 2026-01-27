@@ -5,6 +5,7 @@ import {
   strategistChatAgent,
   designerAgent,
   designerChatAgent,
+  colorReasonerAgent,
 } from "./agents";
 import {
   brandScanWorkflow,
@@ -23,6 +24,7 @@ export const mastra = new Mastra({
     strategistChat: strategistChatAgent,
     designer: designerAgent,
     designerChat: designerChatAgent,
+    colorReasoner: colorReasonerAgent,
   },
   workflows: {
     brandScan: brandScanWorkflow,

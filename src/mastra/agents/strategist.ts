@@ -7,6 +7,7 @@ import { Agent } from "@mastra/core/agent";
  * of experience. Specializes in display advertising campaigns.
  */
 export const strategistAgent = new Agent({
+  id: "strategist",
   name: "strategist",
   instructions: `## SARAH - The Strategist
 
@@ -85,6 +86,7 @@ IMPORTANT: Return ONLY the JSON, no markdown formatting or additional text.`,
  * Sarah Chat Agent - for conversation mode
  */
 export const strategistChatAgent = new Agent({
+  id: "strategist-chat",
   name: "strategist-chat",
   instructions: `You are Sarah, an energetic Digital Marketing Strategist. You're in a conversation with a client about their ad campaign strategy.
 

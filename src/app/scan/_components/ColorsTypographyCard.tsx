@@ -1,13 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Palette, Type } from "lucide-react";
-import { ColorPicker } from "@/components/ColorPicker";
+import { Palette } from "lucide-react";
 import { BrandPalette } from "@/lib/shared/types";
+import { PrimaryPaletteSection } from "./PrimaryPaletteSection";
+import { ExtraColorsSection } from "./ExtraColorsSection";
+import { Typography } from "@/lib/shared/types";
+import { TypographySection } from "./TypographySection";
 
 interface ColorsTypographyCardProps {
   palette: BrandPalette;
   font: string;
+  typography?: Typography | null;
   onPaletteChange: (palette: BrandPalette) => void;
   onFontClick: () => void;
   delay?: number;
@@ -16,28 +20,11 @@ interface ColorsTypographyCardProps {
 export function ColorsTypographyCard({
   palette,
   font,
+  typography,
   onPaletteChange,
   onFontClick,
   delay = 0.4,
 }: ColorsTypographyCardProps) {
-  const handlePrimaryChange = (color: string) => {
-    onPaletteChange({ ...palette, primary: color });
-  };
-
-  const handleSecondaryChange = (color: string) => {
-    onPaletteChange({ ...palette, secondary: color });
-  };
-
-  const handleAccentChange = (color: string) => {
-    onPaletteChange({ ...palette, accent: color });
-  };
-
-  const handleExtraColorChange = (index: number, color: string) => {
-    const extraColors = [...(palette.extraColors || [])];
-    extraColors[index] = color;
-    onPaletteChange({ ...palette, extraColors });
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -49,65 +36,25 @@ export function ColorsTypographyCard({
         <Palette className="w-5 h-5 text-researcher" />
         <h3 className="font-semibold text-foreground">Colors & Typography</h3>
       </div>
-      <div className="space-y-4">
-        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-          Primary Palette
-        </p>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <ColorPicker
-              color={palette.primary}
-              onChange={handlePrimaryChange}
-            />
-            <p className="text-[9px] font-medium text-center text-muted-foreground">
-              Primary
-            </p>
-          </div>
-          <div className="space-y-2">
-            <ColorPicker
-              color={palette.secondary}
-              onChange={handleSecondaryChange}
-            />
-            <p className="text-[9px] font-medium text-center text-muted-foreground">
-              Secondary
-            </p>
-          </div>
-          <div className="space-y-2">
-            <ColorPicker color={palette.accent} onChange={handleAccentChange} />
-            <p className="text-[9px] font-medium text-center text-muted-foreground">
-              Accent
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {palette.extraColors && palette.extraColors.length > 0 && (
-        <div className="mt-6 space-y-2">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-            Extra Brand Colors
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {palette.extraColors.map((color, i) => (
-              <ColorPicker
-                key={i}
-                color={color}
-                onChange={(newColor) => handleExtraColorChange(i, newColor)}
-              />
-            ))}
-          </div>
+      <div className="space-y-6">
+        <PrimaryPaletteSection
+          palette={palette}
+          onPaletteChange={onPaletteChange}
+        />
+
+        <ExtraColorsSection
+          palette={palette}
+          onPaletteChange={onPaletteChange}
+        />
+
+        <div className="pt-2 border-t border-border/50">
+          <TypographySection
+            font={font}
+            typography={typography}
+            onFontClick={onFontClick}
+          />
         </div>
-      )}
-      <div
-        className="flex items-center gap-2 p-2 -m-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
-        onClick={onFontClick}
-      >
-        <Type className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-        <span className="text-sm text-foreground group-hover:text-primary transition-colors">
-          {font}
-        </span>
-        <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
-          Click to change
-        </span>
       </div>
     </motion.div>
   );

@@ -7,13 +7,28 @@ async function extractWebsiteText(page) {
   const html = await page.content();
   const $ = cheerio.load(html);
   $("script, style, noscript, svg, iframe").remove();
-  const noiseKeywords = ["cart", "search", "login", "account", "signin", "signup"];
+  const noiseKeywords = [
+    "cart",
+    "search",
+    "login",
+    "account",
+    "signin",
+    "signup"
+  ];
   noiseKeywords.forEach((keyword) => {
     $(`[class*="${keyword}"], [id*="${keyword}"]`).remove();
   });
   $("a").filter((_, el) => {
     const text = $(el).text().trim().toLowerCase();
-    return ["cart", "search", "log in", "sign in", "sign up", "account", "menu"].includes(text);
+    return [
+      "cart",
+      "search",
+      "log in",
+      "sign in",
+      "sign up",
+      "account",
+      "menu"
+    ].includes(text);
   }).remove();
   const title = $("title").text().trim();
   const description = $('meta[name="description"]').attr("content") || $('meta[property="og:description"]').attr("content") || "";
@@ -44,7 +59,8 @@ Subtext: ${context}` : ""}`);
   if (storySentences.length === 0) {
     $("p").each((_, el) => {
       const $el = $(el);
-      if ($el.closest('[class*="product"], [class*="item"], [class*="card"]').length > 0) return;
+      if ($el.closest('[class*="product"], [class*="item"], [class*="card"]').length > 0)
+        return;
       const text = $el.text().trim();
       if (text.length > 150) storySentences.push(text);
     });
@@ -56,7 +72,9 @@ Subtext: ${context}` : ""}`);
   }).each((_, el) => {
     const $el = $(el);
     const price = $el.text().trim();
-    const productCard = $el.closest('[class*="product"], [class*="card"], [class*="item"], div');
+    const productCard = $el.closest(
+      '[class*="product"], [class*="card"], [class*="item"], div'
+    );
     if (productCard.length) {
       const titleEl = productCard.find("h3, h4, h5, strong, .title, .product-title").first();
       if (titleEl.length) {
@@ -125,7 +143,6 @@ ${[...new Set(ctas)].slice(0, 15).map((c) => `- ${c}`).join("\n")}
 ${[...new Set(socialLinks)].map((s) => `- ${s}`).join("\n")}
 </SOCIALS>
 `.trim();
-  console.log(output);
   return output;
 }
 

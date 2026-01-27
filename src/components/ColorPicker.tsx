@@ -52,7 +52,7 @@ export function ColorPicker({
         <motion.button
           whileHover={disabled ? {} : { scale: 1.1 }}
           whileTap={disabled ? {} : { scale: 0.95 }}
-          className={`w-10 h-10 rounded-lg shadow-md border-2 border-border transition-colors ${
+          className={`w-full h-10 rounded-lg shadow-md border-2 border-border transition-colors ${
             disabled
               ? "opacity-50 cursor-not-allowed"
               : "hover:border-primary/50 cursor-pointer"

@@ -1,126 +1,285 @@
 import sharp from "sharp";
-import quantize from "@lokesh.dhakar/quantize";
 import convert from "color-convert";
 import { BrandPalette } from "@/lib/shared/types";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
- * Senior Graphics Programmer Note:
- * We use 'sharp' to extract raw RGB pixels from the buffer
- * and '@lokesh.dhakar/quantize' for the Median Cut algorithm.
- * This approach is more robust in Node.js environments than 'colorthief'.
+ * Helper: Calculate Euclidean distance between two RGB colors.
+ * Used to prevent picking two colors that look nearly identical.
  */
-export async function extractBrandColors(
+function getColorDistance(
+  rgb1: [number, number, number],
+  rgb2: [number, number, number],
+): number {
+  return Math.sqrt(
+    Math.pow(rgb1[0] - rgb2[0], 2) +
+      Math.pow(rgb1[1] - rgb2[1], 2) +
+      Math.pow(rgb1[2] - rgb2[2], 2),
+  );
+}
+
+/**
+ * Helper: Convert RGB to Hex
+ */
+function rgbToHex(r: number, g: number, b: number): string {
+  return "#" + convert.rgb.hex([r, g, b]);
+}
+
+/**
+ * Helper: Find the project root by looking for package.json
+ */
+function findProjectRoot(startDir: string): string {
+  let current = startDir;
+  while (current !== path.parse(current).root) {
+    if (fs.existsSync(path.join(current, "package.json"))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return process.cwd();
+}
+
+async function extractPaletteFromBuffer(
+  buffer: Buffer,
+  type: "screenshot" | "logo",
+  debugName: string = "debug-image",
+): Promise<BrandPalette> {
+  // DEBUG: Save images for troubleshooting
+  // We find the real project root to ensure we save to the Next.js public folder
+  const projectRoot = findProjectRoot(__dirname);
+  const debugDir = path.join(projectRoot, "public", "debug");
+  console.log(`[ColorExtractor] Saving debug images to: ${debugDir}`);
+
+  if (!fs.existsSync(debugDir)) {
+    try {
+      fs.mkdirSync(debugDir, { recursive: true });
+    } catch (e) {
+      console.error(`[ColorExtractor] Failed to create debug directory:`, e);
+    }
+  }
+
+  if (fs.existsSync(debugDir)) {
+    try {
+      // 1. Save Original
+      const originalPath = path.join(debugDir, `${debugName}-original.png`);
+      fs.writeFileSync(originalPath, buffer);
+    } catch (e) {
+      console.error(`[ColorExtractor] Debug save failed:`, e);
+    }
+  }
+
+  // 1. Resize specifically for analysis (only if larger than 512px)
+  // This speeds up analysis and acts as a "denoise" filter.
+  const sharpInstance = sharp(buffer)
+    .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+    .flatten({ background: { r: 255, g: 255, b: 255 } });
+
+  // Save the "Analyzed" version (exactly what goes into raw pixels)
+  try {
+    const analyzedBuffer = await sharpInstance.clone().png().toBuffer();
+    fs.writeFileSync(
+      path.join(debugDir, `${debugName}-analyzed.png`),
+      analyzedBuffer,
+    );
+  } catch (e) {
+    /* Ignore */
+  }
+
+  const { data } = await sharpInstance
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // 2. Build Histogram (Count unique colors)
+  // We round values slightly (quantize to nearest 5) to group near-identical compression artifacts.
+  const colorCounts = new Map<
+    string,
+    { r: number; g: number; b: number; count: number }
+  >();
+  const QUANTIZE_STEP = 1;
+
+  const whiteThreshold = type === "logo" ? 230 : 255;
+
+  for (let i = 0; i < data.length; i += 3) {
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+
+    // Skip white/near-white backgrounds
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
+      continue;
+
+    // Simple quantization to group noise (e.g. 254 vs 255)
+    r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
+    g = Math.round(g / QUANTIZE_STEP) * QUANTIZE_STEP;
+    b = Math.round(b / QUANTIZE_STEP) * QUANTIZE_STEP;
+
+    const key = `${r},${g},${b}`;
+    const existing = colorCounts.get(key);
+
+    if (existing) {
+      existing.count++;
+    } else {
+      colorCounts.set(key, { r, g, b, count: 1 });
+    }
+  }
+
+  // 3. Sort by Frequency
+  const sortedCandidates = Array.from(colorCounts.values()).sort(
+    (a, b) => b.count - a.count,
+  );
+
+  // 4. Select Distinct Colors (Filter out similar shades)
+  const selectedColors: {
+    hex: string;
+    count: number;
+    rgb: [number, number, number];
+  }[] = [];
+
+  // Minimum distance to consider a color "distinct" (approx 15-20% difference)
+  // 45 is a good heuristic for RGB Euclidean distance to separate "Blue" from "Dark Blue"
+  const MIN_DISTANCE = 15;
+
+  for (const candidate of sortedCandidates) {
+    const candidateRgb: [number, number, number] = [
+      candidate.r,
+      candidate.g,
+      candidate.b,
+    ];
+
+    // Check if this candidate is too close to any already selected color
+    const isTooClose = selectedColors.some(
+      (selected) => getColorDistance(selected.rgb, candidateRgb) < MIN_DISTANCE,
+    );
+
+    if (!isTooClose) {
+      selectedColors.push({
+        hex: rgbToHex(candidate.r, candidate.g, candidate.b),
+        rgb: candidateRgb,
+        count: candidate.count,
+      });
+    }
+
+    // Stop once we have enough distinct colors
+    if (selectedColors.length >= 10) break;
+  }
+
+  // Fallback if no colors found (white image)
+  if (selectedColors.length === 0) {
+    return { primary: "#4F46E5", secondary: null, accent: null };
+  }
+
+  const totalPixels = Array.from(colorCounts.values()).reduce(
+    (sum, c) => sum + c.count,
+    0,
+  );
+
+  console.log(
+    `[ColorExtractor] Top colors for ${type}:`,
+    selectedColors.map(
+      (c) => `${c.hex} (${((c.count / totalPixels) * 100).toFixed(1)}%)`,
+    ),
+  );
+
+  // 5. Assign Roles
+  // Primary is simply the most frequent non-white color
+  const primary = selectedColors[0].hex;
+  const secondary = selectedColors.length > 1 ? selectedColors[1].hex : null;
+  const accent = selectedColors.length > 2 ? selectedColors[2].hex : null;
+
+  const extraColors =
+    selectedColors.length > 3
+      ? selectedColors.slice(3, 5).map((c) => c.hex)
+      : undefined;
+
+  return { primary, secondary, accent, extraColors };
+}
+
+export function extractColorsFromHtml(html: string): string[] {
+  const hexRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})\b/g;
+  const rgbRegex = /rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/g;
+  const rgbaRegex =
+    /rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*([\d.]+)\s*\)/g;
+
+  const colorCounts = new Map<string, number>();
+
+  let match;
+
+  // 1. Hex matches
+  while ((match = hexRegex.exec(html)) !== null) {
+    const color = match[0].toUpperCase();
+    colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+  }
+
+  // 2. RGB matches
+  while ((match = rgbRegex.exec(html)) !== null) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    if (r <= 255 && g <= 255 && b <= 255) {
+      const color = rgbToHex(r, g, b).toUpperCase();
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    }
+  }
+
+  // 3. RGBA matches (ignoring alpha for simplicity of palette extraction)
+  while ((match = rgbaRegex.exec(html)) !== null) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    const a = parseFloat(match[4]);
+    if (r <= 255 && g <= 255 && b <= 255 && a > 0.1) {
+      const color = rgbToHex(r, g, b).toUpperCase();
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    }
+  }
+
+  const totalMatches = Array.from(colorCounts.values()).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+
+  const sortedWithFreq = Array.from(colorCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([color, count]) => ({
+      color,
+      percent: ((count / totalMatches) * 100).toFixed(1),
+    }));
+
+  console.log(
+    `[ColorExtractor] Top colors in HTML:`,
+    sortedWithFreq.slice(0, 10).map((c) => `${c.color} (${c.percent}%)`),
+  );
+
+  return sortedWithFreq.map((s) => s.color);
+}
+
+export async function extractColorsFromScreenshot(
   imageBuffer: Buffer,
 ): Promise<BrandPalette> {
-  console.log("[ColorExtractor] Starting extraction process...");
+  console.log("[ColorExtractor] Extracting from screenshot...");
+  return extractPaletteFromBuffer(
+    imageBuffer,
+    "screenshot",
+    "debug-screenshot",
+  );
+}
 
+export async function extractColorsFromLogo(
+  logoUrl: string,
+): Promise<BrandPalette> {
+  console.log(`[ColorExtractor] Extracting from logo: ${logoUrl}`);
   try {
-    // DEBUG: Save original image to public folder for preview
-    const publicDir = path.join(process.cwd(), "public");
-    if (fs.existsSync(publicDir)) {
-      fs.writeFileSync(path.join(publicDir, "debug-original.png"), imageBuffer);
-      console.log("[ColorExtractor] DEBUG: Saved original image to public/debug-original.png");
-    }
-
-    // 1. Resize and get raw RGB pixels. We don't need alpha for palette.
-    // 400px is more than enough for color sampling and much faster.
-    const sharpInstance = sharp(imageBuffer).resize(600).removeAlpha();
-
-    // DEBUG: Save resized image for preview
-    const previewBuffer = await sharpInstance.clone().png().toBuffer();
-    if (fs.existsSync(publicDir)) {
-      fs.writeFileSync(path.join(publicDir, "debug-resized.png"), previewBuffer);
-      console.log("[ColorExtractor] DEBUG: Saved resized image to public/debug-resized.png");
-    }
-
-    const { data, info } = await sharpInstance
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    console.log(
-      `[ColorExtractor] Image processed: ${info.width}x${info.height}, channels: ${info.channels}`,
-    );
-    console.log(`[ColorExtractor] Buffer length: ${data.length} bytes`);
-
-    // 2. Create pixel array for quantizer [ [r,g,b], ... ]
-    // We sample every 5th pixel for a good balance of accuracy and speed.
-    const pixelArray: [number, number, number][] = [];
-    for (let i = 0; i < data.length; i += 3 * 5) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-
-      // Filter out pure white background if it takes up too much space
-      if (!(r > 250 && g > 250 && b > 250)) {
-        pixelArray.push([r, g, b]);
-      }
-    }
-
-    console.log(
-      `[ColorExtractor] Sampled ${pixelArray.length} pixels for quantization.`,
-    );
-
-    if (pixelArray.length === 0) {
-      console.log(
-        "[ColorExtractor] No valid pixels found for quantization, using fallback.",
-      );
-      return { primary: "#4F46E5", secondary: "#4F46E5", accent: "#4F46E5" };
-    }
-
-    // 3. Run quantization (Median Cut)
-    const cmap = quantize(pixelArray, 10);
-    const rawPalette = cmap ? cmap.palette() : [];
-
-    console.log("[ColorExtractor] Raw palette generated:", rawPalette);
-
-    // 4. Filter and Sort logic
-    const filteredColors = rawPalette
-      .map(([r, g, b]) => ({
-        hex: `#${convert.rgb.hex([r, g, b])}`,
-        hsl: convert.rgb.hsl([r, g, b]), // [H, S, L]
-        rgb: [r, g, b],
-      }))
-      .filter((color) => {
-        const [h, s, l] = color.hsl;
-        // Skip extreme dark/light/neutral colors to find meaningful brand colors
-        return l > 5 && l < 95 && s > 8;
-      });
-
-    console.log(
-      `[ColorExtractor] Filtered colors (${filteredColors.length}):`,
-      filteredColors.map((c) => c.hex),
-    );
-
-    // 5. Assign Roles
-    const primary = filteredColors[0]?.hex || "#4F46E5";
-
-    // Sort remaining by saturation to find a good accent
-    const sortedBySaturation = [...filteredColors.slice(1)].sort(
-      (a, b) => b.hsl[1] - a.hsl[1],
-    );
-
-    const accent = sortedBySaturation[0]?.hex || primary;
-    const secondary = filteredColors[1]?.hex || primary;
-
-    // 6. Capture up to 2 extra meaningful colors if available
-    const extraColors =
-      filteredColors.length > 3
-        ? filteredColors
-            .slice(2)
-            .filter((c) => c.hex !== accent)
-            .slice(0, 2)
-            .map((c) => c.hex)
-        : undefined;
-
-    const result = { primary, secondary, accent, extraColors };
-    console.log("[ColorExtractor] Final Result:", result);
-
-    return result;
+    const response = await fetch(logoUrl);
+    if (!response.ok) throw new Error("Failed to fetch");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return extractPaletteFromBuffer(buffer, "logo", "debug-logo");
   } catch (error) {
-    console.error("[ColorExtractor] Error during color extraction:", error);
-    // Return a safe default
-    return { primary: "#4F46E5", secondary: "#4F46E5", accent: "#4F46E5" };
+    console.error("[ColorExtractor] Logo extraction failed:", error);
+    return { primary: "#000000", secondary: "#000000", accent: "#000000" };
   }
 }

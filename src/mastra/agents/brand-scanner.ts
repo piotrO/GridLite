@@ -21,6 +21,7 @@ import {
  * 6. Close the browser session
  */
 export const brandScannerAgent = new Agent({
+  id: "brand-scanner",
   name: "brand-scanner",
   instructions: `You are a Brand Intelligence Agent specialized in extracting comprehensive brand information from websites.
 

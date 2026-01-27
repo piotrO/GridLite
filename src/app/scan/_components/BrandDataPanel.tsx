@@ -5,9 +5,10 @@ import { Sparkles, Check, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandIdentityCard } from "./BrandIdentityCard";
 import { ColorsTypographyCard } from "./ColorsTypographyCard";
+import { BrandPsychologyCard } from "./BrandPsychologyCard";
 import { BrandVoiceCard } from "./BrandVoiceCard";
 import { TargetAudiencesCard } from "./TargetAudiencesCard";
-import { BrandPalette } from "@/lib/shared/types";
+import { BrandPalette, Typography } from "@/lib/shared/types";
 
 interface BrandData {
   name: string;
@@ -17,6 +18,7 @@ interface BrandData {
   tagline: string;
   logo: string;
   font: string;
+  typography?: Typography | null;
   personality?: string[];
   voiceLabel: string;
   voiceInstructions: string;
@@ -101,10 +103,18 @@ export function BrandDataPanel({
             <ColorsTypographyCard
               palette={brandData.palette}
               font={brandData.font}
+              typography={brandData.typography}
               onPaletteChange={(palette) =>
                 onBrandDataChange({ ...brandData, palette })
               }
               onFontClick={onFontClick}
+            />
+
+            <BrandPsychologyCard
+              personality={brandData.personality || []}
+              personalityDimensions={brandData.personalityDimensions}
+              archetype={brandData.archetype}
+              delay={0.5}
             />
 
             <BrandVoiceCard
@@ -112,10 +122,8 @@ export function BrandDataPanel({
               voiceInstructions={brandData.voiceInstructions}
               dos={brandData.dos}
               donts={brandData.donts}
-              personality={brandData.personality || []}
-              personalityDimensions={brandData.personalityDimensions}
               linguisticMechanics={brandData.linguisticMechanics}
-              archetype={brandData.archetype}
+              delay={0.6}
             />
 
             <TargetAudiencesCard audiences={brandData.audiences} />

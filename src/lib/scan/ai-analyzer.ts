@@ -97,6 +97,11 @@ const DEFAULT_AI_RESULT: AIAnalysisResult = {
     tagline: "Our tagline",
     brandSummary:
       "A leading provider of innovative hardware and software solutions for modern teams.",
+    palette: {
+      primary: "#4F46E5",
+      secondary: "#10B981",
+      accent: "#F97316",
+    },
     targetAudiences: [
       {
         name: "Creative Professionals",
@@ -182,8 +187,49 @@ function parseAIResponse(responseText: string): AIAnalysisResult {
     // Remove markdown code blocks if present
     const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
     const jsonString = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
-    return JSON.parse(jsonString);
-  } catch {
+    const data = JSON.parse(jsonString);
+
+    // Normalize brand_profile key
+    const brandProfile = data.brand_profile || data.brandProfile || data;
+
+    // Normalize nested keys
+    if (brandProfile) {
+      if (
+        brandProfile.personalityDimensions &&
+        !brandProfile.personality_dimensions
+      ) {
+        brandProfile.personality_dimensions =
+          brandProfile.personalityDimensions;
+      }
+      if (
+        brandProfile.linguisticMechanics &&
+        !brandProfile.linguistic_mechanics
+      ) {
+        brandProfile.linguistic_mechanics = brandProfile.linguisticMechanics;
+      }
+      if (brandProfile.guidelines) {
+        if (
+          brandProfile.guidelines.voiceLabel &&
+          !brandProfile.guidelines.voice_label
+        ) {
+          brandProfile.guidelines.voice_label =
+            brandProfile.guidelines.voiceLabel;
+        }
+        if (
+          brandProfile.guidelines.voiceInstructions &&
+          !brandProfile.guidelines.voice_instructions
+        ) {
+          brandProfile.guidelines.voice_instructions =
+            brandProfile.guidelines.voiceInstructions;
+        }
+      }
+    }
+
+    return {
+      brand_profile: brandProfile,
+    };
+  } catch (error) {
+    console.error("Failed to parse AI response:", error);
     // Fallback if AI doesn't return valid JSON
     return DEFAULT_AI_RESULT;
   }

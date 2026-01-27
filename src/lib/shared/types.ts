@@ -27,8 +27,8 @@ export interface LinguisticMechanics {
  */
 export interface BrandPalette {
   primary: string;
-  secondary: string;
-  accent: string;
+  secondary?: string | null;
+  accent?: string | null;
   extraColors?: string[];
 }
 
@@ -170,12 +170,23 @@ export interface ChatResponse {
 }
 
 /**
+ * Typography extracted from the website
+ */
+export interface Typography {
+  primaryFontFamily: string;
+  fontFileBase64: string | null;
+  fontFormat: "woff2" | "woff" | "ttf" | "otf" | null;
+  isSystemFont: boolean;
+}
+
+/**
  * Full scan result
  */
 export interface ScanResult {
   logo: string;
   brand_profile: BrandProfile;
   rawWebsiteText?: string;
+  typography?: Typography | null;
 }
 
 /**

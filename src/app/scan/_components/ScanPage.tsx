@@ -16,6 +16,7 @@ import {
   ScanResult,
   BrandProfile,
   BrandPalette,
+  Typography,
 } from "@/lib/shared/types";
 import { SignInModal } from "@/components/SignInModal";
 import { FontPickerModal } from "@/components/FontPickerModal";
@@ -37,6 +38,7 @@ interface BrandData {
   tagline: string;
   logo: string;
   font: string;
+  typography?: Typography | null;
   personality?: string[];
   voiceLabel: string;
   voiceInstructions: string;
@@ -155,7 +157,9 @@ export default function ScanPage() {
   const [scanComplete, setScanComplete] = useState(
     !!editingBrandKit && !isReanalyzeMode,
   );
-  const [currentScanStep, setCurrentScanStep] = useState<string>("");
+  const [scanSteps, setScanSteps] = useState<
+    import("./ScanProgress").ScanStep[]
+  >([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -307,7 +311,6 @@ export default function ScanPage() {
   const scanBrandWithStreaming = async (url: string) => {
     try {
       setScanError(null);
-      setCurrentScanStep("extracting_text");
 
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -337,39 +340,150 @@ export default function ScanPage() {
           try {
             const message = JSON.parse(line);
 
-            if (message.type === "status") {
-              setCurrentScanStep(message.step);
+            if (message.type === "init") {
+              setScanSteps(
+                message.steps.map((s: any) => ({
+                  id: s.id,
+                  label: s.label,
+                  status: "pending",
+                })),
+              );
+            } else if (message.type === "step_start") {
+              setScanSteps((prev) =>
+                prev.map((s) => {
+                  // If matches new step, set to running (ONLY if not already completed/failed)
+                  if (s.id === message.stepId) {
+                    // Prevent regression: if step is already done, don't restart it
+                    if (s.status === "completed" || s.status === "failed") {
+                      return s;
+                    }
+                    return { ...s, status: "running", startTime: Date.now() };
+                  }
+                  // If it was running but is not the new step, assume it finished
+                  if (s.status === "running") {
+                    return { ...s, status: "completed", endTime: Date.now() };
+                  }
+                  return s;
+                }),
+              );
+            } else if (message.type === "step_complete") {
+              const success = message.success !== false;
+              setScanSteps((prev) =>
+                prev.map((s) =>
+                  s.id === message.stepId
+                    ? {
+                        ...s,
+                        status: success ? "completed" : "failed",
+                        endTime: Date.now(),
+                      }
+                    : s,
+                ),
+              );
             } else if (message.type === "complete") {
-              const { brand_profile, logo, rawWebsiteText } = message.data;
+              const { logo, rawWebsiteText, typography } = message.data;
+              // Handle potential casing differences in API response
+              const brandProfile =
+                message.data.brand_profile || message.data.brandProfile || {};
 
               // Update brand data with mapped values from brand_profile
               setBrandData((prev) => {
+                // Guidelines normalization
+                const guidelines =
+                  brandProfile.guidelines || brandProfile.guideline || {};
+                const voiceLabel =
+                  guidelines.voice_label ||
+                  guidelines.voiceLabel ||
+                  prev.voiceLabel;
+                const voiceInstructions =
+                  guidelines.voice_instructions ||
+                  guidelines.voiceInstructions ||
+                  prev.voiceInstructions;
+                const dos = guidelines.dos || prev.dos || [];
+                const donts = guidelines.donts || prev.donts || [];
+
+                // Visual identity fallback
+                const visualIdentity =
+                  guidelines.visual_identity || guidelines.visualIdentity || {};
+
+                // Personality normalization
+                const rawPersonalityDims =
+                  brandProfile.personality_dimensions ||
+                  brandProfile.personalityDimensions ||
+                  {};
+                const personalityDims = {
+                  sincerity:
+                    rawPersonalityDims.sincerity ??
+                    prev.personalityDimensions.sincerity,
+                  excitement:
+                    rawPersonalityDims.excitement ??
+                    prev.personalityDimensions.excitement,
+                  competence:
+                    rawPersonalityDims.competence ??
+                    prev.personalityDimensions.competence,
+                  sophistication:
+                    rawPersonalityDims.sophistication ??
+                    prev.personalityDimensions.sophistication,
+                  ruggedness:
+                    rawPersonalityDims.ruggedness ??
+                    prev.personalityDimensions.ruggedness,
+                };
+
+                const rawLinguisticMech =
+                  brandProfile.linguistic_mechanics ||
+                  brandProfile.linguisticMechanics ||
+                  {};
+                const linguisticMech = {
+                  formality_index:
+                    rawLinguisticMech.formality_index ||
+                    rawLinguisticMech.formalityIndex ||
+                    prev.linguisticMechanics.formality_index,
+                  urgency_level:
+                    rawLinguisticMech.urgency_level ||
+                    rawLinguisticMech.urgencyLevel ||
+                    prev.linguisticMechanics.urgency_level,
+                  etymology_bias:
+                    rawLinguisticMech.etymology_bias ||
+                    rawLinguisticMech.etymologyBias ||
+                    prev.linguisticMechanics.etymology_bias,
+                };
+                const archetype = brandProfile.archetype || prev.archetype;
+
                 return {
                   ...prev,
-                  name: brand_profile?.name || prev.name,
-                  shortName: brand_profile?.name || prev.shortName,
+                  name: brandProfile.name || prev.name,
+                  shortName:
+                    brandProfile.name ||
+                    brandProfile.shortName ||
+                    prev.shortName,
                   logo: logo || prev.logo,
-                  palette: brand_profile?.palette || prev.palette,
-                  tagline:
-                    brand_profile?.guidelines?.power_words?.join(" • ") ||
-                    prev.tagline,
-                  personality: brand_profile?.personality || prev.personality,
+                  typography: typography || prev.typography || null,
                   font:
-                    brand_profile?.guidelines?.visual_identity?.font_style ||
+                    typography?.primaryFontFamily ||
+                    visualIdentity.font_style ||
+                    visualIdentity.fontStyle ||
                     prev.font,
-                  industry: brand_profile?.industry || prev.industry,
-                  brandSummary: brand_profile?.brandSummary || "",
-                  voiceLabel:
-                    brand_profile?.guidelines?.voice_label ||
-                    "Modern Professional",
-                  voiceInstructions:
-                    brand_profile?.guidelines?.voice_instructions || "",
-                  dos: brand_profile?.guidelines?.dos || [],
-                  donts: brand_profile?.guidelines?.donts || [],
-                  audiences: brand_profile?.targetAudiences || prev.audiences,
-                  personalityDimensions: brand_profile?.personality_dimensions,
-                  linguisticMechanics: brand_profile?.linguistic_mechanics,
-                  archetype: brand_profile?.archetype,
+                  palette: brandProfile.palette || prev.palette,
+                  tagline:
+                    guidelines.power_words?.join(" • ") ||
+                    brandProfile.tagline ||
+                    prev.tagline,
+                  personality: brandProfile.personality || prev.personality,
+                  industry: brandProfile.industry || prev.industry,
+                  brandSummary:
+                    brandProfile.brandSummary ||
+                    brandProfile.brand_summary ||
+                    prev.brandSummary,
+                  voiceLabel,
+                  voiceInstructions,
+                  dos,
+                  donts,
+                  audiences:
+                    brandProfile.targetAudiences ||
+                    brandProfile.target_audiences ||
+                    prev.audiences,
+                  personalityDimensions: personalityDims,
+                  linguisticMechanics: linguisticMech,
+                  archetype: archetype,
                 };
               });
               // Store rawWebsiteText for Strategy phase
@@ -546,13 +660,7 @@ export default function ScanPage() {
     }
 
     // Show scanning animation (includes its own full-page layout)
-    return (
-      <ScanningAnimation
-        url={urlInput || "example.com"}
-        onComplete={handleScanComplete}
-        currentStep={currentScanStep}
-      />
-    );
+    return <ScanningAnimation steps={scanSteps} url={urlInput} />;
   }
 
   // Step 3: Results
