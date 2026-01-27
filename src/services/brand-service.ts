@@ -8,12 +8,24 @@ export interface BrandProfile {
   shortName?: string;
   industry?: string;
   tagline?: string;
-  colors?: string[];
   font?: string;
   tone?: string;
+  palette?: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    extraColors?: string[];
+  };
   personality?: string[];
   brandSummary?: string;
   targetAudiences?: { name: string; description: string }[];
+  voiceLabel?: string;
+  voiceInstructions?: string;
+  dos?: string[];
+  donts?: string[];
+  archetype?: any;
+  linguistic_mechanics?: any;
+  personality_dimensions?: any;
   analyzedAt?: string;
 }
 
@@ -22,7 +34,12 @@ const DEFAULT_BRAND_KIT_VALUES = {
   industry: "Technology",
   tagline: "Your brand tagline",
   logo: "🏢",
-  colors: ["#4F46E5", "#10B981", "#F59E0B", "#EF4444"],
+  palette: {
+    primary: "#4F46E5",
+    secondary: "#10B981",
+    accent: "#F97316",
+    extraColors: ["#EF4444"],
+  },
   font: "Inter",
   tone: "Professional",
   personality: ["Innovative", "Trustworthy"],
@@ -45,7 +62,7 @@ export function getBrandLogoUrl(grid8Id: string): string {
  */
 export function convertGrid8BrandToBrandKit(
   grid8Brand: Grid8Brand,
-  avatarUrl?: string | null
+  avatarUrl?: string | null,
 ): BrandKit {
   // Try to parse brandProfile from notes.book (stored as JSON string)
   let profile: BrandProfile | undefined;
@@ -82,24 +99,34 @@ export function convertGrid8BrandToBrandKit(
       avatarUrl ||
       grid8Brand.logo ||
       DEFAULT_BRAND_KIT_VALUES.logo,
-    colors: profile?.colors?.length
-      ? profile.colors
-      : grid8Brand.colors?.length
-      ? grid8Brand.colors
-      : DEFAULT_BRAND_KIT_VALUES.colors,
+    palette:
+      profile?.palette ||
+      grid8Brand.palette ||
+      DEFAULT_BRAND_KIT_VALUES.palette,
     font: profile?.font || grid8Brand.font || DEFAULT_BRAND_KIT_VALUES.font,
     tone: profile?.tone || grid8Brand.tone || DEFAULT_BRAND_KIT_VALUES.tone,
     personality: profile?.personality?.length
       ? profile.personality
       : grid8Brand.personality?.length
-      ? grid8Brand.personality
-      : DEFAULT_BRAND_KIT_VALUES.personality,
+        ? grid8Brand.personality
+        : DEFAULT_BRAND_KIT_VALUES.personality,
     brandSummary: profile?.brandSummary || grid8Brand.brandSummary,
     audiences: profile?.targetAudiences?.length
       ? profile.targetAudiences
       : grid8Brand.audiences?.length
-      ? grid8Brand.audiences
-      : DEFAULT_BRAND_KIT_VALUES.audiences,
+        ? grid8Brand.audiences
+        : DEFAULT_BRAND_KIT_VALUES.audiences,
+    voiceLabel:
+      profile?.voiceLabel || grid8Brand.voiceLabel || "Modern Professional",
+    voiceInstructions:
+      profile?.voiceInstructions || grid8Brand.voiceInstructions || "",
+    dos: profile?.dos || grid8Brand.dos || [],
+    donts: profile?.donts || grid8Brand.donts || [],
+    archetype: profile?.archetype || grid8Brand.archetype,
+    linguisticMechanics:
+      profile?.linguistic_mechanics || grid8Brand.linguistic_mechanics,
+    personalityDimensions:
+      profile?.personality_dimensions || grid8Brand.personality_dimensions,
     createdAt: new Date(grid8Brand.createdAt),
     needsReanalysis: !(profile?.url || grid8Brand.url),
   };
@@ -109,7 +136,7 @@ export function convertGrid8BrandToBrandKit(
  * Create a local-only brand kit (no Grid8 backend)
  */
 export function createLocalBrandKit(
-  brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">
+  brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">,
 ): BrandKit {
   return {
     ...brand,
@@ -129,7 +156,7 @@ export async function fetchBrands(token: string): Promise<Grid8Brand[]> {
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
 
   const data = await response.json();
@@ -148,7 +175,10 @@ export async function fetchBrands(token: string): Promise<Grid8Brand[]> {
 export async function createBrandOnGrid8(
   token: string,
   name: string,
-  brandData?: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">
+  brandData?: Omit<
+    BrandKit,
+    "id" | "createdAt" | "needsReanalysis" | "grid8Id"
+  >,
 ): Promise<Grid8Brand> {
   // Build brandProfile from brand data if provided
   const brandProfile: BrandProfile | undefined = brandData
@@ -159,7 +189,7 @@ export async function createBrandOnGrid8(
         shortName: brandData.shortName || brandData.name,
         industry: brandData.industry,
         tagline: brandData.tagline,
-        colors: brandData.colors,
+        palette: brandData.palette,
         font: brandData.font,
         tone: brandData.tone,
         personality: brandData.personality,
@@ -205,7 +235,7 @@ export async function createBrandOnGrid8(
 export async function updateBrandOnGrid8(
   token: string,
   grid8Id: string,
-  updates: { name?: string; notes?: { innovation?: string; book?: string } }
+  updates: { name?: string; notes?: { innovation?: string; book?: string } },
 ): Promise<void> {
   const response = await fetch(`/api/brands/${grid8Id}`, {
     method: "PATCH",
@@ -226,7 +256,7 @@ export async function updateBrandOnGrid8(
  */
 export async function deleteBrandOnGrid8(
   token: string,
-  grid8Id: string
+  grid8Id: string,
 ): Promise<void> {
   const response = await fetch(`/api/brands/${grid8Id}`, {
     method: "DELETE",
@@ -249,7 +279,7 @@ export async function deleteBrandOnGrid8(
 export async function uploadBrandAvatar(
   token: string,
   grid8Id: string,
-  logoUrl: string
+  logoUrl: string,
 ): Promise<void> {
   // Skip if it's not a valid URL (e.g., emoji)
   if (!logoUrl.startsWith("http")) {

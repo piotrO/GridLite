@@ -2,12 +2,18 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chromium } from 'playwright';
 import { PlaywrightBlocker } from '@ghostery/adblocker-playwright';
+import sharp from 'sharp';
 
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 async function createBrowserSession(url) {
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-features=IsolateOrigins,site-per-process"
+    ]
   });
   const context = await browser.newContext({
     userAgent: USER_AGENT,
@@ -15,24 +21,69 @@ async function createBrowserSession(url) {
     permissions: ["geolocation"],
     ignoreHTTPSErrors: true,
     javaScriptEnabled: true,
-    locale: "en-US"
+    locale: "en-US",
+    extraHTTPHeaders: {
+      "Accept-Language": "en-US,en;q=0.9",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"macOS"',
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+      "Upgrade-Insecure-Requests": "1"
+    }
   });
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => false });
+  });
   const blocker = await PlaywrightBlocker.fromPrebuiltAdsAndTracking();
   await blocker.enableBlockingInPage(page);
-  await page.goto(url, {
-    waitUntil: "domcontentloaded",
-    timeout: 6e4
-  });
+  await navigateWithRetry(page, url);
   await page.waitForTimeout(2e3);
   return { browser, page };
 }
+async function navigateWithRetry(page, url, browser) {
+  try {
+    await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 3e4
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("ERR_HTTP2") || errorMessage.includes("ERR_CONNECTION")) {
+      const urlObj = new URL(url);
+      const altUrl = urlObj.hostname.startsWith("www.") ? url.replace("www.", "") : url.replace("://", "://www.");
+      try {
+        await page.goto(altUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 3e4
+        });
+        return;
+      } catch {
+        await page.goto(url, {
+          waitUntil: "commit",
+          timeout: 3e4
+        });
+      }
+    } else {
+      throw error;
+    }
+  }
+}
 async function captureScreenshot(page) {
-  return page.screenshot({
-    type: "png",
-    fullPage: false
-    // Top viewport only for better analysis
+  await page.evaluate(() => {
+    document.body.style.zoom = "90%";
   });
+  await page.waitForTimeout(500);
+  const buffer = await page.screenshot({
+    type: "png",
+    fullPage: true
+    // Capture full page
+  });
+  return sharp(buffer).resize({ width: 1280, withoutEnlargement: true }).toBuffer();
 }
 async function closeBrowser(browser) {
   if (browser) {

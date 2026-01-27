@@ -1,7 +1,11 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 import { mastra } from "@/mastra";
-import type { BrandProfile, StrategyData, CampaignData } from "@/types/designer";
+import {
+  BrandProfile,
+  StrategyDocument as StrategyData,
+  CampaignData,
+} from "@/lib/shared/types";
 
 /**
  * Brand profile schema for designer input.
@@ -15,7 +19,14 @@ const BrandProfileSchema = z.object({
   brandSummary: z.string().optional(),
   tone: z.string().optional(),
   personality: z.array(z.string()).optional(),
-  colors: z.array(z.string()).optional(),
+  palette: z
+    .object({
+      primary: z.string(),
+      secondary: z.string(),
+      accent: z.string(),
+      extraColors: z.array(z.string()).optional(),
+    })
+    .optional(),
   logo: z.string().optional(),
   audiences: z
     .array(
@@ -96,7 +107,7 @@ const CreativeOutputSchema = z.object({
 function buildContextPrompt(
   brand: BrandProfile,
   strategy: StrategyData,
-  campaign: CampaignData | null
+  campaign: CampaignData | null,
 ): string {
   return `
 ## Brand Information
@@ -105,14 +116,19 @@ function buildContextPrompt(
 - Tagline: ${brand.tagline || "None provided"}
 - About: ${brand.brandSummary || "No description available"}
 - Brand Voice: ${brand.tone || "Professional"}
-- Brand Colors: ${brand.colors?.join(", ") || "Not specified"}
+${
+  brand.palette
+    ? `- Primary Color: ${brand.palette.primary}\n- Secondary Color: ${brand.palette.secondary}\n- Accent Color: ${brand.palette.accent}${brand.palette.extraColors ? `\n- Extra Colors: ${brand.palette.extraColors.join(", ")}` : ""}`
+    : ""
+}
 - Personality: ${brand.personality?.join(", ") || "Not specified"}
 
 ## Target Audiences
-${brand.audiences && brand.audiences.length > 0
+${
+  brand.audiences && brand.audiences.length > 0
     ? brand.audiences.map((a) => `- ${a.name}: ${a.description}`).join("\n")
     : "- General consumers"
-  }
+}
 
 ## Approved Campaign Strategy
 - Type: ${strategy.recommendation}
@@ -124,14 +140,15 @@ ${brand.audiences && brand.audiences.length > 0
 - Ad Formats: ${strategy.adFormats.join(", ")}
 
 ## Campaign Data
-${campaign
+${
+  campaign
     ? `
 - Current Promotions: ${campaign.currentPromos.join(", ") || "None"}
 - Key Products: ${campaign.keyProducts.join(", ")}
 - USPs: ${campaign.uniqueSellingPoints.join(", ")}
 `
     : "No additional campaign data available."
-  }
+}
 
 Based on this information, create a cohesive visual direction that brings this campaign to life.
 `;
@@ -146,19 +163,17 @@ function parseDesignerResponse(responseText: string, brand: BrandProfile) {
     const jsonString = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
     return JSON.parse(jsonString);
   } catch {
-    // Fallback response using brand colors if available
-    const primaryColor = brand.colors?.[0] || "#4F46E5";
-    const secondaryColor = brand.colors?.[1] || "#F97316";
-
+    // Fallback response using brand palette or defaults
     return {
       greeting: `Hey! 🎨 I've been studying your brand and the campaign strategy, and I'm really excited about the creative possibilities here! Let me show you what I have in mind.`,
       creative: {
         conceptName: "Bold Impact",
         visualStyle: "Modern and Dynamic",
         colorScheme: {
-          primary: primaryColor,
-          secondary: secondaryColor,
-          accent: "#10B981",
+          primary: brand.palette?.primary || "#4F46E5",
+          secondary: brand.palette?.secondary || "#F97316",
+          accent: brand.palette?.accent || "#10B981",
+          extraColors: brand.palette?.extraColors || [],
           background: "#FFFFFF",
         },
         typography: {
@@ -203,7 +218,10 @@ const generateCreativeStep = createStep({
         { role: "user", content: contextPrompt },
       ]);
 
-      const parsed = parseDesignerResponse(result.text, brandProfile as BrandProfile);
+      const parsed = parseDesignerResponse(
+        result.text,
+        brandProfile as BrandProfile,
+      );
 
       return {
         greeting: parsed.greeting,
@@ -212,18 +230,16 @@ const generateCreativeStep = createStep({
     } catch (error) {
       console.error("[Designer Workflow] Error:", error);
       // Return fallback creative direction
-      const primaryColor = brandProfile.colors?.[0] || "#4F46E5";
-      const secondaryColor = brandProfile.colors?.[1] || "#F97316";
-
       return {
         greeting: `Hey! 🎨 I've been studying your brand and the campaign strategy, and I'm really excited about the creative possibilities here! Let me show you what I have in mind.`,
         creative: {
           conceptName: "Bold Impact",
           visualStyle: "Modern and Dynamic",
           colorScheme: {
-            primary: primaryColor,
-            secondary: secondaryColor,
-            accent: "#10B981",
+            primary: brandProfile.palette?.primary || "#4F46E5",
+            secondary: brandProfile.palette?.secondary || "#F97316",
+            accent: brandProfile.palette?.accent || "#10B981",
+            extraColors: brandProfile.palette?.extraColors || [],
             background: "#FFFFFF",
           },
           typography: {

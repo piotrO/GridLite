@@ -45,9 +45,10 @@ Return a JSON object with the following structure:
     "conceptName": "A catchy 2-4 word name for the creative concept",
     "visualStyle": "Brief description of the overall visual approach (e.g., 'Bold and Minimalist', 'Warm and Inviting')",
     "colorScheme": {
-      "primary": "HEX color that aligns with brand",
-      "secondary": "HEX color for contrast",
-      "accent": "HEX pop color for CTAs",
+      "primary": "HEX color from brand palette primary",
+      "secondary": "HEX color from brand palette secondary",
+      "accent": "HEX color from brand palette accent",
+      "extraColors": ["Optional meaningful hexes if useful for variation"],
       "background": "HEX background color"
     },
     "typography": {
@@ -108,7 +109,13 @@ Requests to generate a new image, change the image, or modify the existing image
   "updatedCreative": {
     "conceptName": "...",
     "visualStyle": "...",
-    "colorScheme": { "primary": "...", "secondary": "...", "accent": "...", "background": "..." },
+    "colorScheme": { 
+      "primary": "...", 
+      "secondary": "...", 
+      "accent": "...", 
+      "extraColors": ["..."],
+      "background": "..." 
+    },
     "typography": { "headlineStyle": "...", "bodyStyle": "..." },
     "layoutSuggestion": "...",
     "animationIdeas": ["...", "..."],

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDesignerWorkflow } from "@/mastra";
+import { mastra } from "@/mastra";
 import { generateImage, getImageDataUrl } from "@/mastra/tools";
-import { generateDesignerChatResponse } from "./lib/designer";
+import { generateDesignerChatResponse } from "@/lib/design/designer";
 import type {
   BrandProfile,
-  StrategyData,
+  StrategyDocument as StrategyData,
   CampaignData,
-  CreativeDirection,
-} from "@/types/designer";
+  CreativeData,
+} from "@/lib/shared/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ interface DesignerRequest {
   // For chat continuation
   mode?: "initial" | "chat";
   userMessage?: string;
-  currentCreative?: CreativeDirection["creative"];
+  currentCreative?: CreativeData;
   currentContent?: { headline: string; bodyCopy: string; ctaText: string };
   conversationHistory?: { role: "user" | "assistant"; content: string }[];
 }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         try {
           console.log(
             "[Designer] Generating image:",
-            response.imageGenerationRequest.prompt
+            response.imageGenerationRequest.prompt,
           );
           const imageResult = await generateImage({
             prompt: response.imageGenerationRequest.prompt,
@@ -70,12 +70,15 @@ export async function POST(request: NextRequest) {
             industry: body.brandProfile.industry,
             moodKeywords: body.currentCreative?.moodKeywords,
           });
-          
+
           if (imageResult.success && imageResult.result) {
             imageUrl = getImageDataUrl(imageResult.result);
             console.log("[Designer] Image generated successfully");
           } else {
-            console.error("[Designer] Image generation failed:", imageResult.error);
+            console.error(
+              "[Designer] Image generation failed:",
+              imageResult.error,
+            );
           }
         } catch (imageError) {
           console.error("[Designer] Image generation failed:", imageError);
@@ -115,11 +118,11 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          const workflow = getDesignerWorkflow();
+          const workflow = mastra.getWorkflow("designer");
 
           sendStatus("analyzing_brand");
 
-          const run = await workflow.createRunAsync();
+          const run = await workflow.createRun();
 
           // Small delay for UX (matches original behavior)
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -163,10 +166,14 @@ export async function POST(request: NextRequest) {
                 sendStatus("generating_image");
 
                 // Use heroImagePrompt directly if available
-                const imagePrompt = creativeResult.creative.heroImagePrompt ||
+                const imagePrompt =
+                  creativeResult.creative.heroImagePrompt ||
                   `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
 
-                console.log("[Designer] Generating initial image:", imagePrompt);
+                console.log(
+                  "[Designer] Generating initial image:",
+                  imagePrompt,
+                );
 
                 const imageResult = await generateImage({
                   prompt: imagePrompt,
@@ -177,17 +184,28 @@ export async function POST(request: NextRequest) {
 
                 if (imageResult.success && imageResult.result) {
                   imageUrl = getImageDataUrl(imageResult.result);
-                  console.log("[Designer] Initial image generated successfully");
+                  console.log(
+                    "[Designer] Initial image generated successfully",
+                  );
                 } else {
-                  console.error("[Designer] Initial image generation failed:", imageResult.error);
+                  console.error(
+                    "[Designer] Initial image generation failed:",
+                    imageResult.error,
+                  );
                 }
               } catch (imageError) {
-                console.error("[Designer] Initial image generation failed:", imageError);
+                console.error(
+                  "[Designer] Initial image generation failed:",
+                  imageError,
+                );
                 // Continue without image - don't fail the whole request
               }
             }
 
-            console.log("[Designer] Sending complete message with imageUrl:", imageUrl ? "yes (length: " + imageUrl.length + ")" : "no");
+            console.log(
+              "[Designer] Sending complete message with imageUrl:",
+              imageUrl ? "yes (length: " + imageUrl.length + ")" : "no",
+            );
             const completeMessage =
               JSON.stringify({
                 type: "complete",
@@ -196,7 +214,10 @@ export async function POST(request: NextRequest) {
                   imageUrl, // Include generated image URL
                 },
               }) + "\n";
-            console.log("[Designer] Complete message size:", completeMessage.length);
+            console.log(
+              "[Designer] Complete message size:",
+              completeMessage.length,
+            );
             controller.enqueue(encoder.encode(completeMessage));
             console.log("[Designer] Complete message enqueued, closing stream");
           } else {

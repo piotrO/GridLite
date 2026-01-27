@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { captureScreenshot } from "@/app/api/scan/lib/browser";
+import { captureScreenshot } from "@/lib/scan/browser";
 import { getSession } from "./browser";
 
 /**

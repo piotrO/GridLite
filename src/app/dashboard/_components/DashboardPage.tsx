@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [brandToDelete, setBrandToDelete] = useState<BrandKit | null>(null);
   // Reanalyze modal state (for brands without valid URL)
   const [brandToReanalyze, setBrandToReanalyze] = useState<BrandKit | null>(
-    null
+    null,
   );
   // Navigation loading state
   const [isNavigating, setIsNavigating] = useState(false);
@@ -103,7 +103,7 @@ export default function DashboardPage() {
     if (brandToReanalyze) {
       // Navigate to scan with both the brand ID and the new URL
       router.push(
-        `/scan?reanalyze=${brandToReanalyze.id}&url=${encodeURIComponent(url)}`
+        `/scan?reanalyze=${brandToReanalyze.id}&url=${encodeURIComponent(url)}`,
       );
       setBrandToReanalyze(null);
     }
@@ -174,7 +174,13 @@ export default function DashboardPage() {
                     logo={kit.logo}
                     industry={kit.industry}
                     tagline={kit.tagline}
-                    colors={kit.colors}
+                    palette={
+                      kit.palette || {
+                        primary: "#4F46E5",
+                        secondary: "#10B981",
+                        accent: "#F97316",
+                      }
+                    }
                     createdAt={kit.createdAt}
                     isActive={activeBrandKit?.id === kit.id}
                     needsReanalysis={kit.needsReanalysis}

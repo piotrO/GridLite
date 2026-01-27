@@ -4,7 +4,7 @@ import {
   createBrowserSession,
   closeBrowser,
   BrowserSession,
-} from "@/app/api/scan/lib/browser";
+} from "@/lib/scan/browser";
 
 /**
  * In-memory store for active browser sessions.

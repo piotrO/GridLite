@@ -1,13 +1,22 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Palette, Image, Type, Globe, Upload, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Palette,
+  Image,
+  Type,
+  Globe,
+  Upload,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { ColorPicker } from "@/components/ColorPicker";
 import { EditableText } from "@/components/EditableText";
 import { FontPickerModal } from "@/components/FontPickerModal";
+import { BrandPalette } from "@/lib/shared/types";
 
 interface BrandData {
   name: string;
-  colors: string[];
+  palette: BrandPalette;
   logo?: string;
   tagline?: string;
   font?: string;
@@ -19,16 +28,50 @@ interface BrandAssetCardProps {
   onBrandChange?: (brand: BrandData) => void;
 }
 
-export function BrandAssetCard({ brand, editable = false, onBrandChange }: BrandAssetCardProps) {
+export function BrandAssetCard({
+  brand,
+  editable = false,
+  onBrandChange,
+}: BrandAssetCardProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [localBrand, setLocalBrand] = useState(brand);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleColorChange = (index: number, color: string) => {
-    const newColors = [...localBrand.colors];
-    newColors[index] = color;
-    const updated = { ...localBrand, colors: newColors };
+  const handlePrimaryChange = (color: string) => {
+    const updated = {
+      ...localBrand,
+      palette: { ...localBrand.palette, primary: color },
+    };
+    setLocalBrand(updated);
+    onBrandChange?.(updated);
+  };
+
+  const handleSecondaryChange = (color: string) => {
+    const updated = {
+      ...localBrand,
+      palette: { ...localBrand.palette, secondary: color },
+    };
+    setLocalBrand(updated);
+    onBrandChange?.(updated);
+  };
+
+  const handleAccentChange = (color: string) => {
+    const updated = {
+      ...localBrand,
+      palette: { ...localBrand.palette, accent: color },
+    };
+    setLocalBrand(updated);
+    onBrandChange?.(updated);
+  };
+
+  const handleExtraColorChange = (index: number, color: string) => {
+    const extraColors = [...(localBrand.palette.extraColors || [])];
+    extraColors[index] = color;
+    const updated = {
+      ...localBrand,
+      palette: { ...localBrand.palette, extraColors },
+    };
     setLocalBrand(updated);
     onBrandChange?.(updated);
   };
@@ -106,7 +149,9 @@ export function BrandAssetCard({ brand, editable = false, onBrandChange }: Brand
               {editable && (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Business Name</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Business Name
+                    </label>
                     <EditableText
                       value={localBrand.name}
                       onChange={handleNameChange}
@@ -114,7 +159,9 @@ export function BrandAssetCard({ brand, editable = false, onBrandChange }: Brand
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Tagline</label>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Tagline
+                    </label>
                     <EditableText
                       value={localBrand.tagline || ""}
                       onChange={handleTaglineChange}
@@ -126,32 +173,65 @@ export function BrandAssetCard({ brand, editable = false, onBrandChange }: Brand
               )}
 
               {/* Color Palette */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Palette className="w-4 h-4" />
                   <span>Color Palette</span>
                 </div>
-                <div className="flex gap-2">
-                  {localBrand.colors.map((color, index) => (
-                    editable ? (
-                      <ColorPicker
-                        key={index}
-                        color={color}
-                        onChange={(newColor) => handleColorChange(index, newColor)}
-                      />
-                    ) : (
-                      <motion.div
-                        key={index}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="w-8 h-8 rounded-lg shadow-sm border border-border"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    )
-                  ))}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      Primary
+                    </p>
+                    <ColorPicker
+                      color={localBrand.palette.primary}
+                      onChange={handlePrimaryChange}
+                      disabled={!editable}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      Secondary
+                    </p>
+                    <ColorPicker
+                      color={localBrand.palette.secondary}
+                      onChange={handleSecondaryChange}
+                      disabled={!editable}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      Accent
+                    </p>
+                    <ColorPicker
+                      color={localBrand.palette.accent}
+                      onChange={handleAccentChange}
+                      disabled={!editable}
+                    />
+                  </div>
                 </div>
+
+                {localBrand.palette.extraColors &&
+                  localBrand.palette.extraColors.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Extra Colors
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {localBrand.palette.extraColors.map((color, index) => (
+                          <ColorPicker
+                            key={index}
+                            color={color}
+                            onChange={(newColor) =>
+                              handleExtraColorChange(index, newColor)
+                            }
+                            disabled={!editable}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
 
               {/* Typography */}
@@ -164,7 +244,7 @@ export function BrandAssetCard({ brand, editable = false, onBrandChange }: Brand
                   onClick={() => setShowFontPicker(true)}
                   className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border hover:border-primary/50 hover:bg-muted transition-all group"
                 >
-                  <span 
+                  <span
                     className="text-sm font-medium text-foreground"
                     style={{ fontFamily: localBrand.font || "Inter" }}
                   >
@@ -223,7 +303,9 @@ export function BrandAssetCard({ brand, editable = false, onBrandChange }: Brand
                         className="h-10 w-auto object-contain"
                       />
                     ) : (
-                      <span className="text-xl font-bold gradient-text">{localBrand.name.charAt(0)}</span>
+                      <span className="text-xl font-bold gradient-text">
+                        {localBrand.name.charAt(0)}
+                      </span>
                     )}
                   </div>
                 )}

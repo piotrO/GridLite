@@ -1,17 +1,17 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
-import { createBrowserSession, closeBrowser } from "@/app/api/scan/lib/browser";
-import { extractWebsiteText } from "@/app/api/scan/lib/text-extractor";
-import { parseUrl } from "@/app/api/scan/lib/url-utils";
+import { mastra } from "@/mastra";
+import { createBrowserSession, closeBrowser } from "@/lib/scan/browser";
+import { extractWebsiteText } from "@/lib/scan/text-extractor";
+import { parseUrl } from "@/lib/shared/url-utils";
 import {
   extractCampaignData,
   CampaignData,
-} from "@/app/api/strategy/lib/strategy-analyzer";
+} from "@/lib/strategy/strategy-analyzer";
 import {
-  generateInitialStrategy,
-  BrandProfileInput,
+  BrandProfile,
   StrategyDocument,
-} from "@/app/api/strategy/lib/strategist";
+} from "@/lib/shared/types";
 
 /**
  * Input schema for the strategy workflow.
@@ -26,7 +26,14 @@ const StrategyInputSchema = z.object({
     brandSummary: z.string().optional(),
     tone: z.string().optional(),
     personality: z.array(z.string()).optional(),
-    colors: z.array(z.string()).optional(),
+    palette: z
+      .object({
+        primary: z.string(),
+        secondary: z.string(),
+        accent: z.string(),
+        extraColors: z.array(z.string()).optional(),
+      })
+      .optional(),
     audiences: z
       .array(
         z.object({
@@ -191,15 +198,41 @@ const generateStrategyStep = createStep({
     const { brandProfile, campaignData } = inputData;
 
     try {
-      const result = await generateInitialStrategy(
-        brandProfile as BrandProfileInput,
-        campaignData as CampaignData,
-      );
+      const agent = mastra.getAgent("strategist");
+
+      const contextPrompt = `
+BRAND PROFILE:
+Name: ${brandProfile.name}
+Industry: ${brandProfile.industry || "Unknown"}
+Summary: ${brandProfile.brandSummary || "N/A"}
+Tagline: ${brandProfile.tagline || "N/A"}
+Audiences: ${brandProfile.audiences?.map((a) => a.name).join(", ") || "General"}
+
+CAMPAIGN DATA (Extracted from Website):
+Promotions: ${campaignData?.currentPromos.join(", ") || "None"}
+USPs: ${campaignData?.uniqueSellingPoints.join(", ") || "N/A"}
+Key Products: ${campaignData?.keyProducts.join(", ") || "N/A"}
+Calls to Action: ${campaignData?.callsToAction.join(", ") || "N/A"}
+`;
+
+      const result = await agent.generate([
+        { role: "user", content: contextPrompt },
+        { role: "user", content: "Generate the initial strategy in JSON format." },
+      ]);
+
+      let parsed;
+      try {
+        const jsonMatch = result.text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const jsonString = jsonMatch ? jsonMatch[1].trim() : result.text.trim();
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        throw new Error("Failed to parse agent response as JSON");
+      }
 
       return {
-        greeting: result.greeting,
-        strategy: result.strategy as z.infer<typeof StrategyDocumentSchema>,
-        campaignData,
+        greeting: parsed.greeting || "Hey! I've put together a strategy for you.",
+        strategy: parsed.strategy as z.infer<typeof StrategyDocumentSchema>,
+        campaignData: campaignData as CampaignData,
       };
     } catch (error) {
       // Return fallback strategy

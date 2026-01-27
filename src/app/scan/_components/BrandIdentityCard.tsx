@@ -77,16 +77,20 @@ export function BrandIdentityCard({
             className="text-sm text-researcher"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-muted-foreground shrink-0">
-            Tagline
-          </label>
-          <EditableText
-            value={tagline}
-            onChange={onTaglineChange}
-            className="text-sm"
-          />
-        </div>
+
+        {tagline && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-muted-foreground shrink-0">
+              Tagline
+            </label>
+            <EditableText
+              value={tagline}
+              onChange={onTaglineChange}
+              className="text-sm"
+            />
+          </div>
+        )}
+
         {brandSummary && brandSummary.length > 0 && (
           <div className="flex items-start gap-2 pt-2 border-t border-border">
             <label className="text-xs font-medium text-muted-foreground shrink-0 pt-0.5">

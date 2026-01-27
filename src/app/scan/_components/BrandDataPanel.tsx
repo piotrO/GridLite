@@ -7,6 +7,7 @@ import { BrandIdentityCard } from "./BrandIdentityCard";
 import { ColorsTypographyCard } from "./ColorsTypographyCard";
 import { BrandVoiceCard } from "./BrandVoiceCard";
 import { TargetAudiencesCard } from "./TargetAudiencesCard";
+import { BrandPalette } from "@/lib/shared/types";
 
 interface BrandData {
   name: string;
@@ -15,12 +16,33 @@ interface BrandData {
   industry: string;
   tagline: string;
   logo: string;
-  colors: string[];
   font: string;
-  tone: string;
-  personality: string[];
+  personality?: string[];
+  voiceLabel: string;
+  voiceInstructions: string;
+  dos: string[];
+  donts: string[];
+  palette: BrandPalette;
+  tone?: string;
   brandSummary?: string;
   audiences: { name: string; description: string }[];
+  personalityDimensions?: {
+    sincerity: number;
+    excitement: number;
+    competence: number;
+    sophistication: number;
+    ruggedness: number;
+  };
+  linguisticMechanics?: {
+    formality_index: "High" | "Low";
+    urgency_level: "High" | "Low";
+    etymology_bias: "Latinate" | "Germanic";
+  };
+  archetype?: {
+    primary: string;
+    secondary: string;
+    brand_motivation: string;
+  };
 }
 
 interface BrandDataPanelProps {
@@ -77,17 +99,23 @@ export function BrandDataPanel({
             />
 
             <ColorsTypographyCard
-              colors={brandData.colors}
+              palette={brandData.palette}
               font={brandData.font}
-              onColorsChange={(colors) =>
-                onBrandDataChange({ ...brandData, colors })
+              onPaletteChange={(palette) =>
+                onBrandDataChange({ ...brandData, palette })
               }
               onFontClick={onFontClick}
             />
 
             <BrandVoiceCard
-              tone={brandData.tone}
-              personality={brandData.personality}
+              voiceLabel={brandData.voiceLabel}
+              voiceInstructions={brandData.voiceInstructions}
+              dos={brandData.dos}
+              donts={brandData.donts}
+              personality={brandData.personality || []}
+              personalityDimensions={brandData.personalityDimensions}
+              linguisticMechanics={brandData.linguisticMechanics}
+              archetype={brandData.archetype}
             />
 
             <TargetAudiencesCard audiences={brandData.audiences} />

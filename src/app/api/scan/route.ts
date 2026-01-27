@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ScanResult } from "./lib/types";
+import { ScanResult } from "@/lib/shared/types";
 import { getBrandScanWorkflow } from "@/mastra";
-import { parseUrl } from "./lib/url-utils";
+import { parseUrl } from "@/lib/shared/url-utils";
 
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
           sendStatus("starting_scan");
 
           // Create a run
-          const run = await workflow.createRunAsync();
+          const run = await workflow.createRun();
 
           sendStatus("extracting_text");
 

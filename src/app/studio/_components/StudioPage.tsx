@@ -123,7 +123,9 @@ export default function StudioPage() {
           if (m.positionDelta?.x || m.positionDelta?.y) {
             const dx = m.positionDelta.x || 0;
             const dy = m.positionDelta.y || 0;
-            changes.push(`moved ${dx > 0 ? "right" : dx < 0 ? "left" : ""} ${dy > 0 ? "down" : dy < 0 ? "up" : ""}`);
+            changes.push(
+              `moved ${dx > 0 ? "right" : dx < 0 ? "left" : ""} ${dy > 0 ? "down" : dy < 0 ? "up" : ""}`,
+            );
           }
           if (m.scaleFactor && m.scaleFactor !== 1) {
             changes.push(`scaled to ${Math.round(m.scaleFactor * 100)}%`);
@@ -141,7 +143,12 @@ export default function StudioPage() {
 
   const initialBrand = activeBrandKit || {
     name: "Your Brand",
-    colors: ["#4F46E5", "#F97316", "#FBBF24", "#10B981"],
+    palette: {
+      primary: "#4F46E5",
+      secondary: "#F97316",
+      accent: "#10B981",
+      extraColors: ["#8B5CF6"],
+    },
     tagline: "Building the future",
     font: "Inter",
     logo: "🚀",
@@ -237,7 +244,9 @@ export default function StudioPage() {
                 <Button variant="outline" size="sm" className="gap-2">
                   <div
                     className="w-4 h-4 rounded-full border-2 border-background"
-                    style={{ backgroundColor: brand.colors?.[0] || "#4F46E5" }}
+                    style={{
+                      backgroundColor: brand.palette?.primary || "#4F46E5",
+                    }}
                   />
                   <span className="max-w-[120px] truncate">{brand.name}</span>
                   <ChevronDown className="w-3 h-3 opacity-50" />
@@ -251,13 +260,18 @@ export default function StudioPage() {
                     className="gap-3"
                   >
                     <div className="flex gap-1">
-                      {kit.colors.slice(0, 3).map((color, i) => (
-                        <div
-                          key={i}
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: kit.palette?.primary }}
+                      />
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: kit.palette?.secondary }}
+                      />
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: kit.palette?.accent }}
+                      />
                     </div>
                     <span className="flex-1 truncate">{kit.name}</span>
                     {activeBrandKit?.id === kit.id && (
@@ -385,8 +399,9 @@ export default function StudioPage() {
           >
             <AdPreviewCanvas
               selectedTemplate={selectedTemplate}
-              adName={`${brand.name} ${strategySession.strategy?.campaignAngle || "Campaign"
-                }`}
+              adName={`${brand.name} ${
+                strategySession.strategy?.campaignAngle || "Campaign"
+              }`}
               data={{
                 headline: content.headline,
                 bodyCopy: content.bodyCopy,
@@ -394,12 +409,17 @@ export default function StudioPage() {
                 imageUrl: content.imageUrl,
                 colors: creativeData?.colorScheme
                   ? [
-                    creativeData.colorScheme.primary,
-                    creativeData.colorScheme.secondary,
-                    creativeData.colorScheme.accent,
-                    creativeData.colorScheme.background,
-                  ]
-                  : brand.colors,
+                      creativeData.colorScheme.primary,
+                      creativeData.colorScheme.secondary,
+                      creativeData.colorScheme.accent,
+                      creativeData.colorScheme.background,
+                    ]
+                  : [
+                      brand.palette.primary,
+                      brand.palette.secondary,
+                      brand.palette.accent,
+                      "#FFFFFF",
+                    ],
                 logoUrl: brand.logo,
                 layerModifications: layerModifications,
               }}

@@ -1,8 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Clock, Pencil, MoreHorizontal, Trash2, RefreshCw, AlertCircle } from "lucide-react";
+import {
+  Clock,
+  Pencil,
+  MoreHorizontal,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandPalette } from "@/lib/shared/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +25,7 @@ interface BrandKitCardProps {
   logo: string;
   industry: string;
   tagline: string;
-  colors: string[];
+  palette: BrandPalette;
   createdAt: Date;
   isActive?: boolean;
   needsReanalysis?: boolean;
@@ -34,7 +42,7 @@ export function BrandKitCard({
   logo,
   industry,
   tagline,
-  colors,
+  palette,
   createdAt,
   isActive = false,
   needsReanalysis = false,
@@ -49,18 +57,39 @@ export function BrandKitCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`group relative bg-card rounded-2xl border-2 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${isActive
-        ? "border-primary shadow-lg"
-        : needsReanalysis
-          ? "border-amber-500/50 hover:border-amber-500"
-          : "border-border hover:border-primary/50"
-        }`}
+      className={`group relative bg-card rounded-2xl border-2 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${
+        isActive
+          ? "border-primary shadow-lg"
+          : needsReanalysis
+            ? "border-amber-500/50 hover:border-amber-500"
+            : "border-border hover:border-primary/50"
+      }`}
       onClick={onClick}
     >
       {/* Color Bar */}
       <div className="h-3 flex">
-        {colors.map((color, i) => (
-          <div key={i} className="flex-1" style={{ backgroundColor: color }} />
+        <div
+          className="flex-1"
+          style={{ backgroundColor: palette.primary }}
+          title="Primary"
+        />
+        <div
+          className="flex-1"
+          style={{ backgroundColor: palette.secondary }}
+          title="Secondary"
+        />
+        <div
+          className="flex-1"
+          style={{ backgroundColor: palette.accent }}
+          title="Accent"
+        />
+        {palette.extraColors?.map((color, i) => (
+          <div
+            key={i}
+            className="flex-1"
+            style={{ backgroundColor: color }}
+            title={`Extra ${i + 1}`}
+          />
         ))}
       </div>
 
@@ -76,7 +105,8 @@ export function BrandKitCard({
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
-                    (e.target as HTMLImageElement).parentElement!.innerHTML = "🏢";
+                    (e.target as HTMLImageElement).parentElement!.innerHTML =
+                      "🏢";
                   }}
                 />
               ) : (
@@ -145,11 +175,27 @@ export function BrandKitCard({
 
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
-            {colors.slice(0, 4).map((color, i) => (
+            <div
+              className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
+              style={{ backgroundColor: palette.primary }}
+              title="Primary"
+            />
+            <div
+              className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
+              style={{ backgroundColor: palette.secondary }}
+              title="Secondary"
+            />
+            <div
+              className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
+              style={{ backgroundColor: palette.accent }}
+              title="Accent"
+            />
+            {palette.extraColors?.slice(0, 1).map((color, i) => (
               <div
                 key={i}
                 className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
                 style={{ backgroundColor: color }}
+                title="Extra"
               />
             ))}
           </div>

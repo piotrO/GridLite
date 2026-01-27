@@ -19,6 +19,7 @@ import {
   getBrandLogoUrl,
   uploadBrandAvatar,
 } from "@/services/brand-service";
+import { BrandPalette } from "@/lib/shared/types";
 
 // Grid8 API brand type
 export interface Grid8Brand {
@@ -41,7 +42,6 @@ export interface Grid8Brand {
     url?: string;
     industry?: string;
     tagline?: string;
-    colors?: string[];
     font?: string;
     tone?: string;
     personality?: string[];
@@ -54,12 +54,21 @@ export interface Grid8Brand {
   industry?: string;
   tagline?: string;
   logo?: string;
-  colors?: string[];
   font?: string;
   tone?: string;
   personality?: string[];
   brandSummary?: string;
   audiences?: { name: string; description: string }[];
+  targetAudiences?: { name: string; description: string }[];
+  personality_dimensions?: any;
+  linguistic_mechanics?: any;
+  archetype?: any;
+  voiceInstructions?: string;
+  voiceLabel?: string;
+  dos?: string[];
+  donts?: string[];
+  palette?: BrandPalette;
+  analyzedAt?: string;
 }
 
 // Local brand kit type (for UI purposes)
@@ -72,14 +81,35 @@ export interface BrandKit {
   industry: string;
   tagline: string;
   logo: string;
-  colors: string[];
   font: string;
-  tone: string;
-  personality: string[];
+  personality?: string[];
+  voiceLabel: string;
+  voiceInstructions: string;
+  dos: string[];
+  donts: string[];
+  palette?: BrandPalette;
+  tone?: string; // Legacy
   brandSummary?: string;
   audiences: { name: string; description: string }[];
+  personalityDimensions?: {
+    sincerity: number;
+    excitement: number;
+    competence: number;
+    sophistication: number;
+    ruggedness: number;
+  };
+  linguisticMechanics?: {
+    formality_index: "High" | "Low";
+    urgency_level: "High" | "Low";
+    etymology_bias: "Latinate" | "Germanic";
+  };
+  archetype?: {
+    primary: string;
+    secondary: string;
+    brand_motivation: string;
+  };
   createdAt: Date;
-  needsReanalysis: boolean; // Flag for brands that need URL re-analysis
+  needsReanalysis: boolean;
 }
 
 interface BrandContextType {
@@ -95,11 +125,11 @@ interface BrandContextType {
   brandKits: BrandKit[];
   activeBrandKit: BrandKit | null;
   addBrandKit: (
-    brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">
+    brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">,
   ) => Promise<BrandKit>;
   updateBrandKit: (
     id: string,
-    brand: Partial<Omit<BrandKit, "id" | "createdAt">>
+    brand: Partial<Omit<BrandKit, "id" | "createdAt">>,
   ) => Promise<void>;
   setActiveBrandKit: (kit: BrandKit | null) => void;
   deleteBrandKit: (id: string) => Promise<void>;
@@ -116,7 +146,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   // Grid8 API brands state
   const [grid8Brands, setGrid8Brands] = useState<Grid8Brand[]>([]);
   const [activeGrid8Brand, setActiveGrid8Brand] = useState<Grid8Brand | null>(
-    null
+    null,
   );
   const [isLoadingGrid8Brands, setIsLoadingGrid8Brands] = useState(false);
   const [grid8BrandsError, setGrid8BrandsError] = useState<string | null>(null);
@@ -140,7 +170,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
       // Convert Grid8 brands to BrandKits with CDN logo URLs
       const convertedBrandKits = fetchedBrands.map((brand) =>
-        convertGrid8BrandToBrandKit(brand, getBrandLogoUrl(brand._id))
+        convertGrid8BrandToBrandKit(brand, getBrandLogoUrl(brand._id)),
       );
 
       // Merge with existing local-only brand kits (those without grid8Id)
@@ -150,7 +180,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       setGrid8BrandsError(
-        error instanceof Error ? error.message : "Failed to fetch brands"
+        error instanceof Error ? error.message : "Failed to fetch brands",
       );
     } finally {
       setIsLoadingGrid8Brands(false);
@@ -166,7 +196,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
   // Create brand kit - also creates on Grid8 with full brand profile
   const addBrandKit = async (
-    brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">
+    brand: Omit<BrandKit, "id" | "createdAt" | "needsReanalysis" | "grid8Id">,
   ): Promise<BrandKit> => {
     if (token) {
       try {
@@ -177,7 +207,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
         if (brand.logo && brand.logo.startsWith("http")) {
           // Fire and forget - don't block on avatar upload
           uploadBrandAvatar(token, grid8Data._id, brand.logo).catch((err) =>
-            console.error("Avatar upload failed:", err)
+            console.error("Avatar upload failed:", err),
           );
         }
 
@@ -205,7 +235,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
   const updateBrandKit = async (
     id: string,
-    brand: Partial<Omit<BrandKit, "id" | "createdAt">>
+    brand: Partial<Omit<BrandKit, "id" | "createdAt">>,
   ) => {
     const kit = brandKits.find((k) => k.id === id);
 
@@ -221,12 +251,19 @@ export function BrandProvider({ children }: { children: ReactNode }) {
           shortName: updatedKit.shortName || updatedKit.name,
           industry: updatedKit.industry,
           tagline: updatedKit.tagline,
-          colors: updatedKit.colors,
           font: updatedKit.font,
           tone: updatedKit.tone,
           personality: updatedKit.personality,
           brandSummary: updatedKit.brandSummary,
           targetAudiences: updatedKit.audiences,
+          personality_dimensions: updatedKit.personalityDimensions,
+          linguistic_mechanics: updatedKit.linguisticMechanics,
+          archetype: updatedKit.archetype,
+          voiceInstructions: updatedKit.voiceInstructions,
+          voiceLabel: updatedKit.voiceLabel,
+          dos: updatedKit.dos,
+          donts: updatedKit.donts,
+          palette: updatedKit.palette,
           analyzedAt: new Date().toISOString(),
         };
         await updateBrandOnGrid8(token, kit.grid8Id, {
@@ -242,7 +279,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 
     // Update locally
     setBrandKits((prev) =>
-      prev.map((k) => (k.id === id ? { ...k, ...brand } : k))
+      prev.map((k) => (k.id === id ? { ...k, ...brand } : k)),
     );
     if (activeBrandKit?.id === id) {
       setActiveBrandKit({ ...activeBrandKit, ...brand });

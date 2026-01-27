@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStrategyWorkflow } from "@/mastra";
+import { mastra } from "@/mastra";
 import {
-  generateChatResponse,
   BrandProfileInput,
   StrategyDocument,
-} from "./lib/strategist";
+} from "@/lib/strategy/strategist";
 
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
@@ -42,17 +41,46 @@ export async function POST(request: NextRequest) {
 
     // Handle chat mode (simple response, no streaming needed)
     if (body.mode === "chat" && body.userMessage && body.currentStrategy) {
-      const response = await generateChatResponse(
-        body.brandProfile,
-        body.currentStrategy,
-        body.userMessage,
-        body.conversationHistory || [],
-      );
+      const agent = mastra.getAgent("strategistChat");
+
+      const contextSummary = `
+Brand: ${body.brandProfile.name} (${body.brandProfile.industry || "Unknown industry"})
+Brand Summary: ${body.brandProfile.brandSummary || "N/A"}
+Tagline: ${body.brandProfile.tagline || "N/A"}
+
+Current Strategy:
+- Type: ${body.currentStrategy.recommendation}
+- Campaign Angle: "${body.currentStrategy.campaignAngle}"
+- Headline: "${body.currentStrategy.headline}"
+- Subheadline: "${body.currentStrategy.subheadline}"
+- CTA: "${body.currentStrategy.callToAction}"
+`;
+
+      const history = (body.conversationHistory || []).slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const result = await agent.generate([
+        { role: "user", content: `Context:\n${contextSummary}` },
+        ...history,
+        { role: "user", content: body.userMessage },
+        { role: "user", content: "Respond as Sarah with JSON:" },
+      ]);
+
+      let parsed;
+      try {
+        const jsonMatch = result.text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const jsonString = jsonMatch ? jsonMatch[1].trim() : result.text.trim();
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        parsed = { message: result.text };
+      }
 
       return NextResponse.json({
         type: "chat",
-        message: response.message,
-        updatedStrategy: response.updatedStrategy,
+        message: parsed.message,
+        updatedStrategy: parsed.updatedStrategy,
       });
     }
 
@@ -70,11 +98,11 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          const workflow = getStrategyWorkflow();
+          const workflow = mastra.getWorkflow("strategy");
 
           sendStatus("scanning_website");
 
-          const run = await workflow.createRunAsync();
+          const run = await workflow.createRun();
 
           const streamResult = await run.stream({
             inputData: {

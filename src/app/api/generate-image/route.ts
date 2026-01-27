@@ -3,7 +3,7 @@ import {
     generateAndUploadImage,
     generateImage,
     ImageGenerationOptions,
-} from "./lib/image-generator";
+} from "@/lib/design/image-generator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

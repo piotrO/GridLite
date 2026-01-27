@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { extractLogo } from "@/app/api/scan/lib/logo-extractor";
+import { extractLogo } from "@/lib/scan/logo-extractor";
 import { getSession } from "./browser";
 
 /**

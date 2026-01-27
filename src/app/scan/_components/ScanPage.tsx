@@ -12,6 +12,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBrand, BrandKit } from "@/contexts/BrandContext";
 import { useCredits } from "@/contexts/CreditContext";
 import { useCampaign } from "@/contexts/CampaignContext";
+import {
+  ScanResult,
+  BrandProfile,
+  BrandPalette,
+} from "@/lib/shared/types";
 import { SignInModal } from "@/components/SignInModal";
 import { FontPickerModal } from "@/components/FontPickerModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -31,12 +36,33 @@ interface BrandData {
   industry: string;
   tagline: string;
   logo: string;
-  colors: string[];
   font: string;
-  tone: string;
-  personality: string[];
+  personality?: string[];
+  voiceLabel: string;
+  voiceInstructions: string;
+  dos: string[];
+  donts: string[];
+  tone?: string;
   brandSummary?: string;
+  palette: BrandPalette;
   audiences: { name: string; description: string }[];
+  personalityDimensions?: {
+    sincerity: number;
+    excitement: number;
+    competence: number;
+    sophistication: number;
+    ruggedness: number;
+  };
+  linguisticMechanics?: {
+    formality_index: "High" | "Low";
+    urgency_level: "High" | "Low";
+    etymology_bias: "Latinate" | "Germanic";
+  };
+  archetype?: {
+    primary: string;
+    secondary: string;
+    brand_motivation: string;
+  };
 }
 
 function extractBrandName(url: string): string {
@@ -55,18 +81,42 @@ const getDefaultBrandData = (url: string): BrandData => ({
   shortName: extractBrandName(url),
   url,
   industry: "Technology & Software",
-  tagline: "Building the future, one pixel at a time",
+  tagline: "null",
   logo: "🚀",
-  colors: ["#4F46E5", "#F97316", "#10B981", "#8B5CF6"],
+  palette: {
+    primary: "#4F46E5",
+    secondary: "#10B981",
+    accent: "#F97316",
+    extraColors: ["#8B5CF6"],
+  },
   font: "Inter / Plus Jakarta Sans",
-  tone: "Professional yet approachable",
-  personality: ["Innovative", "Trustworthy", "Modern"],
+  voiceLabel: "Modern Professional",
+  voiceInstructions: "Professional yet approachable",
+  dos: ["Use active voice", "Be direct"],
+  donts: ["Avoid jargon", "No passive voice"],
   brandSummary: "A premium technology company focused on innovation.",
   audiences: [
     { name: "Tech Professionals", description: "Ages 25-45, decision makers" },
     { name: "Early Adopters", description: "Innovation enthusiasts" },
     { name: "Digital Businesses", description: "Companies seeking growth" },
   ],
+  personalityDimensions: {
+    sincerity: 3,
+    excitement: 4,
+    competence: 4,
+    sophistication: 3,
+    ruggedness: 2,
+  },
+  linguisticMechanics: {
+    formality_index: "High",
+    urgency_level: "Low",
+    etymology_bias: "Germanic",
+  },
+  archetype: {
+    primary: "The Creator",
+    secondary: "The Sage",
+    brand_motivation: "High-end technology focused on empowerment.",
+  },
 });
 
 export default function ScanPage() {
@@ -100,20 +150,20 @@ export default function ScanPage() {
 
   const [urlInput, setUrlInput] = useState(workingBrandKit?.url || initialUrl);
   const [isScanning, setIsScanning] = useState(
-    (!!initialUrl && !editingBrandKit) || isReanalyzeMode
+    (!!initialUrl && !editingBrandKit) || isReanalyzeMode,
   );
   const [scanComplete, setScanComplete] = useState(
-    !!editingBrandKit && !isReanalyzeMode
+    !!editingBrandKit && !isReanalyzeMode,
   );
   const [currentScanStep, setCurrentScanStep] = useState<string>("");
   const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(
-    editingBrandKit && !isReanalyzeMode ? 3 : 0
+    editingBrandKit && !isReanalyzeMode ? 3 : 0,
   );
   const [showBrandData, setShowBrandData] = useState(
-    !!editingBrandKit && !isReanalyzeMode
+    !!editingBrandKit && !isReanalyzeMode,
   );
 
   const [brandData, setBrandData] = useState<BrandData>(
@@ -124,14 +174,26 @@ export default function ScanPage() {
           industry: workingBrandKit.industry,
           tagline: workingBrandKit.tagline,
           logo: workingBrandKit.logo,
-          colors: workingBrandKit.colors,
           font: workingBrandKit.font,
-          tone: workingBrandKit.tone,
           personality: workingBrandKit.personality,
+          voiceLabel: workingBrandKit.voiceLabel || "Modern Professional",
+          voiceInstructions:
+            workingBrandKit.voiceInstructions || workingBrandKit.tone || "",
+          dos: workingBrandKit.dos || [],
+          donts: workingBrandKit.donts || [],
+          palette: workingBrandKit.palette || {
+            primary: "#4F46E5",
+            secondary: "#10B981",
+            accent: "#F97316",
+          },
+          tone: workingBrandKit.tone,
           audiences: workingBrandKit.audiences,
           brandSummary: workingBrandKit.brandSummary,
+          personalityDimensions: workingBrandKit.personalityDimensions,
+          linguisticMechanics: workingBrandKit.linguisticMechanics,
+          archetype: workingBrandKit.archetype,
         }
-      : getDefaultBrandData(urlInput || "example.com")
+      : getDefaultBrandData(urlInput || "example.com"),
   );
 
   const initialMessages: Omit<Message, "id" | "timestamp">[] =
@@ -153,37 +215,37 @@ export default function ScanPage() {
           },
         ]
       : isReanalyzeMode
-      ? [
-          {
-            persona: "researcher",
-            content: `Hey there! 👋 I've reanalyzed ${brandData.name}'s website with fresh data!`,
-          },
-          {
-            persona: "researcher",
-            content:
-              "I've updated the brand details while preserving your existing Grid8 data.",
-          },
-          {
-            persona: "researcher",
-            content: "Review the changes and approve when you're ready.",
-          },
-        ]
-      : [
-          {
-            persona: "researcher",
-            content: `Hey there! 👋 I've just finished scanning ${brandData.name}'s website!`,
-          },
-          {
-            persona: "researcher",
-            content:
-              "I've extracted the brand identity, colors, typography, voice, and audiences.",
-          },
-          {
-            persona: "researcher",
-            content:
-              "Feel free to ask me to adjust anything, or approve to continue.",
-          },
-        ];
+        ? [
+            {
+              persona: "researcher",
+              content: `Hey there! 👋 I've reanalyzed ${brandData.name}'s website with fresh data!`,
+            },
+            {
+              persona: "researcher",
+              content:
+                "I've updated the brand details while preserving your existing Grid8 data.",
+            },
+            {
+              persona: "researcher",
+              content: "Review the changes and approve when you're ready.",
+            },
+          ]
+        : [
+            {
+              persona: "researcher",
+              content: `Hey there! 👋 I've just finished scanning ${brandData.name}'s website!`,
+            },
+            {
+              persona: "researcher",
+              content:
+                "I've extracted the brand identity, colors, typography, voice, and audiences.",
+            },
+            {
+              persona: "researcher",
+              content:
+                "Feel free to ask me to adjust anything, or approve to continue.",
+            },
+          ];
 
   // Update brand data when URL changes
   useEffect(() => {
@@ -211,7 +273,7 @@ export default function ScanPage() {
           id: `msg-${i}`,
           ...msg,
           timestamp: new Date(),
-        }))
+        })),
       );
     }
   }, [editingBrandKit, isReanalyzeMode]);
@@ -278,33 +340,41 @@ export default function ScanPage() {
             if (message.type === "status") {
               setCurrentScanStep(message.step);
             } else if (message.type === "complete") {
-              // Debug: log what we received from the API
-              console.log("[ScanPage] Received from API:", {
-                businessName: message.data.businessName,
-                shortName: message.data.shortName,
-                brandSummary: message.data.brandSummary,
-              });
+              const { brand_profile, logo, rawWebsiteText } = message.data;
 
-              // Update brand data with real extracted data
-              setBrandData((prev) => ({
-                ...prev,
-                name:
-                  message.data.businessName ||
-                  message.data.shortName ||
-                  prev.name,
-                shortName: message.data.shortName || prev.shortName,
-                logo: message.data.logo,
-                colors: message.data.colors,
-                tagline: message.data.tagline,
-                tone: message.data.tone,
-                personality: message.data.voice,
-                industry: message.data.industry || prev.industry,
-                brandSummary: message.data.brandSummary || "",
-                audiences: message.data.targetAudiences || prev.audiences,
-              }));
+              // Update brand data with mapped values from brand_profile
+              setBrandData((prev) => {
+                return {
+                  ...prev,
+                  name: brand_profile?.name || prev.name,
+                  shortName: brand_profile?.name || prev.shortName,
+                  logo: logo || prev.logo,
+                  palette: brand_profile?.palette || prev.palette,
+                  tagline:
+                    brand_profile?.guidelines?.power_words?.join(" • ") ||
+                    prev.tagline,
+                  personality: brand_profile?.personality || prev.personality,
+                  font:
+                    brand_profile?.guidelines?.visual_identity?.font_style ||
+                    prev.font,
+                  industry: brand_profile?.industry || prev.industry,
+                  brandSummary: brand_profile?.brandSummary || "",
+                  voiceLabel:
+                    brand_profile?.guidelines?.voice_label ||
+                    "Modern Professional",
+                  voiceInstructions:
+                    brand_profile?.guidelines?.voice_instructions || "",
+                  dos: brand_profile?.guidelines?.dos || [],
+                  donts: brand_profile?.guidelines?.donts || [],
+                  audiences: brand_profile?.targetAudiences || prev.audiences,
+                  personalityDimensions: brand_profile?.personality_dimensions,
+                  linguisticMechanics: brand_profile?.linguistic_mechanics,
+                  archetype: brand_profile?.archetype,
+                };
+              });
               // Store rawWebsiteText for Strategy phase
-              if (message.data.rawWebsiteText) {
-                setRawWebsiteText(message.data.rawWebsiteText);
+              if (rawWebsiteText) {
+                setRawWebsiteText(rawWebsiteText);
               }
               handleScanComplete();
             } else if (message.type === "error") {
@@ -318,7 +388,7 @@ export default function ScanPage() {
       }
     } catch (error) {
       setScanError(
-        error instanceof Error ? error.message : "Failed to scan website"
+        error instanceof Error ? error.message : "Failed to scan website",
       );
       setIsScanning(false);
     }
@@ -427,7 +497,7 @@ export default function ScanPage() {
   const handleSignInSuccess = async () => {
     await saveBrandKit();
     router.push(
-      pendingActionRef.current === "strategist" ? "/strategy" : "/dashboard"
+      pendingActionRef.current === "strategist" ? "/strategy" : "/dashboard",
     );
     pendingActionRef.current = null;
   };

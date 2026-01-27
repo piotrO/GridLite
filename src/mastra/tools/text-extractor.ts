@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { extractWebsiteText } from "@/app/api/scan/lib/text-extractor";
+import { extractWebsiteText } from "@/lib/scan/text-extractor";
 import { getSession } from "./browser";
 
 /**
