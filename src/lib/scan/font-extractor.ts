@@ -15,13 +15,29 @@ export interface FontResult {
  * Intercepts font files during a reload and matches the computed font-family style.
  */
 export async function extractBrandFonts(page: Page): Promise<FontResult> {
-  const fontFiles = new Map<string, { buffer: Buffer; contentType: string }>();
+  const fontFiles = new Map<
+    string,
+    { buffer: Buffer; contentType: string; initiator: string }
+  >();
+  const cssFiles = new Map<string, string>();
 
   // 1. Setup Network Interception
   const handleResponse = async (response: any) => {
     const url = response.url().toLowerCase();
     const contentType =
       (await response.headerValue("content-type").catch(() => "")) || "";
+
+    // Check for font extensions or font mime types
+    const isCss = contentType.includes("text/css") || url.endsWith(".css");
+
+    if (isCss) {
+      try {
+        const text = await response.text();
+        cssFiles.set(url, text);
+      } catch (e) {
+        // console.warn(`[FontExtractor] Failed to capture CSS for ${url}`);
+      }
+    }
 
     // Check for font extensions or font mime types
     const isFont =
@@ -38,11 +54,13 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
         );
 
         const buffer = await Promise.race([bufferPromise, timeoutPromise]);
+        const initiator =
+          (await response.request().headerValue("referer")) || "";
 
         // If buffer is empty, it might be a preflight or error, ignore
         if (buffer.length > 0) {
           // console.log(`[FontExtractor] Captured ${buffer.length} bytes from ${url}`);
-          fontFiles.set(response.url(), { buffer, contentType });
+          fontFiles.set(response.url(), { buffer, contentType, initiator });
         }
       } catch (e) {
         // console.warn(`[FontExtractor] Failed to capture font buffer for ${url}:`, e);
@@ -115,7 +133,42 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
       }
     }
 
-    // Strategy B: Fallback (if no name match)
+    // Strategy B: Fallback (check CSS initiators)
+    if (!match && fontFiles.size > 0) {
+      console.log(
+        `[Font Extraction] No direct name match for '${primaryFont}'. Checking CSS initiators...`,
+      );
+
+      for (const [fontUrl, fontData] of fontFiles.entries()) {
+        const initiatorUrl = fontData.initiator;
+        if (!initiatorUrl) continue;
+
+        const cssContent = cssFiles.get(initiatorUrl);
+        if (!cssContent) continue;
+
+        // Check if this CSS file mentions the primary font
+        // Simple check: does the font name appear in the CSS?
+        // More robust: check if it appears in a font-family declaration?
+        // For now, let's trust that if the CSS *that loaded this font* mentions the target font name, likely it's the one.
+        const fontNameRegex = new RegExp(
+          `font-family:[^;]*${primaryFont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+          "i",
+        );
+
+        if (
+          cssContent.includes(primaryFont) || // Broad check
+          fontNameRegex.test(cssContent) // Specific CSS property check
+        ) {
+          console.log(
+            `[Font Extraction] Found match via CSS initiator (${initiatorUrl}) for font: ${fontUrl}`,
+          );
+          match = { url: fontUrl, ...fontData };
+          break;
+        }
+      }
+    }
+
+    // Strategy C: Last Resort Fallback (largest captured font)
     if (!match && fontFiles.size > 0) {
       const candidates = Array.from(fontFiles.entries())
         .filter(([_, data]) => data.buffer.length > 4000) // > 4KB
@@ -123,7 +176,7 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
 
       if (candidates.length > 0) {
         console.log(
-          `[Font Extraction] No name match for '${primaryFont}'. Falling back to largest captured font: ${candidates[0][0]}`,
+          `[Font Extraction] No match found. Falling back to largest captured font: ${candidates[0][0]}`,
         );
         match = { url: candidates[0][0], ...candidates[0][1] };
       }

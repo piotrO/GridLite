@@ -8,10 +8,10 @@ import sharp from 'sharp';
 import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
-import quantize from '@lokesh.dhakar/quantize';
 import convert from 'color-convert';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 async function createBrowserSession(url) {
@@ -342,13 +342,28 @@ async function extractWebsiteText(page) {
   const html = await page.content();
   const $ = cheerio.load(html);
   $("script, style, noscript, svg, iframe").remove();
-  const noiseKeywords = ["cart", "search", "login", "account", "signin", "signup"];
+  const noiseKeywords = [
+    "cart",
+    "search",
+    "login",
+    "account",
+    "signin",
+    "signup"
+  ];
   noiseKeywords.forEach((keyword) => {
     $(`[class*="${keyword}"], [id*="${keyword}"]`).remove();
   });
   $("a").filter((_, el) => {
     const text = $(el).text().trim().toLowerCase();
-    return ["cart", "search", "log in", "sign in", "sign up", "account", "menu"].includes(text);
+    return [
+      "cart",
+      "search",
+      "log in",
+      "sign in",
+      "sign up",
+      "account",
+      "menu"
+    ].includes(text);
   }).remove();
   const title = $("title").text().trim();
   const description = $('meta[name="description"]').attr("content") || $('meta[property="og:description"]').attr("content") || "";
@@ -357,7 +372,6 @@ async function extractWebsiteText(page) {
   $("h1, h2").each((_, el) => {
     const $el = $(el);
     const text = $el.text().trim();
-    ;
     if (!text || text.length > 200) return;
     let context = "";
     const nextEl = $el.next();
@@ -380,7 +394,8 @@ Subtext: ${context}` : ""}`);
   if (storySentences.length === 0) {
     $("p").each((_, el) => {
       const $el = $(el);
-      if ($el.closest('[class*="product"], [class*="item"], [class*="card"]').length > 0) return;
+      if ($el.closest('[class*="product"], [class*="item"], [class*="card"]').length > 0)
+        return;
       const text = $el.text().trim();
       if (text.length > 150) storySentences.push(text);
     });
@@ -392,7 +407,9 @@ Subtext: ${context}` : ""}`);
   }).each((_, el) => {
     const $el = $(el);
     const price = $el.text().trim();
-    const productCard = $el.closest('[class*="product"], [class*="card"], [class*="item"], div');
+    const productCard = $el.closest(
+      '[class*="product"], [class*="card"], [class*="item"], div'
+    );
     if (productCard.length) {
       const titleEl = productCard.find("h3, h4, h5, strong, .title, .product-title").first();
       if (titleEl.length) {
@@ -461,7 +478,6 @@ ${[...new Set(ctas)].slice(0, 15).map((c) => `- ${c}`).join("\n")}
 ${[...new Set(socialLinks)].map((s) => `- ${s}`).join("\n")}
 </SOCIALS>
 `.trim();
-  console.log(output);
   return output;
 }
 async function scrapeTextOnly(page) {
@@ -599,6 +615,11 @@ const DEFAULT_AI_RESULT = {
     industry: "Technology & Software",
     tagline: "Our tagline",
     brandSummary: "A leading provider of innovative hardware and software solutions for modern teams.",
+    palette: {
+      primary: "#4F46E5",
+      secondary: "#10B981",
+      accent: "#F97316"
+    },
     targetAudiences: [
       {
         name: "Creative Professionals",
@@ -666,8 +687,29 @@ function parseAIResponse(responseText) {
   try {
     const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
     const jsonString = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
-    return JSON.parse(jsonString);
-  } catch {
+    const data = JSON.parse(jsonString);
+    const brandProfile = data.brand_profile || data.brandProfile || data;
+    if (brandProfile) {
+      if (brandProfile.personalityDimensions && !brandProfile.personality_dimensions) {
+        brandProfile.personality_dimensions = brandProfile.personalityDimensions;
+      }
+      if (brandProfile.linguisticMechanics && !brandProfile.linguistic_mechanics) {
+        brandProfile.linguistic_mechanics = brandProfile.linguisticMechanics;
+      }
+      if (brandProfile.guidelines) {
+        if (brandProfile.guidelines.voiceLabel && !brandProfile.guidelines.voice_label) {
+          brandProfile.guidelines.voice_label = brandProfile.guidelines.voiceLabel;
+        }
+        if (brandProfile.guidelines.voiceInstructions && !brandProfile.guidelines.voice_instructions) {
+          brandProfile.guidelines.voice_instructions = brandProfile.guidelines.voiceInstructions;
+        }
+      }
+    }
+    return {
+      brand_profile: brandProfile
+    };
+  } catch (error) {
+    console.error("Failed to parse AI response:", error);
     return DEFAULT_AI_RESULT;
   }
 }
@@ -963,6 +1005,7 @@ function getImageDataUrl(result) {
 }
 
 const brandScannerAgent = new Agent({
+  id: "brand-scanner",
   name: "brand-scanner",
   instructions: `You are a Brand Intelligence Agent specialized in extracting comprehensive brand information from websites.
 
@@ -1008,6 +1051,7 @@ Return a JSON object with the complete brand analysis:
 });
 
 const strategistAgent = new Agent({
+  id: "strategist",
   name: "strategist",
   instructions: `## SARAH - The Strategist
 
@@ -1082,6 +1126,7 @@ IMPORTANT: Return ONLY the JSON, no markdown formatting or additional text.`,
   model: "google/gemini-2.5-flash"
 });
 const strategistChatAgent = new Agent({
+  id: "strategist-chat",
   name: "strategist-chat",
   instructions: `You are Sarah, an energetic Digital Marketing Strategist. You're in a conversation with a client about their ad campaign strategy.
 
@@ -1119,6 +1164,7 @@ IMPORTANT: Always return valid JSON, no markdown.`,
 });
 
 const designerAgent = new Agent({
+  id: "designer",
   name: "designer",
   instructions: `## DAVINCI - The Designer
 
@@ -1177,6 +1223,7 @@ IMPORTANT: Return ONLY the JSON, no markdown formatting or additional text.`,
   model: "google/gemini-2.5-flash"
 });
 const designerChatAgent = new Agent({
+  id: "designer-chat",
   name: "designer-chat",
   instructions: `You are Davinci, a passionate Creative Director. You're in a conversation with a client about their ad creative.
 
@@ -1280,78 +1327,322 @@ IMPORTANT: Always return valid JSON, no markdown.`,
   model: "google/gemini-2.5-flash"
 });
 
-async function extractBrandColors(imageBuffer) {
-  console.log("[ColorExtractor] Starting extraction process...");
+const colorReasonerAgent = new Agent({
+  id: "color-reasoner",
+  name: "color-reasoner",
+  instructions: `You are a Brand Design Director. Your task is to determine the definitive brand color palette (Primary, Secondary, Accent) for a brand based on three sources of incomplete or noisy data.
+
+INPUT DATA:
+1. **ScreenshotColors**: Extracted from a screenshot. Dominant colors.
+2. **LogoColors**: Extracted from the logo file. *Note: Secondary/Accent may be NULL if the logo is monochrome or simple.*
+3. **HtmlColors**: Hex codes found in the HTML/CSS source. Contains everything.
+
+YOUR GOAL:
+Synthesize these inputs to find the "True" Brand Palette.
+
+RULES FOR REASONING:
+- **Primary Color**: The dominant color in the Logo is the Source of Truth.
+- **Secondary Color**: If Logo has a secondary color, use it. If not, look for a high-contrast functional color in Screenshot (buttons, etc.) that matches HTML colors. **If strictly monochrome, valid to return null.**
+- **Accent Color**: Often used for High Priority CTAs. Look for saturation. **If none found, return null.**
+- **Extra Colors**: Additional brand colors if found.
+
+OUTPUT FORMAT:
+Return ONLY a JSON object:
+{
+  "primary": "#hex",
+  "secondary": "#hex" or null,
+  "accent": "#hex" or null,
+  "extraColors": ["#hex"],
+  "reasoning": "Brief explanation"
+}
+
+Do not return markdown formatting or code blocks. Just the raw JSON string.`,
+  model: "google/gemini-2.5-flash"
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+function getColorDistance(rgb1, rgb2) {
+  return Math.sqrt(
+    Math.pow(rgb1[0] - rgb2[0], 2) + Math.pow(rgb1[1] - rgb2[1], 2) + Math.pow(rgb1[2] - rgb2[2], 2)
+  );
+}
+function rgbToHex(r, g, b) {
+  return "#" + convert.rgb.hex([r, g, b]);
+}
+function findProjectRoot(startDir) {
+  let current = startDir;
+  while (current !== path.parse(current).root) {
+    if (fs.existsSync(path.join(current, "package.json"))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return process.cwd();
+}
+async function extractPaletteFromBuffer(buffer, type, debugName = "debug-image") {
+  const projectRoot = findProjectRoot(__dirname);
+  const debugDir = path.join(projectRoot, "public", "debug");
+  console.log(`[ColorExtractor] Saving debug images to: ${debugDir}`);
+  if (!fs.existsSync(debugDir)) {
+    try {
+      fs.mkdirSync(debugDir, { recursive: true });
+    } catch (e) {
+      console.error(`[ColorExtractor] Failed to create debug directory:`, e);
+    }
+  }
+  if (fs.existsSync(debugDir)) {
+    try {
+      const originalPath = path.join(debugDir, `${debugName}-original.png`);
+      fs.writeFileSync(originalPath, buffer);
+    } catch (e) {
+      console.error(`[ColorExtractor] Debug save failed:`, e);
+    }
+  }
+  const sharpInstance = sharp(buffer).resize(512, 512, { fit: "inside", withoutEnlargement: true }).ensureAlpha();
   try {
-    const publicDir = path.join(process.cwd(), "public");
-    if (fs.existsSync(publicDir)) {
-      fs.writeFileSync(path.join(publicDir, "debug-original.png"), imageBuffer);
-      console.log("[ColorExtractor] DEBUG: Saved original image to public/debug-original.png");
-    }
-    const sharpInstance = sharp(imageBuffer).resize(600).removeAlpha();
-    const previewBuffer = await sharpInstance.clone().png().toBuffer();
-    if (fs.existsSync(publicDir)) {
-      fs.writeFileSync(path.join(publicDir, "debug-resized.png"), previewBuffer);
-      console.log("[ColorExtractor] DEBUG: Saved resized image to public/debug-resized.png");
-    }
-    const { data, info } = await sharpInstance.raw().toBuffer({ resolveWithObject: true });
-    console.log(
-      `[ColorExtractor] Image processed: ${info.width}x${info.height}, channels: ${info.channels}`
+    const analyzedBuffer = await sharpInstance.clone().png().toBuffer();
+    fs.writeFileSync(
+      path.join(debugDir, `${debugName}-analyzed.png`),
+      analyzedBuffer
     );
-    console.log(`[ColorExtractor] Buffer length: ${data.length} bytes`);
-    const pixelArray = [];
-    for (let i = 0; i < data.length; i += 3 * 5) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      if (!(r > 250 && g > 250 && b > 250)) {
-        pixelArray.push([r, g, b]);
-      }
+  } catch (e) {
+  }
+  const { data, info } = await sharpInstance.raw().toBuffer({ resolveWithObject: true });
+  const channels = info.channels;
+  const colorCounts = /* @__PURE__ */ new Map();
+  const QUANTIZE_STEP = 1;
+  const whiteThreshold = type === "logo" ? 230 : 255;
+  for (let i = 0; i < data.length; i += channels) {
+    const r0 = data[i];
+    const g0 = data[i + 1];
+    const b0 = data[i + 2];
+    const a = channels >= 4 ? data[i + 3] : 255;
+    if (a <= 50) continue;
+    let r = r0;
+    let g = g0;
+    let b = b0;
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) continue;
+    r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
+    g = Math.round(g / QUANTIZE_STEP) * QUANTIZE_STEP;
+    b = Math.round(b / QUANTIZE_STEP) * QUANTIZE_STEP;
+    const key = `${r},${g},${b}`;
+    const existing = colorCounts.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      colorCounts.set(key, { r, g, b, count: 1 });
     }
-    console.log(
-      `[ColorExtractor] Sampled ${pixelArray.length} pixels for quantization.`
+  }
+  const sortedCandidates = Array.from(colorCounts.values()).sort(
+    (a, b) => b.count - a.count
+  );
+  const selectedColors = [];
+  const MIN_DISTANCE = 15;
+  for (const candidate of sortedCandidates) {
+    const candidateRgb = [
+      candidate.r,
+      candidate.g,
+      candidate.b
+    ];
+    const isTooClose = selectedColors.some(
+      (selected) => getColorDistance(selected.rgb, candidateRgb) < MIN_DISTANCE
     );
-    if (pixelArray.length === 0) {
-      console.log(
-        "[ColorExtractor] No valid pixels found for quantization, using fallback."
-      );
-      return { primary: "#4F46E5", secondary: "#4F46E5", accent: "#4F46E5" };
+    if (!isTooClose) {
+      selectedColors.push({
+        hex: rgbToHex(candidate.r, candidate.g, candidate.b),
+        rgb: candidateRgb,
+        count: candidate.count
+      });
     }
-    const cmap = quantize(pixelArray, 10);
-    const rawPalette = cmap ? cmap.palette() : [];
-    console.log("[ColorExtractor] Raw palette generated:", rawPalette);
-    const filteredColors = rawPalette.map(([r, g, b]) => ({
-      hex: `#${convert.rgb.hex([r, g, b])}`,
-      hsl: convert.rgb.hsl([r, g, b]),
-      // [H, S, L]
-      rgb: [r, g, b]
-    })).filter((color) => {
-      const [h, s, l] = color.hsl;
-      return l > 5 && l < 95 && s > 8;
-    });
-    console.log(
-      `[ColorExtractor] Filtered colors (${filteredColors.length}):`,
-      filteredColors.map((c) => c.hex)
-    );
-    const primary = filteredColors[0]?.hex || "#4F46E5";
-    const sortedBySaturation = [...filteredColors.slice(1)].sort(
-      (a, b) => b.hsl[1] - a.hsl[1]
-    );
-    const accent = sortedBySaturation[0]?.hex || primary;
-    const secondary = filteredColors[1]?.hex || primary;
-    const extraColors = filteredColors.length > 3 ? filteredColors.slice(2).filter((c) => c.hex !== accent).slice(0, 2).map((c) => c.hex) : void 0;
-    const result = { primary, secondary, accent, extraColors };
-    console.log("[ColorExtractor] Final Result:", result);
-    return result;
+    if (selectedColors.length >= 10) break;
+  }
+  if (selectedColors.length === 0) {
+    return { primary: "#4F46E5", secondary: null, accent: null };
+  }
+  const totalPixels = Array.from(colorCounts.values()).reduce(
+    (sum, c) => sum + c.count,
+    0
+  );
+  console.log(
+    `[ColorExtractor] Top colors for ${type}:`,
+    selectedColors.map(
+      (c) => `${c.hex} (${(c.count / totalPixels * 100).toFixed(1)}%)`
+    )
+  );
+  const primary = selectedColors[0].hex;
+  const secondary = selectedColors.length > 1 ? selectedColors[1].hex : null;
+  const accent = selectedColors.length > 2 ? selectedColors[2].hex : null;
+  const extraColors = selectedColors.length > 3 ? selectedColors.slice(3, 5).map((c) => c.hex) : void 0;
+  return { primary, secondary, accent, extraColors };
+}
+function extractColorsFromHtml(html) {
+  const hexRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})\b/g;
+  const rgbRegex = /rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/g;
+  const rgbaRegex = /rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*([\d.]+)\s*\)/g;
+  const colorCounts = /* @__PURE__ */ new Map();
+  let match;
+  while ((match = hexRegex.exec(html)) !== null) {
+    const color = match[0].toUpperCase();
+    colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+  }
+  while ((match = rgbRegex.exec(html)) !== null) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    if (r <= 255 && g <= 255 && b <= 255) {
+      const color = rgbToHex(r, g, b).toUpperCase();
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    }
+  }
+  while ((match = rgbaRegex.exec(html)) !== null) {
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+    const a = parseFloat(match[4]);
+    if (r <= 255 && g <= 255 && b <= 255 && a > 0.1) {
+      const color = rgbToHex(r, g, b).toUpperCase();
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    }
+  }
+  const totalMatches = Array.from(colorCounts.values()).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+  const sortedWithFreq = Array.from(colorCounts.entries()).sort((a, b) => b[1] - a[1]).map(([color, count]) => ({
+    color,
+    percent: (count / totalMatches * 100).toFixed(1)
+  }));
+  console.log(
+    `[ColorExtractor] Top colors in HTML:`,
+    sortedWithFreq.slice(0, 10).map((c) => `${c.color} (${c.percent}%)`)
+  );
+  return sortedWithFreq.map((s) => s.color);
+}
+async function extractColorsFromScreenshot(imageBuffer) {
+  console.log("[ColorExtractor] Extracting from screenshot...");
+  return extractPaletteFromBuffer(
+    imageBuffer,
+    "screenshot",
+    "debug-screenshot"
+  );
+}
+async function extractColorsFromLogo(logoUrl) {
+  console.log(`[ColorExtractor] Extracting from logo: ${logoUrl}`);
+  try {
+    const response = await fetch(logoUrl);
+    if (!response.ok) throw new Error("Failed to fetch");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return extractPaletteFromBuffer(buffer, "logo", "debug-logo");
   } catch (error) {
-    console.error("[ColorExtractor] Error during color extraction:", error);
-    return { primary: "#4F46E5", secondary: "#4F46E5", accent: "#4F46E5" };
+    console.error("[ColorExtractor] Logo extraction failed:", error);
+    return { primary: "#000000", secondary: "#000000", accent: "#000000" };
   }
 }
 
-const ScanInputSchema = z.object({
-  url: z.string().url().describe("The URL to scan")
-});
+async function extractBrandFonts(page) {
+  const fontFiles = /* @__PURE__ */ new Map();
+  const handleResponse = async (response) => {
+    const url = response.url().toLowerCase();
+    const contentType = await response.headerValue("content-type").catch(() => "") || "";
+    const isFont = /\.(woff2?|ttf|otf)(\?|$)/.test(url) || contentType.includes("font") || url.includes("use.typekit.net");
+    if (isFont) {
+      try {
+        const bufferPromise = response.body();
+        const timeoutPromise = new Promise(
+          (_, reject) => setTimeout(() => reject(new Error("Timeout getting body")), 3e3)
+        );
+        const buffer = await Promise.race([bufferPromise, timeoutPromise]);
+        if (buffer.length > 0) {
+          fontFiles.set(response.url(), { buffer, contentType });
+        }
+      } catch (e) {
+      }
+    }
+  };
+  page.on("response", handleResponse);
+  try {
+    try {
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 15e3 });
+    } catch (e) {
+      console.warn("Reload timeout exceeded, proceeding with extraction...");
+    }
+    await page.waitForTimeout(2e3);
+    const computedStyles = await page.evaluate(`(() => {
+      const h1 = document.querySelector("h1");
+      const body = document.body;
+
+      // Get computed style
+      const h1Style = h1 ? window.getComputedStyle(h1).fontFamily : "";
+      const bodyStyle = window.getComputedStyle(body).fontFamily;
+
+      const clean = (str) => {
+        if (!str) return "";
+        // Split by comma to get stack, take first one
+        // Remove single or double quotes
+        return str.split(",")[0].trim().replace(/['"]/g, "");
+      };
+
+      return {
+        h1Font: clean(h1Style),
+        bodyFont: clean(bodyStyle),
+        fullH1Stack: h1Style,
+      };
+    })()`);
+    const primaryFont = computedStyles.h1Font || computedStyles.bodyFont;
+    if (!primaryFont) {
+      return {
+        primaryFontFamily: "system-ui",
+        fontFileBase64: null,
+        fontFormat: null,
+        isSystemFont: true
+      };
+    }
+    let match;
+    for (const [url, data] of fontFiles.entries()) {
+      if (url.toLowerCase().includes(primaryFont.toLowerCase().replace(/\s+/g, "-")) || url.toLowerCase().includes(primaryFont.toLowerCase().replace(/\s+/g, ""))) {
+        match = { url, ...data };
+        break;
+      }
+    }
+    if (!match && fontFiles.size > 0) {
+      const candidates = Array.from(fontFiles.entries()).filter(([_, data]) => data.buffer.length > 4e3).sort((a, b) => b[1].buffer.length - a[1].buffer.length);
+      if (candidates.length > 0) {
+        console.log(
+          `[Font Extraction] No name match for '${primaryFont}'. Falling back to largest captured font: ${candidates[0][0]}`
+        );
+        match = { url: candidates[0][0], ...candidates[0][1] };
+      }
+    }
+    const getFormat = (url, contentType) => {
+      const lowerUrl = url.toLowerCase();
+      const lowerCT = contentType.toLowerCase();
+      if (lowerUrl.includes(".woff2") || lowerCT.includes("woff2"))
+        return "woff2";
+      if (lowerUrl.includes(".woff") || lowerCT.includes("woff"))
+        return "woff";
+      if (lowerUrl.includes(".ttf") || lowerCT.includes("ttf"))
+        return "ttf";
+      if (lowerUrl.includes(".otf") || lowerCT.includes("otf"))
+        return "otf";
+      if (/\.woff2($|\?)/.test(lowerUrl)) return "woff2";
+      if (/\.woff($|\?)/.test(lowerUrl)) return "woff";
+      if (/\.ttf($|\?)/.test(lowerUrl)) return "ttf";
+      if (/\.otf($|\?)/.test(lowerUrl)) return "otf";
+      return null;
+    };
+    const format = match ? getFormat(match.url, match.contentType) : null;
+    return {
+      primaryFontFamily: primaryFont,
+      fontFileBase64: match ? match.buffer.toString("base64") : null,
+      fontFormat: format,
+      isSystemFont: !match || !format
+    };
+  } finally {
+    page.removeListener("response", handleResponse);
+  }
+}
+
 const PersonalityDimensionsSchema = z.object({
   sincerity: z.number().min(1).max(5),
   excitement: z.number().min(1).max(5),
@@ -1368,10 +1659,16 @@ const VisualIdentitySchema = z.object({
   primary_color: z.string(),
   font_style: z.string()
 });
+const TypographySchema = z.object({
+  primaryFontFamily: z.string(),
+  fontFileBase64: z.string().nullable(),
+  fontFormat: z.enum(["woff2", "woff", "ttf", "otf"]).nullable(),
+  isSystemFont: z.boolean()
+});
 const BrandPaletteSchema = z.object({
   primary: z.string(),
-  secondary: z.string(),
-  accent: z.string(),
+  secondary: z.string().nullable().optional(),
+  accent: z.string().nullable().optional(),
   extraColors: z.array(z.string()).optional()
 });
 const BrandGuidelinesSchema = z.object({
@@ -1399,10 +1696,23 @@ const BrandProfileSchema$1 = z.object({
   guidelines: BrandGuidelinesSchema,
   palette: BrandPaletteSchema.optional()
 });
+const PreviousDataSchema = z.object({
+  screenshotBase64: z.string().optional(),
+  rawWebsiteText: z.string().optional(),
+  rawHtml: z.string().optional(),
+  logoUrl: z.string().nullable().optional(),
+  typography: TypographySchema.nullable().optional()
+});
+const ScanInputSchema = z.object({
+  url: z.string().url().describe("The URL to scan"),
+  previousScanData: PreviousDataSchema.optional()
+});
 const ScanOutputSchema = z.object({
   logo: z.string(),
   brand_profile: BrandProfileSchema$1,
-  rawWebsiteText: z.string().optional()
+  rawWebsiteText: z.string().optional(),
+  typography: TypographySchema.optional(),
+  screenshotBase64: z.string().optional()
 });
 const sessionStore = /* @__PURE__ */ new Map();
 const launchBrowserStep = createStep({
@@ -1415,8 +1725,11 @@ const launchBrowserStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData, runId }) => {
-    const { url } = inputData;
+    const { url, previousScanData } = inputData;
     const sessionKey = `session_${runId}`;
+    if (previousScanData?.screenshotBase64 && previousScanData?.rawWebsiteText) {
+      return { url, sessionKey: "SKIPPED", success: true };
+    }
     try {
       const session = await createBrowserSession(url);
       sessionStore.set(sessionKey, session);
@@ -1431,28 +1744,108 @@ const launchBrowserStep = createStep({
     }
   }
 });
-const extractLogoStep = createStep({
-  id: "extract-logo",
+const extractFontsStep = createStep({
+  id: "extract-fonts",
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
+    previousScanData: PreviousDataSchema.optional(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   outputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
+    typography: TypographySchema.nullable(),
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  execute: async ({ inputData }) => {
+    const { url, sessionKey, previousScanData, success, error } = inputData;
+    if (!success) {
+      return { url, sessionKey, typography: null, success: false, error };
+    }
+    if (sessionKey === "SKIPPED" && previousScanData?.typography !== void 0) {
+      return {
+        url,
+        sessionKey,
+        typography: previousScanData.typography,
+        success: true
+      };
+    }
+    const session = sessionStore.get(sessionKey);
+    if (!session) {
+      if (sessionKey === "SKIPPED") {
+        return { url, sessionKey, typography: null, success: true };
+      }
+      return {
+        url,
+        sessionKey,
+        typography: null,
+        success: false,
+        error: "No session found"
+      };
+    }
+    try {
+      const result = await extractBrandFonts(session.page);
+      return { url, sessionKey, typography: result, success: true };
+    } catch (error2) {
+      console.warn("Font extraction failed:", error2);
+      return {
+        url,
+        sessionKey,
+        typography: null,
+        success: true,
+        // Continue workflow
+        error: error2 instanceof Error ? error2.message : "Failed to extract fonts"
+      };
+    }
+  }
+});
+const extractLogoStep = createStep({
+  id: "extract-logo",
+  inputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    previousScanData: PreviousDataSchema.optional(),
+    typography: TypographySchema.nullable(),
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  outputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    typography: TypographySchema.nullable(),
     logoUrl: z.string().nullable(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, success, error } = inputData;
+    const { url, sessionKey, previousScanData, typography, success, error } = inputData;
     if (!success) {
-      return { url, sessionKey, logoUrl: null, success: false, error };
+      return {
+        url,
+        sessionKey,
+        typography,
+        logoUrl: null,
+        success: false,
+        error
+      };
+    }
+    if (sessionKey === "SKIPPED" && previousScanData?.logoUrl !== void 0) {
+      return {
+        url,
+        sessionKey,
+        typography,
+        logoUrl: previousScanData.logoUrl,
+        success: true
+      };
     }
     const session = sessionStore.get(sessionKey);
     if (!session) {
+      if (sessionKey === "SKIPPED") {
+        return { url, sessionKey, typography, logoUrl: null, success: true };
+      }
       return {
         url,
         sessionKey,
@@ -1463,11 +1856,12 @@ const extractLogoStep = createStep({
     }
     try {
       const logoUrl = await extractLogo(session.page, url);
-      return { url, sessionKey, logoUrl, success: true };
+      return { url, sessionKey, typography, logoUrl, success: true };
     } catch (error2) {
       return {
         url,
         sessionKey,
+        typography,
         logoUrl: null,
         success: false,
         error: error2 instanceof Error ? error2.message : "Failed to extract logo"
@@ -1480,7 +1874,9 @@ const captureScreenshotStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
+    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
     success: z.boolean(),
     error: z.string().optional()
   }),
@@ -1488,20 +1884,40 @@ const captureScreenshotStep = createStep({
     url: z.string(),
     sessionKey: z.string(),
     logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
     screenshotBase64: z.string(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, logoUrl, success, error } = inputData;
+    const {
+      url,
+      sessionKey,
+      previousScanData,
+      logoUrl,
+      typography,
+      success,
+      error
+    } = inputData;
     if (!success) {
       return {
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64: "",
         success: false,
         error
+      };
+    }
+    if (sessionKey === "SKIPPED" && previousScanData?.screenshotBase64) {
+      return {
+        url,
+        sessionKey,
+        logoUrl,
+        typography,
+        screenshotBase64: previousScanData.screenshotBase64,
+        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -1510,6 +1926,7 @@ const captureScreenshotStep = createStep({
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64: "",
         success: false,
         error: "No session found"
@@ -1521,6 +1938,7 @@ const captureScreenshotStep = createStep({
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64: buffer.toString("base64"),
         success: true
       };
@@ -1529,59 +1947,10 @@ const captureScreenshotStep = createStep({
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64: "",
         success: false,
         error: error2 instanceof Error ? error2.message : "Failed to capture screenshot"
-      };
-    }
-  }
-});
-const analyzeColorsStep = createStep({
-  id: "analyze-colors",
-  inputSchema: z.object({
-    url: z.string(),
-    sessionKey: z.string(),
-    logoUrl: z.string().nullable(),
-    screenshotBase64: z.string(),
-    success: z.boolean(),
-    error: z.string().optional()
-  }),
-  outputSchema: z.object({
-    url: z.string(),
-    sessionKey: z.string(),
-    logoUrl: z.string().nullable(),
-    screenshotBase64: z.string(),
-    palette: BrandPaletteSchema,
-    success: z.boolean(),
-    error: z.string().optional()
-  }),
-  execute: async ({ inputData }) => {
-    const { screenshotBase64, success } = inputData;
-    if (!success || !screenshotBase64) {
-      return {
-        ...inputData,
-        palette: {
-          primary: "#4F46E5",
-          secondary: "#4F46E5",
-          accent: "#4F46E5"
-        }
-      };
-    }
-    try {
-      const buffer = Buffer.from(screenshotBase64, "base64");
-      const palette = await extractBrandColors(buffer);
-      return {
-        ...inputData,
-        palette
-      };
-    } catch (error) {
-      return {
-        ...inputData,
-        palette: {
-          primary: "#4F46E5",
-          secondary: "#4F46E5",
-          accent: "#4F46E5"
-        }
       };
     }
   }
@@ -1591,9 +1960,10 @@ const extractTextStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
+    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
     screenshotBase64: z.string(),
-    palette: BrandPaletteSchema,
     success: z.boolean(),
     error: z.string().optional()
   }),
@@ -1601,9 +1971,10 @@ const extractTextStep = createStep({
     url: z.string(),
     sessionKey: z.string(),
     logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
     screenshotBase64: z.string(),
-    palette: BrandPaletteSchema,
     rawWebsiteText: z.string(),
+    rawHtml: z.string(),
     success: z.boolean(),
     error: z.string().optional()
   }),
@@ -1611,9 +1982,10 @@ const extractTextStep = createStep({
     const {
       url,
       sessionKey,
+      previousScanData,
       logoUrl,
+      typography,
       screenshotBase64,
-      palette,
       success,
       error
     } = inputData;
@@ -1622,11 +1994,24 @@ const extractTextStep = createStep({
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64,
-        palette,
         rawWebsiteText: "",
+        rawHtml: "",
         success: false,
         error
+      };
+    }
+    if (sessionKey === "SKIPPED" && previousScanData?.rawWebsiteText) {
+      return {
+        url,
+        sessionKey,
+        logoUrl,
+        typography,
+        screenshotBase64,
+        rawWebsiteText: previousScanData.rawWebsiteText,
+        rawHtml: previousScanData.rawHtml || "",
+        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -1636,23 +2021,27 @@ const extractTextStep = createStep({
         sessionKey,
         logoUrl,
         screenshotBase64,
-        palette,
         rawWebsiteText: "",
+        rawHtml: "",
         success: false,
         error: "No session found"
       };
     }
     try {
+      const start = Date.now();
       const rawWebsiteText = await extractWebsiteText(session.page);
+      const rawHtml = await session.page.content();
+      console.log(`[Text&HTML] Extracted in ${Date.now() - start}ms`);
       await closeBrowser(session.browser);
       sessionStore.delete(sessionKey);
       return {
         url,
         sessionKey,
         logoUrl,
+        typography,
         screenshotBase64,
-        palette,
         rawWebsiteText,
+        rawHtml,
         success: true
       };
     } catch (error2) {
@@ -1666,10 +2055,154 @@ const extractTextStep = createStep({
         sessionKey,
         logoUrl,
         screenshotBase64,
-        palette,
         rawWebsiteText: "",
+        rawHtml: "",
         success: false,
         error: error2 instanceof Error ? error2.message : "Failed to extract text"
+      };
+    }
+  }
+});
+const extractColorsStep = createStep({
+  id: "extract-colors-multi",
+  inputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
+    screenshotBase64: z.string(),
+    rawWebsiteText: z.string(),
+    rawHtml: z.string(),
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  outputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
+    screenshotBase64: z.string(),
+    rawWebsiteText: z.string(),
+    screenshotColors: BrandPaletteSchema,
+    logoColors: BrandPaletteSchema,
+    htmlColors: z.array(z.string()),
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  execute: async ({ inputData }) => {
+    const { screenshotBase64, logoUrl, typography, rawHtml, success } = inputData;
+    let screenshotColors = {
+      primary: "#000",
+      secondary: "#000",
+      accent: "#000"
+    };
+    let logoColors = {
+      primary: "#000",
+      secondary: null,
+      accent: null
+    };
+    let htmlColors = [];
+    if (!success) {
+      return {
+        ...inputData,
+        typography,
+        screenshotColors,
+        logoColors,
+        htmlColors
+      };
+    }
+    try {
+      if (screenshotBase64) {
+        const buffer = Buffer.from(screenshotBase64, "base64");
+        screenshotColors = await extractColorsFromScreenshot(buffer);
+      }
+      if (logoUrl) {
+        logoColors = await extractColorsFromLogo(logoUrl);
+      }
+      if (rawHtml) {
+        htmlColors = extractColorsFromHtml(rawHtml);
+      }
+      return {
+        ...inputData,
+        screenshotColors,
+        logoColors,
+        htmlColors,
+        typography
+      };
+    } catch (e) {
+      console.error("Error in color extraction step:", e);
+      return {
+        ...inputData,
+        typography,
+        screenshotColors,
+        logoColors,
+        htmlColors
+      };
+    }
+  }
+});
+const determineBrandColorsStep = createStep({
+  id: "determine-brand-colors",
+  inputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
+    screenshotBase64: z.string(),
+    rawWebsiteText: z.string(),
+    screenshotColors: BrandPaletteSchema,
+    logoColors: BrandPaletteSchema,
+    htmlColors: z.array(z.string()),
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  outputSchema: z.object({
+    url: z.string(),
+    sessionKey: z.string(),
+    logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable(),
+    screenshotBase64: z.string(),
+    rawWebsiteText: z.string(),
+    palette: BrandPaletteSchema,
+    success: z.boolean(),
+    error: z.string().optional()
+  }),
+  execute: async ({ inputData }) => {
+    const { screenshotColors, logoColors, htmlColors, success } = inputData;
+    if (!success) {
+      return {
+        ...inputData,
+        palette: { primary: "#000", secondary: "#000", accent: "#000" }
+      };
+    }
+    try {
+      const agent = mastra.getAgent("colorReasoner");
+      const result = await agent.generate(
+        JSON.stringify({
+          screenshotColors,
+          logoColors,
+          htmlColors: htmlColors.slice(0, 50)
+          // Limit noise
+        })
+      );
+      let palette = { primary: "#000", secondary: "#000", accent: "#000" };
+      try {
+        const jsonStr = result.text.replace(/```json/g, "").replace(/```/g, "").trim();
+        palette = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error("Failed to parse color reasoner output:", result.text);
+        palette = screenshotColors;
+      }
+      return {
+        ...inputData,
+        palette
+      };
+    } catch (error) {
+      console.error("Color reasoning failed:", error);
+      return {
+        ...inputData,
+        palette: screenshotColors
+        // Fallback
       };
     }
   }
@@ -1711,9 +2244,10 @@ const analyzeWithAIStep = createStep({
     url: z.string(),
     sessionKey: z.string(),
     logoUrl: z.string().nullable(),
+    typography: TypographySchema.nullable().optional(),
     screenshotBase64: z.string(),
-    palette: BrandPaletteSchema,
     rawWebsiteText: z.string(),
+    palette: BrandPaletteSchema,
     success: z.boolean(),
     error: z.string().optional()
   }),
@@ -1721,6 +2255,7 @@ const analyzeWithAIStep = createStep({
   execute: async ({ inputData }) => {
     const {
       logoUrl,
+      typography,
       screenshotBase64,
       palette,
       rawWebsiteText,
@@ -1733,7 +2268,8 @@ const analyzeWithAIStep = createStep({
         ...DEFAULT_BRAND_PROFILE,
         palette
       },
-      rawWebsiteText
+      rawWebsiteText,
+      typography
     };
     if (!success || !screenshotBase64) {
       return {
@@ -1754,9 +2290,13 @@ const analyzeWithAIStep = createStep({
         logo: logoUrl || "\u{1F680}",
         brand_profile: {
           ...aiResult.brand_profile,
+          // OVERRIDE the AI's guessed palette with our reasoned palette
           palette
         },
-        rawWebsiteText
+        rawWebsiteText,
+        typography,
+        screenshotBase64
+        // Pass it back for subsequent rescans
       };
     } catch (error2) {
       return {
@@ -1776,7 +2316,7 @@ const brandScanWorkflow = createWorkflow({
   id: "brand-scan",
   inputSchema: ScanInputSchema,
   outputSchema: ScanOutputSchema
-}).then(launchBrowserStep).then(extractLogoStep).then(captureScreenshotStep).then(analyzeColorsStep).then(extractTextStep).then(analyzeWithAIStep).commit();
+}).then(launchBrowserStep).then(extractFontsStep).then(extractLogoStep).then(captureScreenshotStep).then(extractTextStep).then(extractColorsStep).then(determineBrandColorsStep).then(analyzeWithAIStep).commit();
 async function cleanupSession(sessionKey) {
   const session = sessionStore.get(sessionKey);
   if (session) {
@@ -2271,7 +2811,8 @@ const mastra = new Mastra({
     strategist: strategistAgent,
     strategistChat: strategistChatAgent,
     designer: designerAgent,
-    designerChat: designerChatAgent
+    designerChat: designerChatAgent,
+    colorReasoner: colorReasonerAgent
   },
   workflows: {
     brandScan: brandScanWorkflow,

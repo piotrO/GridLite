@@ -160,6 +160,7 @@ export default function ScanPage() {
   const [scanSteps, setScanSteps] = useState<
     import("./ScanProgress").ScanStep[]
   >([]);
+
   const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -312,10 +313,12 @@ export default function ScanPage() {
     try {
       setScanError(null);
 
+      const body: any = { url };
+
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -329,16 +332,24 @@ export default function ScanPage() {
         throw new Error("No response stream available");
       }
 
+      let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter((line) => line.trim());
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+
+        // Keep the last part in the buffer as it might be incomplete
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
           try {
-            const message = JSON.parse(line);
+            const message = JSON.parse(trimmedLine);
 
             if (message.type === "init") {
               setScanSteps(
@@ -381,6 +392,7 @@ export default function ScanPage() {
               );
             } else if (message.type === "complete") {
               const { logo, rawWebsiteText, typography } = message.data;
+
               // Handle potential casing differences in API response
               const brandProfile =
                 message.data.brand_profile || message.data.brandProfile || {};
@@ -663,6 +675,15 @@ export default function ScanPage() {
     return <ScanningAnimation steps={scanSteps} url={urlInput} />;
   }
 
+  const handleReanalyze = () => {
+    setScanComplete(false);
+    setScanError(null);
+    setScanSteps([]);
+    setIsScanning(true);
+    hasScannedRef.current = true; // Mark as scanned to prevent auto-trigger loop
+    scanBrandWithStreaming(brandData.url); // Fresh scan
+  };
+
   // Step 3: Results
   return (
     <div className="min-h-screen bg-background relative">
@@ -719,7 +740,7 @@ export default function ScanPage() {
             onFontClick={() => setShowFontPicker(true)}
             onApprove={handleApprove}
             onSaveToDashboard={handleSaveToDashboard}
-            onReanalyze={() => scanBrandWithStreaming(brandData.url)}
+            onReanalyze={handleReanalyze}
           />
         </div>
       </div>

@@ -19,13 +19,6 @@ import { BrandPalette } from "@/lib/shared/types";
 import { mastra } from "../index";
 
 /**
- * Zod schema for the workflow input.
- */
-const ScanInputSchema = z.object({
-  url: z.string().url().describe("The URL to scan"),
-});
-
-/**
  * Zod schema for personality dimensions (Aaker's 5 dimensions).
  */
 const PersonalityDimensionsSchema = z.object({
@@ -111,6 +104,13 @@ const BrandProfileSchema = z.object({
 });
 
 /**
+ * Zod schema for the workflow input.
+ */
+const ScanInputSchema = z.object({
+  url: z.string().url().describe("The URL to scan"),
+});
+
+/**
  * Zod schema for the workflow output (matches ScanResult).
  */
 const ScanOutputSchema = z.object({
@@ -179,7 +179,13 @@ const extractFontsStep = createStep({
     const { url, sessionKey, success, error } = inputData;
 
     if (!success) {
-      return { url, sessionKey, typography: null, success: false, error };
+      return {
+        url,
+        sessionKey,
+        typography: null,
+        success: false,
+        error,
+      };
     }
 
     const session = sessionStore.get(sessionKey);
@@ -195,7 +201,12 @@ const extractFontsStep = createStep({
 
     try {
       const result = await extractBrandFonts(session.page);
-      return { url, sessionKey, typography: result, success: true };
+      return {
+        url,
+        sessionKey,
+        typography: result,
+        success: true,
+      };
     } catch (error) {
       console.warn("Font extraction failed:", error);
       // Don't fail the whole workflow, just return null typography
@@ -250,6 +261,7 @@ const extractLogoStep = createStep({
       return {
         url,
         sessionKey,
+        typography,
         logoUrl: null,
         success: false,
         error: "No session found",
@@ -258,7 +270,13 @@ const extractLogoStep = createStep({
 
     try {
       const logoUrl = await extractLogo(session.page, url);
-      return { url, sessionKey, typography, logoUrl, success: true };
+      return {
+        url,
+        sessionKey,
+        typography,
+        logoUrl,
+        success: true,
+      };
     } catch (error) {
       return {
         url,

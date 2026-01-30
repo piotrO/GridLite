@@ -23,6 +23,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const normalizedUrl = parseUrl(body.url);
 
+    console.log("POST /api/scan request:", {
+      url: normalizedUrl,
+    });
+
     if (!normalizedUrl) {
       return NextResponse.json(
         { error: "Invalid URL provided" },
@@ -97,7 +101,9 @@ export async function POST(request: NextRequest) {
 
             // Step Complete
             if (
-              event.type === "workflow-step-completed" &&
+              (event.type === "workflow-step-completed" ||
+                // @ts-ignore - Validating event type at runtime
+                event.type === "workflow-step-finish") &&
               "payload" in event
             ) {
               const payload = event.payload as Record<string, unknown>;

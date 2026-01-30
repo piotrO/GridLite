@@ -32,7 +32,18 @@ export const logoExtractorTool = createTool({
         error: `No active session found for ID: ${context.sessionId}`,
       };
     }
-
+    [
+      "#FFFDFB (58.3%)",
+      "#FFF4EB (2.6%)",
+      "#95C058 (1.4%)",
+      "#F1E9E3 (0.2%)",
+      "#F08600 (0.1%)",
+      "#FAD7A8 (0.1%)",
+      "#CCE0AD (0.1%)",
+      "#3C2B20 (0.0%)",
+      "#87B843 (0.0%)",
+      "#9CA86B (0.0%)",
+    ];
     try {
       const logoUrl = await extractLogo(session.page, context.baseUrl);
       return { logoUrl, success: true };

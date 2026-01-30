@@ -156,6 +156,7 @@ export function BrandDataPanel({
                 </Button>
                 {onReanalyze && (
                   <Button
+                    type="button"
                     onClick={onReanalyze}
                     variant="outline"
                     size="lg"

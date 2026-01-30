@@ -77,7 +77,7 @@ async function extractPaletteFromBuffer(
   // This speeds up analysis and acts as a "denoise" filter.
   const sharpInstance = sharp(buffer)
     .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-    .flatten({ background: { r: 255, g: 255, b: 255 } });
+    .ensureAlpha(); // keep alpha so we can skip transparent pixels
 
   // Save the "Analyzed" version (exactly what goes into raw pixels)
   try {
@@ -90,9 +90,11 @@ async function extractPaletteFromBuffer(
     /* Ignore */
   }
 
-  const { data } = await sharpInstance
+  const { data, info } = await sharpInstance
     .raw()
     .toBuffer({ resolveWithObject: true });
+
+  const channels = info.channels; // should be 4 after ensureAlpha()
 
   // 2. Build Histogram (Count unique colors)
   // We round values slightly (quantize to nearest 5) to group near-identical compression artifacts.
@@ -104,14 +106,21 @@ async function extractPaletteFromBuffer(
 
   const whiteThreshold = type === "logo" ? 230 : 255;
 
-  for (let i = 0; i < data.length; i += 3) {
-    let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
+  for (let i = 0; i < data.length; i += channels) {
+    const r0 = data[i];
+    const g0 = data[i + 1];
+    const b0 = data[i + 2];
+    const a = channels >= 4 ? data[i + 3] : 255;
+
+    // Skip transparent / near-transparent pixels
+    if (a <= 50) continue;
+
+    let r = r0;
+    let g = g0;
+    let b = b0;
 
     // Skip white/near-white backgrounds
-    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
-      continue;
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) continue;
 
     // Simple quantization to group noise (e.g. 254 vs 255)
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
