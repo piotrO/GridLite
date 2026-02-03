@@ -37,6 +37,7 @@ export const AdPreviewItem = ({
       logoUrl: data.logoUrl,
       colors: data.colors,
       layerModifications: filteredLayerMods,
+      typography: data.typography,
     }),
     [
       data.headline,
@@ -47,7 +48,7 @@ export const AdPreviewItem = ({
       colorsJson,
       layerModsJson,
       filteredLayerMods,
-    ]
+    ],
   );
 
   const { blobUrl, isLoading, error, refresh } = useAdPreviewBlob({

@@ -50,7 +50,7 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
         // Race buffer collection with a short timeout to prevent hangs
         const bufferPromise = response.body();
         const timeoutPromise = new Promise<Buffer>((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout getting body")), 3000),
+          setTimeout(() => reject(new Error("Timeout getting body")), 1500),
         );
 
         const buffer = await Promise.race([bufferPromise, timeoutPromise]);
@@ -73,13 +73,13 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
   try {
     // 2. Reload page to trigger font requests
     try {
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.reload({ waitUntil: "networkidle", timeout: 15000 });
     } catch (e) {
       console.warn("Reload timeout exceeded, proceeding with extraction...");
     }
 
-    // Wait a bit for fonts to actually request/load if they are lazy loaded or css initiated
-    await page.waitForTimeout(2000);
+    // Wait briefly for any lazy-loaded fonts
+    await page.waitForTimeout(1000);
 
     // 3. Analyze DOM for computed styles
     const computedStyles = (await page.evaluate(`(() => {

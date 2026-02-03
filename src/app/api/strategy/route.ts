@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mastra } from "@/mastra";
-import {
-  BrandProfileInput,
-  StrategyDocument,
-} from "@/lib/strategy/strategist";
+import { BrandProfileInput, StrategyDocument } from "@/lib/strategy/strategist";
 
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
@@ -87,20 +84,33 @@ Current Strategy:
     // Initial strategy generation (streaming via Mastra workflow)
     const stream = new ReadableStream({
       async start(controller) {
-        const sendStatus = (step: string) => {
-          const message = JSON.stringify({ type: "status", step }) + "\n";
+        const sendEvent = (event: any) => {
+          const message = JSON.stringify(event) + "\n";
           controller.enqueue(encoder.encode(message));
         };
 
         const sendError = (message: string) => {
-          const errorMsg = JSON.stringify({ type: "error", message }) + "\n";
-          controller.enqueue(encoder.encode(errorMsg));
+          sendEvent({ type: "error", message });
         };
 
         try {
           const workflow = mastra.getWorkflow("strategy");
 
-          sendStatus("scanning_website");
+          // Define step labels for the UI
+          const stepLabels: Record<string, string> = {
+            "fetch-website-text": "Analyzing website content",
+            "extract-campaign-data": "Identifying key selling points",
+            "generate-strategy": "Formulating campaign strategy",
+          };
+
+          // Send initial pending steps so UI knows what to expect
+          sendEvent({
+            type: "init",
+            steps: Object.keys(stepLabels).map((id) => ({
+              id,
+              label: stepLabels[id],
+            })),
+          });
 
           const run = await workflow.createRun();
 
@@ -112,27 +122,47 @@ Current Strategy:
             },
           });
 
-          // Track completed steps
-          const completedSteps = new Set<string>();
-
           for await (const event of streamResult.fullStream) {
-            // Mastra workflow events use "workflow-step-start" type
+            // Step Start
             if (event.type === "workflow-step-start" && "payload" in event) {
-              const payload = event.payload as { stepId?: string };
-              const stepId = payload?.stepId;
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-              if (stepId && !completedSteps.has(stepId)) {
-                completedSteps.add(stepId);
+              if (stepId && stepLabels[stepId]) {
+                sendEvent({
+                  type: "step_start",
+                  stepId,
+                  label: stepLabels[stepId],
+                });
+              }
+            }
 
-                const statusMap: Record<string, string> = {
-                  "fetch-website-text": "scanning_website",
-                  "extract-campaign-data": "analyzing_content",
-                  "generate-strategy": "generating_strategy",
-                };
+            // Step Complete
+            if (
+              (event.type === "workflow-step-completed" ||
+                // @ts-ignore
+                event.type === "workflow-step-finish") &&
+              "payload" in event
+            ) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-                if (statusMap[stepId]) {
-                  sendStatus(statusMap[stepId]);
-                }
+              // Check success status from the result
+              const result = payload?.result as any;
+              const success = result?.success !== false;
+
+              if (stepId && stepLabels[stepId]) {
+                sendEvent({
+                  type: "step_complete",
+                  stepId,
+                  success,
+                });
               }
             }
           }
@@ -141,21 +171,30 @@ Current Strategy:
           const workflowResult = await streamResult.result;
 
           if (workflowResult.status === "success" && workflowResult.result) {
-            const completeMessage =
-              JSON.stringify({
-                type: "complete",
-                data: workflowResult.result,
-              }) + "\n";
-            controller.enqueue(encoder.encode(completeMessage));
+            sendEvent({ type: "complete", data: workflowResult.result });
           } else {
-            sendError("Strategy generation failed");
+            const errorMessage =
+              workflowResult.status === "failed"
+                ? "Workflow failed to complete"
+                : "Workflow completed but no result was returned";
+            sendError(errorMessage);
           }
 
           controller.close();
         } catch (error) {
-          sendError(
-            error instanceof Error ? error.message : "Unknown error occurred",
-          );
+          // Check for rate limit errors
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          if (
+            errorMessage.includes("429") ||
+            errorMessage.toLowerCase().includes("too many requests")
+          ) {
+            sendError(
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
+            );
+          } else {
+            sendError(errorMessage);
+          }
           controller.close();
         }
       },

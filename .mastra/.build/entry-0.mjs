@@ -289,6 +289,18 @@ const logoExtractorTool = createTool({
         error: `No active session found for ID: ${context.sessionId}`
       };
     }
+    [
+      "#FFFDFB (58.3%)",
+      "#FFF4EB (2.6%)",
+      "#95C058 (1.4%)",
+      "#F1E9E3 (0.2%)",
+      "#F08600 (0.1%)",
+      "#FAD7A8 (0.1%)",
+      "#CCE0AD (0.1%)",
+      "#3C2B20 (0.0%)",
+      "#87B843 (0.0%)",
+      "#9CA86B (0.0%)"
+    ];
     try {
       const logoUrl = await extractLogo(session.page, context.baseUrl);
       return { logoUrl, success: true };
@@ -1422,7 +1434,8 @@ async function extractPaletteFromBuffer(buffer, type, debugName = "debug-image")
     let r = r0;
     let g = g0;
     let b = b0;
-    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) continue;
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
+      continue;
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
     g = Math.round(g / QUANTIZE_STEP) * QUANTIZE_STEP;
     b = Math.round(b / QUANTIZE_STEP) * QUANTIZE_STEP;
@@ -1542,9 +1555,18 @@ async function extractColorsFromLogo(logoUrl) {
 
 async function extractBrandFonts(page) {
   const fontFiles = /* @__PURE__ */ new Map();
+  const cssFiles = /* @__PURE__ */ new Map();
   const handleResponse = async (response) => {
     const url = response.url().toLowerCase();
     const contentType = await response.headerValue("content-type").catch(() => "") || "";
+    const isCss = contentType.includes("text/css") || url.endsWith(".css");
+    if (isCss) {
+      try {
+        const text = await response.text();
+        cssFiles.set(url, text);
+      } catch (e) {
+      }
+    }
     const isFont = /\.(woff2?|ttf|otf)(\?|$)/.test(url) || contentType.includes("font") || url.includes("use.typekit.net");
     if (isFont) {
       try {
@@ -1553,8 +1575,9 @@ async function extractBrandFonts(page) {
           (_, reject) => setTimeout(() => reject(new Error("Timeout getting body")), 3e3)
         );
         const buffer = await Promise.race([bufferPromise, timeoutPromise]);
+        const initiator = await response.request().headerValue("referer") || "";
         if (buffer.length > 0) {
-          fontFiles.set(response.url(), { buffer, contentType });
+          fontFiles.set(response.url(), { buffer, contentType, initiator });
         }
       } catch (e) {
       }
@@ -1606,10 +1629,33 @@ async function extractBrandFonts(page) {
       }
     }
     if (!match && fontFiles.size > 0) {
+      console.log(
+        `[Font Extraction] No direct name match for '${primaryFont}'. Checking CSS initiators...`
+      );
+      for (const [fontUrl, fontData] of fontFiles.entries()) {
+        const initiatorUrl = fontData.initiator;
+        if (!initiatorUrl) continue;
+        const cssContent = cssFiles.get(initiatorUrl);
+        if (!cssContent) continue;
+        const fontNameRegex = new RegExp(
+          `font-family:[^;]*${primaryFont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+          "i"
+        );
+        if (cssContent.includes(primaryFont) || // Broad check
+        fontNameRegex.test(cssContent)) {
+          console.log(
+            `[Font Extraction] Found match via CSS initiator (${initiatorUrl}) for font: ${fontUrl}`
+          );
+          match = { url: fontUrl, ...fontData };
+          break;
+        }
+      }
+    }
+    if (!match && fontFiles.size > 0) {
       const candidates = Array.from(fontFiles.entries()).filter(([_, data]) => data.buffer.length > 4e3).sort((a, b) => b[1].buffer.length - a[1].buffer.length);
       if (candidates.length > 0) {
         console.log(
-          `[Font Extraction] No name match for '${primaryFont}'. Falling back to largest captured font: ${candidates[0][0]}`
+          `[Font Extraction] No match found. Falling back to largest captured font: ${candidates[0][0]}`
         );
         match = { url: candidates[0][0], ...candidates[0][1] };
       }
@@ -1696,23 +1742,14 @@ const BrandProfileSchema$1 = z.object({
   guidelines: BrandGuidelinesSchema,
   palette: BrandPaletteSchema.optional()
 });
-const PreviousDataSchema = z.object({
-  screenshotBase64: z.string().optional(),
-  rawWebsiteText: z.string().optional(),
-  rawHtml: z.string().optional(),
-  logoUrl: z.string().nullable().optional(),
-  typography: TypographySchema.nullable().optional()
-});
 const ScanInputSchema = z.object({
-  url: z.string().url().describe("The URL to scan"),
-  previousScanData: PreviousDataSchema.optional()
+  url: z.string().url().describe("The URL to scan")
 });
 const ScanOutputSchema = z.object({
   logo: z.string(),
   brand_profile: BrandProfileSchema$1,
   rawWebsiteText: z.string().optional(),
-  typography: TypographySchema.optional(),
-  screenshotBase64: z.string().optional()
+  typography: TypographySchema.optional()
 });
 const sessionStore = /* @__PURE__ */ new Map();
 const launchBrowserStep = createStep({
@@ -1725,11 +1762,8 @@ const launchBrowserStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData, runId }) => {
-    const { url, previousScanData } = inputData;
+    const { url } = inputData;
     const sessionKey = `session_${runId}`;
-    if (previousScanData?.screenshotBase64 && previousScanData?.rawWebsiteText) {
-      return { url, sessionKey: "SKIPPED", success: true };
-    }
     try {
       const session = await createBrowserSession(url);
       sessionStore.set(sessionKey, session);
@@ -1749,7 +1783,6 @@ const extractFontsStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     success: z.boolean(),
     error: z.string().optional()
   }),
@@ -1761,23 +1794,18 @@ const extractFontsStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, previousScanData, success, error } = inputData;
+    const { url, sessionKey, success, error } = inputData;
     if (!success) {
-      return { url, sessionKey, typography: null, success: false, error };
-    }
-    if (sessionKey === "SKIPPED" && previousScanData?.typography !== void 0) {
       return {
         url,
         sessionKey,
-        typography: previousScanData.typography,
-        success: true
+        typography: null,
+        success: false,
+        error
       };
     }
     const session = sessionStore.get(sessionKey);
     if (!session) {
-      if (sessionKey === "SKIPPED") {
-        return { url, sessionKey, typography: null, success: true };
-      }
       return {
         url,
         sessionKey,
@@ -1788,7 +1816,12 @@ const extractFontsStep = createStep({
     }
     try {
       const result = await extractBrandFonts(session.page);
-      return { url, sessionKey, typography: result, success: true };
+      return {
+        url,
+        sessionKey,
+        typography: result,
+        success: true
+      };
     } catch (error2) {
       console.warn("Font extraction failed:", error2);
       return {
@@ -1807,7 +1840,6 @@ const extractLogoStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     typography: TypographySchema.nullable(),
     success: z.boolean(),
     error: z.string().optional()
@@ -1821,7 +1853,7 @@ const extractLogoStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, previousScanData, typography, success, error } = inputData;
+    const { url, sessionKey, typography, success, error } = inputData;
     if (!success) {
       return {
         url,
@@ -1832,23 +1864,12 @@ const extractLogoStep = createStep({
         error
       };
     }
-    if (sessionKey === "SKIPPED" && previousScanData?.logoUrl !== void 0) {
+    const session = sessionStore.get(sessionKey);
+    if (!session) {
       return {
         url,
         sessionKey,
         typography,
-        logoUrl: previousScanData.logoUrl,
-        success: true
-      };
-    }
-    const session = sessionStore.get(sessionKey);
-    if (!session) {
-      if (sessionKey === "SKIPPED") {
-        return { url, sessionKey, typography, logoUrl: null, success: true };
-      }
-      return {
-        url,
-        sessionKey,
         logoUrl: null,
         success: false,
         error: "No session found"
@@ -1856,7 +1877,13 @@ const extractLogoStep = createStep({
     }
     try {
       const logoUrl = await extractLogo(session.page, url);
-      return { url, sessionKey, typography, logoUrl, success: true };
+      return {
+        url,
+        sessionKey,
+        typography,
+        logoUrl,
+        success: true
+      };
     } catch (error2) {
       return {
         url,
@@ -1874,7 +1901,6 @@ const captureScreenshotStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
     typography: TypographySchema.nullable(),
     success: z.boolean(),
@@ -1890,15 +1916,7 @@ const captureScreenshotStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const {
-      url,
-      sessionKey,
-      previousScanData,
-      logoUrl,
-      typography,
-      success,
-      error
-    } = inputData;
+    const { url, sessionKey, logoUrl, typography, success, error } = inputData;
     if (!success) {
       return {
         url,
@@ -1908,16 +1926,6 @@ const captureScreenshotStep = createStep({
         screenshotBase64: "",
         success: false,
         error
-      };
-    }
-    if (sessionKey === "SKIPPED" && previousScanData?.screenshotBase64) {
-      return {
-        url,
-        sessionKey,
-        logoUrl,
-        typography,
-        screenshotBase64: previousScanData.screenshotBase64,
-        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -1960,7 +1968,6 @@ const extractTextStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
     typography: TypographySchema.nullable(),
     screenshotBase64: z.string(),
@@ -1982,7 +1989,6 @@ const extractTextStep = createStep({
     const {
       url,
       sessionKey,
-      previousScanData,
       logoUrl,
       typography,
       screenshotBase64,
@@ -2000,18 +2006,6 @@ const extractTextStep = createStep({
         rawHtml: "",
         success: false,
         error
-      };
-    }
-    if (sessionKey === "SKIPPED" && previousScanData?.rawWebsiteText) {
-      return {
-        url,
-        sessionKey,
-        logoUrl,
-        typography,
-        screenshotBase64,
-        rawWebsiteText: previousScanData.rawWebsiteText,
-        rawHtml: previousScanData.rawHtml || "",
-        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -2294,9 +2288,7 @@ const analyzeWithAIStep = createStep({
           palette
         },
         rawWebsiteText,
-        typography,
-        screenshotBase64
-        // Pass it back for subsequent rescans
+        typography
       };
     } catch (error2) {
       return {

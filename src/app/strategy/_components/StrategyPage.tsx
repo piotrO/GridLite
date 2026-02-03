@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Lightbulb } from "lucide-react";
+import { useState } from "react";
 import { ChatInterface } from "@/components/ChatInterface";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand } from "@/contexts/BrandContext";
 import { PageHeader } from "@/components/PageHeader";
 import { GradientBackground } from "@/components/GradientBackground";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { StrategyOptionsPanel } from "./StrategyOptionsPanel";
-import { StrategyLoadingState } from "./StrategyLoadingState";
 import { useStrategy } from "./useStrategy";
 
 export default function StrategyPage() {
@@ -21,7 +22,7 @@ export default function StrategyPage() {
     messages,
     isTyping,
     isLoading,
-    loadingStatus,
+    steps,
     strategyData,
     strategyOptions,
     handleSend,
@@ -30,12 +31,25 @@ export default function StrategyPage() {
 
   const brand = activeBrandKit || { name: "Your Brand" };
 
-  const handleApprove = () => router.push("/studio");
+  const [isApproving, setIsApproving] = useState(false);
+
+  const handleApprove = () => {
+    setIsApproving(true);
+    router.push("/studio");
+  };
 
   // Loading state
   if (isLoading) {
     return (
-      <StrategyLoadingState status={loadingStatus} brandName={brand.name} />
+      <div className="min-h-screen bg-background relative">
+        <GradientBackground colorVar="strategist" />
+        <WorkflowProgress
+          steps={steps}
+          title="Developing Strategy"
+          subtitle={`Crafting a campaign for ${brand.name}`}
+          colorVar="strategist"
+        />
+      </div>
     );
   }
 
@@ -87,6 +101,7 @@ export default function StrategyPage() {
             onToggleOption={toggleOption}
             onApprove={handleApprove}
             strategyData={strategyData}
+            isApproving={isApproving}
           />
         </div>
       </div>

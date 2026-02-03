@@ -1,4 +1,5 @@
 import { Grid8Brand, BrandKit } from "@/contexts/BrandContext";
+import { BrandPalette, Typography } from "@/lib/shared/types";
 
 // Brand profile data stored in Grid8
 export interface BrandProfile {
@@ -9,13 +10,9 @@ export interface BrandProfile {
   industry?: string;
   tagline?: string;
   font?: string;
+  typography?: Typography | null;
   tone?: string;
-  palette?: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    extraColors?: string[];
-  };
+  palette?: BrandPalette;
   personality?: string[];
   brandSummary?: string;
   targetAudiences?: { name: string; description: string }[];
@@ -104,6 +101,7 @@ export function convertGrid8BrandToBrandKit(
       grid8Brand.palette ||
       DEFAULT_BRAND_KIT_VALUES.palette,
     font: profile?.font || grid8Brand.font || DEFAULT_BRAND_KIT_VALUES.font,
+    typography: profile?.typography || null,
     tone: profile?.tone || grid8Brand.tone || DEFAULT_BRAND_KIT_VALUES.tone,
     personality: profile?.personality?.length
       ? profile.personality
@@ -191,6 +189,7 @@ export async function createBrandOnGrid8(
         tagline: brandData.tagline,
         palette: brandData.palette,
         font: brandData.font,
+        typography: brandData.typography,
         tone: brandData.tone,
         personality: brandData.personality,
         brandSummary: brandData.brandSummary,

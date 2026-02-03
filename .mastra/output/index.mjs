@@ -14,7 +14,7 @@ import path, { join, resolve as resolve$2, dirname, extname, basename, isAbsolut
 import { fileURLToPath } from 'url';
 import { e as extractBrandFonts } from './font-extractor.mjs';
 import { Agent, MessageList, isSupportedLanguageModel, tryGenerateWithJsonFallback, tryStreamWithJsonFallback } from '@mastra/core/agent';
-import { screenshotTool } from './tools/fc64ca6d-39e3-4306-a0d7-49d772b9cb8e.mjs';
+import { screenshotTool } from './tools/ae4f0b8b-8ff8-41f0-8ed0-99334bb5974d.mjs';
 import { readdir, readFile, mkdtemp, rm, writeFile, mkdir, copyFile, stat } from 'fs/promises';
 import * as https from 'https';
 import { createServer } from 'http';
@@ -465,7 +465,8 @@ async function extractPaletteFromBuffer(buffer, type, debugName = "debug-image")
     let r = r0;
     let g = g0;
     let b = b0;
-    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) continue;
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
+      continue;
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
     g = Math.round(g / QUANTIZE_STEP) * QUANTIZE_STEP;
     b = Math.round(b / QUANTIZE_STEP) * QUANTIZE_STEP;
@@ -636,23 +637,14 @@ const BrandProfileSchema$1 = z.object({
   guidelines: BrandGuidelinesSchema,
   palette: BrandPaletteSchema.optional()
 });
-const PreviousDataSchema = z.object({
-  screenshotBase64: z.string().optional(),
-  rawWebsiteText: z.string().optional(),
-  rawHtml: z.string().optional(),
-  logoUrl: z.string().nullable().optional(),
-  typography: TypographySchema.nullable().optional()
-});
 const ScanInputSchema = z.object({
-  url: z.string().url().describe("The URL to scan"),
-  previousScanData: PreviousDataSchema.optional()
+  url: z.string().url().describe("The URL to scan")
 });
 const ScanOutputSchema = z.object({
   logo: z.string(),
   brand_profile: BrandProfileSchema$1,
   rawWebsiteText: z.string().optional(),
-  typography: TypographySchema.optional(),
-  screenshotBase64: z.string().optional()
+  typography: TypographySchema.optional()
 });
 const sessionStore = /* @__PURE__ */ new Map();
 const launchBrowserStep = createStep({
@@ -661,25 +653,20 @@ const launchBrowserStep = createStep({
   outputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   execute: async ({ inputData, runId }) => {
-    const { url, previousScanData } = inputData;
+    const { url } = inputData;
     const sessionKey = `session_${runId}`;
-    if (previousScanData?.screenshotBase64 && previousScanData?.rawWebsiteText) {
-      return { url, sessionKey: "SKIPPED", previousScanData, success: true };
-    }
     try {
       const session = await createBrowserSession(url);
       sessionStore.set(sessionKey, session);
-      return { url, sessionKey, previousScanData, success: true };
+      return { url, sessionKey, success: true };
     } catch (error) {
       return {
         url,
         sessionKey,
-        previousScanData,
         success: false,
         error: error instanceof Error ? error.message : "Failed to launch browser"
       };
@@ -691,54 +678,32 @@ const extractFontsStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   outputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     typography: TypographySchema.nullable(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, previousScanData, success, error } = inputData;
+    const { url, sessionKey, success, error } = inputData;
     if (!success) {
       return {
         url,
         sessionKey,
-        previousScanData,
         typography: null,
         success: false,
         error
       };
     }
-    if (sessionKey === "SKIPPED" && previousScanData?.typography !== void 0) {
-      return {
-        url,
-        sessionKey,
-        previousScanData,
-        typography: previousScanData.typography,
-        success: true
-      };
-    }
     const session = sessionStore.get(sessionKey);
     if (!session) {
-      if (sessionKey === "SKIPPED") {
-        return {
-          url,
-          sessionKey,
-          previousScanData,
-          typography: null,
-          success: true
-        };
-      }
       return {
         url,
         sessionKey,
-        previousScanData,
         typography: null,
         success: false,
         error: "No session found"
@@ -749,7 +714,6 @@ const extractFontsStep = createStep({
       return {
         url,
         sessionKey,
-        previousScanData,
         typography: result,
         success: true
       };
@@ -758,7 +722,6 @@ const extractFontsStep = createStep({
       return {
         url,
         sessionKey,
-        previousScanData,
         typography: null,
         success: true,
         // Continue workflow
@@ -772,7 +735,6 @@ const extractLogoStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     typography: TypographySchema.nullable(),
     success: z.boolean(),
     error: z.string().optional()
@@ -780,51 +742,29 @@ const extractLogoStep = createStep({
   outputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     typography: TypographySchema.nullable(),
     logoUrl: z.string().nullable(),
     success: z.boolean(),
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const { url, sessionKey, previousScanData, typography, success, error } = inputData;
+    const { url, sessionKey, typography, success, error } = inputData;
     if (!success) {
       return {
         url,
         sessionKey,
-        previousScanData,
         typography,
         logoUrl: null,
         success: false,
         error
       };
     }
-    if (sessionKey === "SKIPPED" && previousScanData?.logoUrl !== void 0) {
-      return {
-        url,
-        sessionKey,
-        previousScanData,
-        typography,
-        logoUrl: previousScanData.logoUrl,
-        success: true
-      };
-    }
     const session = sessionStore.get(sessionKey);
     if (!session) {
-      if (sessionKey === "SKIPPED") {
-        return {
-          url,
-          sessionKey,
-          previousScanData,
-          typography,
-          logoUrl: null,
-          success: true
-        };
-      }
       return {
         url,
         sessionKey,
-        previousScanData,
+        typography,
         logoUrl: null,
         success: false,
         error: "No session found"
@@ -835,7 +775,6 @@ const extractLogoStep = createStep({
       return {
         url,
         sessionKey,
-        previousScanData,
         typography,
         logoUrl,
         success: true
@@ -844,7 +783,6 @@ const extractLogoStep = createStep({
       return {
         url,
         sessionKey,
-        previousScanData,
         typography,
         logoUrl: null,
         success: false,
@@ -858,7 +796,6 @@ const captureScreenshotStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
     typography: TypographySchema.nullable(),
     success: z.boolean(),
@@ -874,15 +811,7 @@ const captureScreenshotStep = createStep({
     error: z.string().optional()
   }),
   execute: async ({ inputData }) => {
-    const {
-      url,
-      sessionKey,
-      previousScanData,
-      logoUrl,
-      typography,
-      success,
-      error
-    } = inputData;
+    const { url, sessionKey, logoUrl, typography, success, error } = inputData;
     if (!success) {
       return {
         url,
@@ -892,16 +821,6 @@ const captureScreenshotStep = createStep({
         screenshotBase64: "",
         success: false,
         error
-      };
-    }
-    if (sessionKey === "SKIPPED" && previousScanData?.screenshotBase64) {
-      return {
-        url,
-        sessionKey,
-        logoUrl,
-        typography,
-        screenshotBase64: previousScanData.screenshotBase64,
-        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -944,7 +863,6 @@ const extractTextStep = createStep({
   inputSchema: z.object({
     url: z.string(),
     sessionKey: z.string(),
-    previousScanData: PreviousDataSchema.optional(),
     logoUrl: z.string().nullable(),
     typography: TypographySchema.nullable(),
     screenshotBase64: z.string(),
@@ -966,7 +884,6 @@ const extractTextStep = createStep({
     const {
       url,
       sessionKey,
-      previousScanData,
       logoUrl,
       typography,
       screenshotBase64,
@@ -984,18 +901,6 @@ const extractTextStep = createStep({
         rawHtml: "",
         success: false,
         error
-      };
-    }
-    if (sessionKey === "SKIPPED" && previousScanData?.rawWebsiteText) {
-      return {
-        url,
-        sessionKey,
-        logoUrl,
-        typography,
-        screenshotBase64,
-        rawWebsiteText: previousScanData.rawWebsiteText,
-        rawHtml: previousScanData.rawHtml || "",
-        success: true
       };
     }
     const session = sessionStore.get(sessionKey);
@@ -1278,9 +1183,7 @@ const analyzeWithAIStep = createStep({
           palette
         },
         rawWebsiteText,
-        typography,
-        screenshotBase64
-        // Pass it back for subsequent rescans
+        typography
       };
     } catch (error2) {
       return {

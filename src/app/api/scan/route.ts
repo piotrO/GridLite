@@ -7,6 +7,14 @@ import { parseUrl } from "@/lib/shared/url-utils";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Type definitions for Mastra workflow events
+interface WorkflowStepPayload {
+  stepId?: string;
+  step?: { id?: string };
+  id?: string;
+  result?: { success?: boolean };
+}
+
 /**
  * POST /api/scan
  *
@@ -83,9 +91,9 @@ export async function POST(request: NextRequest) {
           for await (const event of streamResult.fullStream) {
             // Step Start
             if (event.type === "workflow-step-start" && "payload" in event) {
-              const payload = event.payload as Record<string, unknown>;
+              const payload = event.payload as WorkflowStepPayload;
               // Try different possible locations for stepId - Mastra structure can vary
-              const step = payload?.step as Record<string, unknown> | undefined;
+              const step = payload?.step;
               const stepId = (payload?.stepId || step?.id || payload?.id) as
                 | string
                 | undefined;
@@ -106,14 +114,14 @@ export async function POST(request: NextRequest) {
                 event.type === "workflow-step-finish") &&
               "payload" in event
             ) {
-              const payload = event.payload as Record<string, unknown>;
-              const step = payload?.step as Record<string, unknown> | undefined;
+              const payload = event.payload as WorkflowStepPayload;
+              const step = payload?.step;
               const stepId = (payload?.stepId || step?.id || payload?.id) as
                 | string
                 | undefined;
 
               // Check success status from the result
-              const result = payload?.result as any;
+              const result = payload?.result;
               const success = result?.success !== false; // Default to true unless explicitly false
 
               if (stepId && stepLabels[stepId]) {
@@ -146,16 +154,28 @@ export async function POST(request: NextRequest) {
           // Check for rate limit errors
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";
+
+          // Sanitize error message to not expose internal details
+          let userMessage = errorMessage;
           if (
             errorMessage.includes("429") ||
             errorMessage.toLowerCase().includes("too many requests")
           ) {
-            sendError(
-              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
-            );
+            userMessage =
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.";
+          } else if (errorMessage.includes("ECONNREFUSED")) {
+            userMessage =
+              "Unable to connect to the website. Please check the URL.";
+          } else if (errorMessage.includes("timeout")) {
+            userMessage = "Request timed out. Please try again.";
           } else {
-            sendError(errorMessage);
+            // Generic error for unexpected issues
+            userMessage =
+              "An error occurred during scanning. Please try again.";
+            console.error("[Scan API] Error details:", errorMessage);
           }
+
+          sendError(userMessage);
           controller.close();
         }
       },

@@ -4,8 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useBrand } from "@/contexts/BrandContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/contexts/CreditContext";
-import { useCampaign, DesignSession } from "@/contexts/CampaignContext";
+import { useCampaign } from "@/contexts/CampaignContext";
 import { PersonaType } from "@/components/ChatInterface";
+import { useWorkflowStream } from "@/hooks/useWorkflowStream";
+import { WorkflowStep } from "@/components/WorkflowProgress";
+import { CreativeData, LayerModification } from "@/lib/shared/types";
 
 export interface Message {
   id: string;
@@ -14,46 +17,9 @@ export interface Message {
   timestamp: Date;
 }
 
-export interface CreativeData {
-  conceptName: string;
-  visualStyle: string;
-  colorScheme: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-  };
-  typography: {
-    headlineStyle: string;
-    bodyStyle: string;
-  };
-  layoutSuggestion: string;
-  animationIdeas: string[];
-  moodKeywords: string[];
-  imageDirection: string;
-  // Optional copy fields - included when designer changes copy/text
-  headline?: string;
-  bodyCopy?: string;
-  ctaText?: string;
-}
-
 interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
-}
-
-const STATUS_MESSAGES: Record<string, string> = {
-  analyzing_brand: "Analyzing brand identity...",
-  reviewing_strategy: "Reviewing campaign strategy...",
-  creating_visuals: "Davinci is crafting your visuals...",
-  generating_image: "Generating hero image...",
-};
-
-export interface LayerModification {
-  layerName: string;
-  positionDelta?: { x?: number; y?: number };
-  scaleFactor?: number;
-  sizes?: string[];
 }
 
 interface UseDesignerProps {
@@ -72,7 +38,7 @@ interface UseDesignerReturn {
   isTyping: boolean;
   isLoading: boolean;
   isGeneratingImage: boolean;
-  loadingStatus: string;
+  steps: WorkflowStep[];
   creativeData: CreativeData | null;
   handleSend: (message: string) => Promise<void>;
 }
@@ -91,11 +57,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState(
-    "Connecting with The Designer...",
-  );
   const [creativeData, setCreativeData] = useState<CreativeData | null>(null);
   const [conversationHistory, setConversationHistory] = useState<
     ConversationMessage[]
@@ -163,15 +125,12 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
           { role: "assistant", content: detailsMsg },
         ]);
       }, 1500);
-
-      setIsLoading(false);
     },
-    [setCreative],
+    [setCreative, onImageChange],
   );
 
   // Handle error
   const handleError = useCallback((fallbackMessage: string) => {
-    setIsLoading(false);
     setMessages([
       {
         id: "fallback",
@@ -182,117 +141,41 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
     ]);
   }, []);
 
+  // Use the workflow stream hook for initial generation
+  const {
+    start: startDesignerWorkflow,
+    steps,
+    isLoading: isWorkflowLoading,
+  } = useWorkflowStream("/api/designer", {
+    onComplete: (data) => {
+      handleCreativeComplete(data);
+    },
+    onError: (msg) => {
+      console.error("Designer workflow error:", msg);
+      handleError(
+        `Hello! 🎨 I'm Davinci, your Creative Director. I'm excited to bring ${brand.name}'s campaign to life visually!`,
+      );
+    },
+  });
+
   // Fetch initial creative
   useEffect(() => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    const fetchCreative = async () => {
-      try {
-        setIsLoading(true);
-        setLoadingStatus("Analyzing brand identity...");
-
-        const response = await fetch("/api/designer", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: JSON.stringify({
-            brandProfile: buildBrandProfile(),
-            brandId,
-            strategy: strategySession.strategy,
-            campaignData: strategySession.campaignData,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to generate creative");
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
-          throw new Error("No response stream available");
-        }
-
-        // Buffer for accumulating incomplete messages
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            console.log(
-              "[useDesigner] Stream ended, remaining buffer:",
-              buffer.length,
-            );
-            break;
-          }
-
-          // Append new data to buffer
-          buffer += decoder.decode(value, { stream: true });
-
-          // Process complete lines from buffer
-          const lines = buffer.split("\n");
-          // Keep the last incomplete line in the buffer
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
-
-            try {
-              const message = JSON.parse(trimmedLine);
-              console.log("[useDesigner] Received message type:", message.type);
-
-              if (message.type === "status") {
-                setLoadingStatus(
-                  STATUS_MESSAGES[message.step] || "Working on it...",
-                );
-              } else if (message.type === "complete") {
-                console.log(
-                  "[useDesigner] Complete message received, imageUrl:",
-                  message.data?.imageUrl ? "yes" : "no",
-                );
-                handleCreativeComplete(message.data);
-              } else if (message.type === "error") {
-                console.error("Designer error:", message.message);
-                handleError(
-                  `Hey! 🎨 I've been studying your brand and I'm ready to create something amazing! Let me show you what I have in mind.`,
-                );
-              }
-            } catch (parseError) {
-              console.warn(
-                "[useDesigner] Failed to parse line (length:",
-                trimmedLine.length,
-                "):",
-                parseError,
-              );
-              // If parse failed, the message might be incomplete - put it back in buffer
-              // But only if it looks like it could be JSON
-              if (trimmedLine.startsWith("{")) {
-                buffer = trimmedLine + "\n" + buffer;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch creative:", error);
-        handleError(
-          `Hello! 🎨 I'm Davinci, your Creative Director. I'm excited to bring ${brand.name}'s campaign to life visually!`,
-        );
-      }
-    };
-
-    fetchCreative();
+    startDesignerWorkflow({
+      brandProfile: buildBrandProfile(),
+      brandId,
+      strategy: strategySession.strategy,
+      campaignData: strategySession.campaignData,
+    });
   }, [
     activeBrandKit,
     buildBrandProfile,
     strategySession,
     brand.name,
-    handleCreativeComplete,
-    handleError,
+    brandId,
+    startDesignerWorkflow,
   ]);
 
   // Apply creative update
@@ -337,8 +220,6 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
       setIsTyping(true);
 
       try {
-        setIsTyping(true);
-
         // Check if this looks like an image request (for UX feedback)
         const looksLikeImageRequest =
           /\b(image|picture|photo|visual|generate|create|new image|different image)\b/i.test(
@@ -433,9 +314,9 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
   return {
     messages,
     isTyping,
-    isLoading,
+    isLoading: isWorkflowLoading,
     isGeneratingImage,
-    loadingStatus,
+    steps,
     creativeData,
     handleSend,
   };

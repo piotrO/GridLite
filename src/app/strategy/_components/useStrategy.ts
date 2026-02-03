@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useBrand } from "@/contexts/BrandContext";
 import { useCredits } from "@/contexts/CreditContext";
 import { useCampaign } from "@/contexts/CampaignContext";
+import { useWorkflowStream } from "@/hooks/useWorkflowStream";
+import { WorkflowStep } from "@/components/WorkflowProgress";
 import {
   Message,
   StrategyOption,
@@ -11,14 +13,14 @@ import {
   ConversationMessage,
   BrandProfile,
 } from "./types";
-import { STRATEGY_OPTIONS, STATUS_MESSAGES } from "./constants";
+import { STRATEGY_OPTIONS } from "./constants";
 
 interface UseStrategyReturn {
   // State
   messages: Message[];
   isTyping: boolean;
   isLoading: boolean;
-  loadingStatus: string;
+  steps: WorkflowStep[];
   strategyData: StrategyData | null;
   strategyOptions: StrategyOption[];
 
@@ -37,10 +39,6 @@ export function useStrategy(): UseStrategyReturn {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingStatus, setLoadingStatus] = useState(
-    "Connecting with The Strategist..."
-  );
   const [strategyData, setStrategyData] = useState<StrategyData | null>(null);
   const [conversationHistory, setConversationHistory] = useState<
     ConversationMessage[]
@@ -61,7 +59,7 @@ export function useStrategy(): UseStrategyReturn {
       colors: activeBrandKit?.colors,
       audiences: activeBrandKit?.audiences,
     }),
-    [activeBrandKit]
+    [activeBrandKit],
   );
 
   // Build fallback options
@@ -99,7 +97,7 @@ export function useStrategy(): UseStrategyReturn {
           description: opt.description,
           icon: opt.icon,
           selected: key === strategy.recommendation,
-        })
+        }),
       );
       setStrategyOptions(options);
 
@@ -131,16 +129,13 @@ export function useStrategy(): UseStrategyReturn {
           { role: "assistant", content: rationaleMsg },
         ]);
       }, 1500);
-
-      setIsLoading(false);
     },
-    [setStrategy, setCampaignData]
+    [setStrategy, setCampaignData],
   );
 
   // Handle strategy error
   const handleStrategyError = useCallback(
     (fallbackMessage: string) => {
-      setIsLoading(false);
       setMessages([
         {
           id: "fallback",
@@ -151,86 +146,44 @@ export function useStrategy(): UseStrategyReturn {
       ]);
       setStrategyOptions(buildFallbackOptions());
     },
-    [buildFallbackOptions]
+    [buildFallbackOptions],
   );
+
+  // Use the workflow stream hook
+  const {
+    start: startStrategyWorkflow,
+    steps,
+    isLoading,
+  } = useWorkflowStream("/api/strategy", {
+    onComplete: (data) => {
+      handleStrategyComplete(data);
+    },
+    onError: (msg) => {
+      console.error("Strategy workflow error:", msg);
+      handleStrategyError(
+        `Hey! I've been analyzing ${brand.name}'s brand. Let me recommend a strategy for you! 🎯`,
+      );
+    },
+  });
 
   // Fetch initial strategy from API
   useEffect(() => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    const fetchStrategy = async () => {
-      try {
-        setIsLoading(true);
-        setLoadingStatus("Analyzing your brand...");
-
-        const response = await fetch("/api/strategy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            brandProfile: buildBrandProfile(),
-            rawWebsiteText: strategySession.rawWebsiteText,
-            websiteUrl: !strategySession.rawWebsiteText
-              ? activeBrandKit?.url
-              : undefined,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to generate strategy");
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (!reader) {
-          throw new Error("No response stream available");
-        }
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n").filter((line) => line.trim());
-
-          for (const line of lines) {
-            try {
-              const message = JSON.parse(line);
-
-              if (message.type === "status") {
-                setLoadingStatus(
-                  STATUS_MESSAGES[message.step] || "Working on it..."
-                );
-              } else if (message.type === "complete") {
-                handleStrategyComplete(message.data);
-              } else if (message.type === "error") {
-                console.error("Strategy error:", message.message);
-                handleStrategyError(
-                  `Hey! I've been diving deep into ${brand.name}'s brand identity. Really exciting stuff! 🎯`
-                );
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch strategy:", error);
-        handleStrategyError(
-          `Hey! I've been analyzing ${brand.name}'s brand. Let me recommend a strategy for you! 🎯`
-        );
-      }
-    };
-
-    fetchStrategy();
+    startStrategyWorkflow({
+      brandProfile: buildBrandProfile(),
+      rawWebsiteText: strategySession.rawWebsiteText,
+      websiteUrl: !strategySession.rawWebsiteText
+        ? activeBrandKit?.url
+        : undefined,
+    });
   }, [
     activeBrandKit,
     buildBrandProfile,
     strategySession.rawWebsiteText,
     brand.name,
-    handleStrategyComplete,
-    handleStrategyError,
+    startStrategyWorkflow,
   ]);
 
   // Apply updated strategy (helper for when chat returns a new strategy)
@@ -244,13 +197,13 @@ export function useStrategy(): UseStrategyReturn {
         prev.map((opt) => ({
           ...opt,
           selected: opt.id === newStrategy.recommendation.toLowerCase(),
-        }))
+        })),
       );
 
       // Update context
       setStrategy(newStrategy);
     },
-    [setStrategy]
+    [setStrategy],
   );
 
   // Handle chat message send
@@ -337,13 +290,13 @@ export function useStrategy(): UseStrategyReturn {
       buildBrandProfile,
       strategyData,
       applyStrategyUpdate,
-    ]
+    ],
   );
 
   // Toggle strategy option
   const toggleOption = useCallback((id: string) => {
     setStrategyOptions((prev) =>
-      prev.map((opt) => ({ ...opt, selected: opt.id === id }))
+      prev.map((opt) => ({ ...opt, selected: opt.id === id })),
     );
   }, []);
 
@@ -351,7 +304,7 @@ export function useStrategy(): UseStrategyReturn {
     messages,
     isTyping,
     isLoading,
-    loadingStatus,
+    steps,
     strategyData,
     strategyOptions,
     handleSend,

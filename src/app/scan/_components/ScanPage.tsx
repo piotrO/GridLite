@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
-import { ScanningAnimation } from "./ScanningAnimation";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { useWorkflowStream } from "@/hooks/useWorkflowStream";
 import { UrlInputStep } from "./UrlInputStep";
 import { BrandDataPanel } from "./BrandDataPanel";
 import { ChatInterface, PersonaType } from "@/components/ChatInterface";
@@ -151,17 +152,16 @@ export default function ScanPage() {
   const hasScannedRef = useRef(false);
 
   const [urlInput, setUrlInput] = useState(workingBrandKit?.url || initialUrl);
-  const [isScanning, setIsScanning] = useState(
+
+  // Independent isScanning state to control UI mode (input vs progress vs results)
+  const [isScanningMode, setIsScanningMode] = useState(
     (!!initialUrl && !editingBrandKit) || isReanalyzeMode,
   );
+
   const [scanComplete, setScanComplete] = useState(
     !!editingBrandKit && !isReanalyzeMode,
   );
-  const [scanSteps, setScanSteps] = useState<
-    import("./ScanProgress").ScanStep[]
-  >([]);
 
-  const [scanError, setScanError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(
@@ -170,6 +170,7 @@ export default function ScanPage() {
   const [showBrandData, setShowBrandData] = useState(
     !!editingBrandKit && !isReanalyzeMode,
   );
+  const [isApproving, setIsApproving] = useState(false);
 
   const [brandData, setBrandData] = useState<BrandData>(
     workingBrandKit
@@ -200,6 +201,127 @@ export default function ScanPage() {
         }
       : getDefaultBrandData(urlInput || "example.com"),
   );
+
+  const handleScanComplete = (data: any) => {
+    // Process final data
+    const { logo, rawWebsiteText, typography } = data;
+
+    // Handle potential casing differences in API response
+    const brandProfile = data.brand_profile || data.brandProfile || {};
+
+    // Update brand data with mapped values from brand_profile
+    setBrandData((prev) => {
+      // Guidelines normalization
+      const guidelines =
+        brandProfile.guidelines || brandProfile.guideline || {};
+      const voiceLabel =
+        guidelines.voice_label || guidelines.voiceLabel || prev.voiceLabel;
+      const voiceInstructions =
+        guidelines.voice_instructions ||
+        guidelines.voiceInstructions ||
+        prev.voiceInstructions;
+      const dos = guidelines.dos || prev.dos || [];
+      const donts = guidelines.donts || prev.donts || [];
+
+      // Visual identity fallback
+      const visualIdentity =
+        guidelines.visual_identity || guidelines.visualIdentity || {};
+
+      // Personality normalization
+      const rawPersonalityDims =
+        brandProfile.personality_dimensions ||
+        brandProfile.personalityDimensions ||
+        {};
+      const personalityDims = {
+        sincerity:
+          rawPersonalityDims.sincerity ?? prev.personalityDimensions?.sincerity,
+        excitement:
+          rawPersonalityDims.excitement ??
+          prev.personalityDimensions?.excitement,
+        competence:
+          rawPersonalityDims.competence ??
+          prev.personalityDimensions?.competence,
+        sophistication:
+          rawPersonalityDims.sophistication ??
+          prev.personalityDimensions?.sophistication,
+        ruggedness:
+          rawPersonalityDims.ruggedness ??
+          prev.personalityDimensions?.ruggedness,
+      };
+
+      const rawLinguisticMech =
+        brandProfile.linguistic_mechanics ||
+        brandProfile.linguisticMechanics ||
+        {};
+      const linguisticMech = {
+        formality_index:
+          rawLinguisticMech.formality_index ||
+          rawLinguisticMech.formalityIndex ||
+          prev.linguisticMechanics?.formality_index,
+        urgency_level:
+          rawLinguisticMech.urgency_level ||
+          rawLinguisticMech.urgencyLevel ||
+          prev.linguisticMechanics?.urgency_level,
+        etymology_bias:
+          rawLinguisticMech.etymology_bias ||
+          rawLinguisticMech.etymologyBias ||
+          prev.linguisticMechanics?.etymology_bias,
+      };
+      const archetype = brandProfile.archetype || prev.archetype;
+
+      return {
+        ...prev,
+        name: brandProfile.name || prev.name,
+        shortName:
+          brandProfile.name || brandProfile.shortName || prev.shortName,
+        logo: logo || prev.logo,
+        typography: typography || prev.typography || null,
+        font:
+          typography?.primaryFontFamily ||
+          visualIdentity.font_style ||
+          visualIdentity.fontStyle ||
+          prev.font,
+        palette: brandProfile.palette || prev.palette,
+        tagline:
+          guidelines.power_words?.join(" • ") ||
+          brandProfile.tagline ||
+          prev.tagline,
+        personality: brandProfile.personality || prev.personality,
+        industry: brandProfile.industry || prev.industry,
+        brandSummary:
+          brandProfile.brandSummary ||
+          brandProfile.brand_summary ||
+          prev.brandSummary,
+        voiceLabel,
+        voiceInstructions,
+        dos,
+        donts,
+        audiences:
+          brandProfile.targetAudiences ||
+          brandProfile.target_audiences ||
+          prev.audiences,
+        personalityDimensions: personalityDims as any,
+        linguisticMechanics: linguisticMech as any,
+        archetype: archetype,
+      };
+    });
+    // Store rawWebsiteText for Strategy phase
+    if (rawWebsiteText) {
+      setRawWebsiteText(rawWebsiteText);
+    }
+
+    setScanComplete(true);
+    if (!editingBrandKit) useCredit();
+  };
+
+  const {
+    start: startScan,
+    steps: scanSteps,
+    error: scanError,
+    // data: scanResult, // We handle data in onComplete
+  } = useWorkflowStream("/api/scan", {
+    onComplete: handleScanComplete,
+  });
 
   const initialMessages: Omit<Message, "id" | "timestamp">[] =
     editingBrandKit && !isReanalyzeMode
@@ -308,222 +430,10 @@ export default function ScanPage() {
     }
   }, [scanComplete, currentMessageIndex]);
 
-  // Scan brand with streaming API
-  const scanBrandWithStreaming = async (url: string) => {
-    try {
-      setScanError(null);
-
-      const body: any = { url };
-
-      const response = await fetch("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to scan website");
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error("No response stream available");
-      }
-
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-
-        // Keep the last part in the buffer as it might be incomplete
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-
-          try {
-            const message = JSON.parse(trimmedLine);
-
-            if (message.type === "init") {
-              setScanSteps(
-                message.steps.map((s: any) => ({
-                  id: s.id,
-                  label: s.label,
-                  status: "pending",
-                })),
-              );
-            } else if (message.type === "step_start") {
-              setScanSteps((prev) =>
-                prev.map((s) => {
-                  // If matches new step, set to running (ONLY if not already completed/failed)
-                  if (s.id === message.stepId) {
-                    // Prevent regression: if step is already done, don't restart it
-                    if (s.status === "completed" || s.status === "failed") {
-                      return s;
-                    }
-                    return { ...s, status: "running", startTime: Date.now() };
-                  }
-                  // If it was running but is not the new step, assume it finished
-                  if (s.status === "running") {
-                    return { ...s, status: "completed", endTime: Date.now() };
-                  }
-                  return s;
-                }),
-              );
-            } else if (message.type === "step_complete") {
-              const success = message.success !== false;
-              setScanSteps((prev) =>
-                prev.map((s) =>
-                  s.id === message.stepId
-                    ? {
-                        ...s,
-                        status: success ? "completed" : "failed",
-                        endTime: Date.now(),
-                      }
-                    : s,
-                ),
-              );
-            } else if (message.type === "complete") {
-              const { logo, rawWebsiteText, typography } = message.data;
-
-              // Handle potential casing differences in API response
-              const brandProfile =
-                message.data.brand_profile || message.data.brandProfile || {};
-
-              // Update brand data with mapped values from brand_profile
-              setBrandData((prev) => {
-                // Guidelines normalization
-                const guidelines =
-                  brandProfile.guidelines || brandProfile.guideline || {};
-                const voiceLabel =
-                  guidelines.voice_label ||
-                  guidelines.voiceLabel ||
-                  prev.voiceLabel;
-                const voiceInstructions =
-                  guidelines.voice_instructions ||
-                  guidelines.voiceInstructions ||
-                  prev.voiceInstructions;
-                const dos = guidelines.dos || prev.dos || [];
-                const donts = guidelines.donts || prev.donts || [];
-
-                // Visual identity fallback
-                const visualIdentity =
-                  guidelines.visual_identity || guidelines.visualIdentity || {};
-
-                // Personality normalization
-                const rawPersonalityDims =
-                  brandProfile.personality_dimensions ||
-                  brandProfile.personalityDimensions ||
-                  {};
-                const personalityDims = {
-                  sincerity:
-                    rawPersonalityDims.sincerity ??
-                    prev.personalityDimensions.sincerity,
-                  excitement:
-                    rawPersonalityDims.excitement ??
-                    prev.personalityDimensions.excitement,
-                  competence:
-                    rawPersonalityDims.competence ??
-                    prev.personalityDimensions.competence,
-                  sophistication:
-                    rawPersonalityDims.sophistication ??
-                    prev.personalityDimensions.sophistication,
-                  ruggedness:
-                    rawPersonalityDims.ruggedness ??
-                    prev.personalityDimensions.ruggedness,
-                };
-
-                const rawLinguisticMech =
-                  brandProfile.linguistic_mechanics ||
-                  brandProfile.linguisticMechanics ||
-                  {};
-                const linguisticMech = {
-                  formality_index:
-                    rawLinguisticMech.formality_index ||
-                    rawLinguisticMech.formalityIndex ||
-                    prev.linguisticMechanics.formality_index,
-                  urgency_level:
-                    rawLinguisticMech.urgency_level ||
-                    rawLinguisticMech.urgencyLevel ||
-                    prev.linguisticMechanics.urgency_level,
-                  etymology_bias:
-                    rawLinguisticMech.etymology_bias ||
-                    rawLinguisticMech.etymologyBias ||
-                    prev.linguisticMechanics.etymology_bias,
-                };
-                const archetype = brandProfile.archetype || prev.archetype;
-
-                return {
-                  ...prev,
-                  name: brandProfile.name || prev.name,
-                  shortName:
-                    brandProfile.name ||
-                    brandProfile.shortName ||
-                    prev.shortName,
-                  logo: logo || prev.logo,
-                  typography: typography || prev.typography || null,
-                  font:
-                    typography?.primaryFontFamily ||
-                    visualIdentity.font_style ||
-                    visualIdentity.fontStyle ||
-                    prev.font,
-                  palette: brandProfile.palette || prev.palette,
-                  tagline:
-                    guidelines.power_words?.join(" • ") ||
-                    brandProfile.tagline ||
-                    prev.tagline,
-                  personality: brandProfile.personality || prev.personality,
-                  industry: brandProfile.industry || prev.industry,
-                  brandSummary:
-                    brandProfile.brandSummary ||
-                    brandProfile.brand_summary ||
-                    prev.brandSummary,
-                  voiceLabel,
-                  voiceInstructions,
-                  dos,
-                  donts,
-                  audiences:
-                    brandProfile.targetAudiences ||
-                    brandProfile.target_audiences ||
-                    prev.audiences,
-                  personalityDimensions: personalityDims,
-                  linguisticMechanics: linguisticMech,
-                  archetype: archetype,
-                };
-              });
-              // Store rawWebsiteText for Strategy phase
-              if (rawWebsiteText) {
-                setRawWebsiteText(rawWebsiteText);
-              }
-              handleScanComplete();
-            } else if (message.type === "error") {
-              setScanError(message.message);
-              setIsScanning(false);
-            }
-          } catch (e) {
-            // Skip invalid JSON lines
-          }
-        }
-      }
-    } catch (error) {
-      setScanError(
-        error instanceof Error ? error.message : "Failed to scan website",
-      );
-      setIsScanning(false);
-    }
-  };
-
-  // Start scanning when isScanning becomes true (including reanalyze mode)
+  // Start scanning when isScanningMode becomes true (including reanalyze mode)
   useEffect(() => {
     console.log("Auto-scan useEffect:", {
-      isScanning,
+      isScanningMode,
       urlInput,
       editingBrandKit,
       isReanalyzeMode,
@@ -531,25 +441,20 @@ export default function ScanPage() {
     });
     // Scan if: (new scan or reanalyze mode) AND haven't scanned yet
     const shouldScan =
-      isScanning &&
+      isScanningMode &&
       urlInput &&
       !hasScannedRef.current &&
       (!editingBrandKit || isReanalyzeMode);
     if (shouldScan) {
       console.log("Starting automatic scan for:", urlInput);
       hasScannedRef.current = true;
-      scanBrandWithStreaming(urlInput);
+      startScan({ url: urlInput });
     }
-  }, [isScanning, urlInput, editingBrandKit, isReanalyzeMode]);
+  }, [isScanningMode, urlInput, editingBrandKit, isReanalyzeMode, startScan]);
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (urlInput.trim()) setIsScanning(true);
-  };
-
-  const handleScanComplete = () => {
-    setScanComplete(true);
-    if (!editingBrandKit) useCredit();
+    if (urlInput.trim()) setIsScanningMode(true);
   };
 
   const handleSend = (message: string) => {
@@ -601,13 +506,19 @@ export default function ScanPage() {
   };
 
   const handleApprove = async () => {
+    setIsApproving(true);
     if (!isAuthenticated) {
       pendingActionRef.current = "strategist";
       setShowSignIn(true);
+      setIsApproving(false);
       return;
     }
-    await saveBrandKit();
-    router.push("/strategy");
+    try {
+      await saveBrandKit();
+      router.push("/strategy");
+    } catch {
+      setIsApproving(false);
+    }
   };
 
   const handleSaveToDashboard = async () => {
@@ -628,8 +539,15 @@ export default function ScanPage() {
     pendingActionRef.current = null;
   };
 
+  const handleReanalyze = () => {
+    setScanComplete(false);
+    setIsScanningMode(true);
+    hasScannedRef.current = true;
+    startScan({ url: brandData.url });
+  };
+
   // Step 1: URL Input (but not for reanalyze mode - go straight to scanning)
-  if (!isScanning && !workingBrandKit) {
+  if (!isScanningMode && !workingBrandKit) {
     return (
       <UrlInputStep
         urlInput={urlInput}
@@ -658,8 +576,8 @@ export default function ScanPage() {
               </div>
               <button
                 onClick={() => {
-                  setScanError(null);
-                  setIsScanning(false);
+                  setIsScanningMode(false);
+                  hasScannedRef.current = false;
                 }}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
               >
@@ -671,18 +589,19 @@ export default function ScanPage() {
       );
     }
 
-    // Show scanning animation (includes its own full-page layout)
-    return <ScanningAnimation steps={scanSteps} url={urlInput} />;
+    // Show scanning animation
+    return (
+      <div className="min-h-screen bg-background relative">
+        <GradientBackground colorVar="researcher" />
+        <WorkflowProgress
+          steps={scanSteps}
+          title="Analyzing Brand Identity"
+          subtitle={urlInput}
+          colorVar="researcher"
+        />
+      </div>
+    );
   }
-
-  const handleReanalyze = () => {
-    setScanComplete(false);
-    setScanError(null);
-    setScanSteps([]);
-    setIsScanning(true);
-    hasScannedRef.current = true; // Mark as scanned to prevent auto-trigger loop
-    scanBrandWithStreaming(brandData.url); // Fresh scan
-  };
 
   // Step 3: Results
   return (
@@ -741,6 +660,7 @@ export default function ScanPage() {
             onApprove={handleApprove}
             onSaveToDashboard={handleSaveToDashboard}
             onReanalyze={handleReanalyze}
+            isApproving={isApproving}
           />
         </div>
       </div>

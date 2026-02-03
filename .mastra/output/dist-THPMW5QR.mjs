@@ -19,7 +19,7 @@ import 'path';
 import 'url';
 import './font-extractor.mjs';
 import '@mastra/core/agent';
-import './tools/fc64ca6d-39e3-4306-a0d7-49d772b9cb8e.mjs';
+import './tools/ae4f0b8b-8ff8-41f0-8ed0-99334bb5974d.mjs';
 import 'fs/promises';
 import 'https';
 import 'http';

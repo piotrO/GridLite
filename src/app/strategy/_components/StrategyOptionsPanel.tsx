@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, LucideIcon, Quote } from "lucide-react";
+import { ArrowRight, Sparkles, LucideIcon, Quote, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StrategyOptionCard } from "./StrategyOptionCard";
 import { AdFormatsPreview } from "./AdFormatsPreview";
@@ -32,6 +32,7 @@ interface StrategyOptionsPanelProps {
   onToggleOption: (id: string) => void;
   onApprove: () => void;
   strategyData?: StrategyData | null;
+  isApproving?: boolean;
 }
 
 export function StrategyOptionsPanel({
@@ -41,6 +42,7 @@ export function StrategyOptionsPanel({
   onToggleOption,
   onApprove,
   strategyData,
+  isApproving = false,
 }: StrategyOptionsPanelProps) {
   return (
     <div className="space-y-6">
@@ -124,9 +126,19 @@ export function StrategyOptionsPanel({
                 variant="hero"
                 size="xl"
                 className="w-full"
+                disabled={isApproving}
               >
-                <span>Approve & Start Creating</span>
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {isApproving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    <span>Starting Creator...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Approve & Start Creating</span>
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
               </Button>
             </motion.div>
           </motion.div>

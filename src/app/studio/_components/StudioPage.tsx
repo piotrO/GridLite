@@ -21,7 +21,7 @@ import { AdPreviewCanvas } from "./AdPreviewCanvas";
 import { BrandAssetCard } from "./BrandAssetCard";
 import { TemplateSelector } from "./TemplateSelector";
 import { ContentPanel } from "./ContentPanel";
-import { DesignerLoadingState } from "./DesignerLoadingState";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useDesigner } from "./useDesigner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand, BrandKit } from "@/contexts/BrandContext";
@@ -79,7 +79,7 @@ export default function StudioPage() {
     isTyping,
     isLoading,
     isGeneratingImage,
-    loadingStatus,
+    steps,
     creativeData,
     handleSend,
   } = useDesigner({
@@ -202,7 +202,14 @@ export default function StudioPage() {
   // Show loading state while Designer is analyzing
   if (isLoading) {
     return (
-      <DesignerLoadingState status={loadingStatus} brandName={brand.name} />
+      <div className="h-screen bg-background relative">
+        <WorkflowProgress
+          steps={steps}
+          title="Designing Creatives"
+          subtitle={`Crafting visuals for ${brand.name}`}
+          colorVar="designer"
+        />
+      </div>
     );
   }
 
@@ -407,20 +414,14 @@ export default function StudioPage() {
                 bodyCopy: content.bodyCopy,
                 ctaText: content.ctaText,
                 imageUrl: content.imageUrl,
-                colors: creativeData?.colorScheme
-                  ? [
-                      creativeData.colorScheme.primary,
-                      creativeData.colorScheme.secondary,
-                      creativeData.colorScheme.accent,
-                      creativeData.colorScheme.background,
-                    ]
-                  : [
-                      brand.palette.primary,
-                      brand.palette.secondary,
-                      brand.palette.accent,
-                      "#FFFFFF",
-                    ],
+                colors: [
+                  brand.palette?.primary || "#4F46E5",
+                  brand.palette?.secondary || "#F97316",
+                  brand.palette?.accent || "#10B981",
+                  creativeData?.colorScheme?.background || "#FFFFFF",
+                ],
                 logoUrl: brand.logo,
+                typography: brand.typography,
                 layerModifications: layerModifications,
               }}
             />

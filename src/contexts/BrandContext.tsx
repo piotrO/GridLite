@@ -19,7 +19,7 @@ import {
   getBrandLogoUrl,
   uploadBrandAvatar,
 } from "@/services/brand-service";
-import { BrandPalette } from "@/lib/shared/types";
+import { BrandPalette, Typography } from "@/lib/shared/types";
 
 // Grid8 API brand type
 export interface Grid8Brand {
@@ -82,6 +82,7 @@ export interface BrandKit {
   tagline: string;
   logo: string;
   font: string;
+  typography?: Typography | null;
   personality?: string[];
   voiceLabel: string;
   voiceInstructions: string;

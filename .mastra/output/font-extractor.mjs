@@ -1,8 +1,17 @@
 async function extractBrandFonts(page) {
   const fontFiles = /* @__PURE__ */ new Map();
+  const cssFiles = /* @__PURE__ */ new Map();
   const handleResponse = async (response) => {
     const url = response.url().toLowerCase();
     const contentType = await response.headerValue("content-type").catch(() => "") || "";
+    const isCss = contentType.includes("text/css") || url.endsWith(".css");
+    if (isCss) {
+      try {
+        const text = await response.text();
+        cssFiles.set(url, text);
+      } catch (e) {
+      }
+    }
     const isFont = /\.(woff2?|ttf|otf)(\?|$)/.test(url) || contentType.includes("font") || url.includes("use.typekit.net");
     if (isFont) {
       try {
@@ -11,8 +20,9 @@ async function extractBrandFonts(page) {
           (_, reject) => setTimeout(() => reject(new Error("Timeout getting body")), 3e3)
         );
         const buffer = await Promise.race([bufferPromise, timeoutPromise]);
+        const initiator = await response.request().headerValue("referer") || "";
         if (buffer.length > 0) {
-          fontFiles.set(response.url(), { buffer, contentType });
+          fontFiles.set(response.url(), { buffer, contentType, initiator });
         }
       } catch (e) {
       }
@@ -64,10 +74,33 @@ async function extractBrandFonts(page) {
       }
     }
     if (!match && fontFiles.size > 0) {
+      console.log(
+        `[Font Extraction] No direct name match for '${primaryFont}'. Checking CSS initiators...`
+      );
+      for (const [fontUrl, fontData] of fontFiles.entries()) {
+        const initiatorUrl = fontData.initiator;
+        if (!initiatorUrl) continue;
+        const cssContent = cssFiles.get(initiatorUrl);
+        if (!cssContent) continue;
+        const fontNameRegex = new RegExp(
+          `font-family:[^;]*${primaryFont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+          "i"
+        );
+        if (cssContent.includes(primaryFont) || // Broad check
+        fontNameRegex.test(cssContent)) {
+          console.log(
+            `[Font Extraction] Found match via CSS initiator (${initiatorUrl}) for font: ${fontUrl}`
+          );
+          match = { url: fontUrl, ...fontData };
+          break;
+        }
+      }
+    }
+    if (!match && fontFiles.size > 0) {
       const candidates = Array.from(fontFiles.entries()).filter(([_, data]) => data.buffer.length > 4e3).sort((a, b) => b[1].buffer.length - a[1].buffer.length);
       if (candidates.length > 0) {
         console.log(
-          `[Font Extraction] No name match for '${primaryFont}'. Falling back to largest captured font: ${candidates[0][0]}`
+          `[Font Extraction] No match found. Falling back to largest captured font: ${candidates[0][0]}`
         );
         match = { url: candidates[0][0], ...candidates[0][1] };
       }

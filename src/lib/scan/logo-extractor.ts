@@ -1,203 +1,372 @@
 import { Page } from "playwright";
+import sharp from "sharp";
+import { Buffer } from "buffer";
+import { isDebugMode } from "./extraction-utils";
 
-/**
- * Resolves a URL against a base URL.
- */
-function resolveUrl(url: string, baseUrl: string): string {
-  if (!url) return "";
-  if (url.startsWith("http") || url.startsWith("data:")) return url;
-  try {
-    return new URL(url, baseUrl).href;
-  } catch (e) {
-    return "";
-  }
-}
+const DEBUG_MODE = isDebugMode("all");
 
-/**
- * Extracts the main logo using a weighted scoring system.
- */
 export async function extractLogo(
   page: Page,
   baseUrl: string,
 ): Promise<string | null> {
-  // 1. Wait for layout stability
-  await page.waitForLoadState("domcontentloaded");
-  // Optional: wait slightly for JS-injected logos
-  await page.waitForTimeout(1000);
-
-  // 2. Execute scoring logic inside the browser context
-  const bestLogo = await page.evaluate((currentBaseUrl) => {
-    interface ScoredImage {
-      src: string;
-      score: number;
-      reason: string[]; // For debugging
-    }
-
-    const candidates: ScoredImage[] = [];
-    const origin = new URL(currentBaseUrl).origin;
-
-    // Helper to serialize SVG
-    const svgToDataUrl = (svg: SVGElement) => {
-      const svgString = new XMLSerializer().serializeToString(svg);
-      return `data:image/svg+xml,${encodeURIComponent(svgString)}`;
-    };
-
-    // Select all potential logo elements (images and SVGs)
-    const elements = Array.from(document.querySelectorAll("img, svg"));
-
-    elements.forEach((el) => {
-      let score = 0;
-      const reasons: string[] = [];
-      const rect = el.getBoundingClientRect();
-
-      // --- FILTER: INVALID CANDIDATES ---
-
-      // Skip invisible elements
-      if (
-        rect.width === 0 ||
-        rect.height === 0 ||
-        el.style.display === "none" ||
-        el.style.visibility === "hidden"
-      )
-        return;
-      // Skip tiny icons (tracking pixels, list bullets)
-      if (rect.width < 20 || rect.height < 20) return;
-      // Skip massive hero images (likely backgrounds)
-      if (rect.width > 600 || rect.height > 400) return;
-
-      // --- SCORING: DOM HIERARCHY ---
-
-      // Check ancestors for Header or Footer
-      const header = el.closest(
-        'header, nav, [role="banner"], .header, #header',
-      );
-      const footer = el.closest("footer, .footer, #footer");
-
-      if (header) {
-        score += 50;
-        reasons.push("in-header");
-      }
-      if (footer) {
-        score -= 30; // Logos in footer are rarely the "main" logo
-        reasons.push("in-footer");
-      }
-
-      // --- SCORING: LINK DESTINATION (CRITICAL) ---
-
-      const parentLink = el.closest("a");
-      if (parentLink) {
-        const href = parentLink.href;
-        // Clean trailing slashes for comparison
-        const linkUrl = href.replace(/\/$/, "");
-        const rootUrl = origin.replace(/\/$/, "");
-
-        // Points if it links to Home
-        if (
-          linkUrl === rootUrl ||
-          linkUrl === currentBaseUrl.replace(/\/$/, "")
-        ) {
-          score += 60;
-          reasons.push("links-to-home");
-        }
-      }
-
-      // --- SCORING: TEXT MATCHING ---
-
-      const attributes = [
-        el.id,
-        el.className.toString(),
-        el.getAttribute("alt"),
-        (el as HTMLImageElement).src,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      if (attributes.includes("logo")) {
-        score += 20;
-        reasons.push("keyword-logo");
-      }
-      if (attributes.includes("brand")) {
-        score += 10;
-        reasons.push("keyword-brand");
-      }
-      if (attributes.includes("icon")) {
-        score -= 10; // "menu-icon", "search-icon" usually aren't logos
-        reasons.push("keyword-icon");
-      }
-
-      // --- SCORING: POSITIONING ---
-
-      // Logos are usually in the top 150px of the page
-      if (rect.top < 150) {
-        score += 20;
-        reasons.push("top-of-page");
-      }
-      // Logos are usually Left or Center
-      // (Assuming standard LTR layout, max width 1920)
-      if (
-        rect.left < 50 ||
-        rect.left + rect.width / 2 < window.innerWidth / 2 + 200
-      ) {
-        score += 10;
-        reasons.push("position-left-center");
-      }
-
-      // --- EXTRACT SOURCE ---
-
-      let src = "";
-      if (el.tagName.toLowerCase() === "img") {
-        src =
-          (el as HTMLImageElement).currentSrc || (el as HTMLImageElement).src;
-      } else if (el.tagName.toLowerCase() === "svg") {
-        src = svgToDataUrl(el as SVGElement);
-      }
-
-      if (src && src !== window.location.href) {
-        candidates.push({ src, score, reason: reasons });
+  try {
+    // 1. Proxy browser console logs to the server for debugging
+    page.on("console", (msg) => {
+      const text = msg.text();
+      if (text.startsWith("[LogoExtractor]")) {
+        console.log(text);
       }
     });
 
-    // Sort by score descending
-    candidates.sort((a, b) => b.score - a.score);
+    // 2. Wait for Load State
+    await page.waitForLoadState("domcontentloaded");
 
-    // Debug: Print top candidates to console (visible in Playwright execution context)
-    // console.table(candidates.slice(0, 3));
+    // 3. Execute Logic
+    const logoUrl = await page.evaluate(
+      async ({ baseUrl, debugMode }) => {
+        console.log("[LogoExtractor] Starting extraction...");
 
-    return candidates.length > 0 ? candidates[0] : null;
-  }, baseUrl);
+        // --- HELPER: Validation ---
+        const validateImage = (url: string): Promise<boolean> => {
+          return new Promise((resolve) => {
+            if (url.startsWith("data:")) {
+              resolve(true); // Data URIs are instant
+              return;
+            }
+            const img = new Image();
+            const timer = setTimeout(() => resolve(false), 5000); // 5s timeout
 
-  // 3. Post-Processing & Fallbacks
+            img.onload = () => {
+              clearTimeout(timer);
+              if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                resolve(true);
+              } else {
+                resolve(false);
+              }
+            };
 
-  // If we found a high-confidence match (score > 60 roughly implies header + home link)
-  if (bestLogo && bestLogo.score >= 50) {
-    return resolveUrl(bestLogo.src, baseUrl);
+            img.onerror = () => {
+              clearTimeout(timer);
+              resolve(false);
+            };
+
+            img.src = url;
+          });
+        };
+
+        // --- HELPER: URL Normalization ---
+        const isHomeUrl = (href: string | null): boolean => {
+          if (!href) return false;
+          try {
+            const targetUrl = new URL(href, baseUrl);
+            const baseUrlObj = new URL(baseUrl);
+            const targetPath = targetUrl.pathname.replace(/\/$/, "");
+            const basePath = baseUrlObj.pathname.replace(/\/$/, "");
+            return (
+              targetUrl.origin === baseUrlObj.origin && targetPath === basePath
+            );
+          } catch {
+            return false;
+          }
+        };
+
+        // --- HELPER: Scoring ---
+        const scoreElement = (
+          el: Element,
+        ): { score: number; reasons: string[] } => {
+          let score = 0;
+          const reasons: string[] = [];
+
+          const parentLink = el.closest("a");
+          const container = el.parentElement;
+
+          // "Bubble Up" Attributes
+          const attributesToCheck = [
+            el.className.toString(),
+            el.id,
+            el.getAttribute("alt"),
+            el.getAttribute("aria-label"),
+            parentLink?.className.toString(),
+            parentLink?.id,
+            parentLink?.getAttribute("aria-label"),
+            container?.className.toString(),
+            container?.id,
+          ];
+
+          const combinedText = attributesToCheck.join(" ").toLowerCase();
+
+          // 1. Penalties (Arrows, Icons, Socials)
+          const negativeKeywords = [
+            "arrow",
+            "chevron",
+            "cart",
+            "search",
+            "bag",
+            "close",
+            "menu",
+            "facebook",
+            "instagram",
+            "twitter",
+          ];
+          for (const kw of negativeKeywords) {
+            if (combinedText.includes(kw)) {
+              score -= 50;
+              reasons.push(`penalty:${kw}`);
+            }
+          }
+
+          // 2. Positive Keywords
+          if (combinedText.includes("logo")) {
+            score += 25;
+            reasons.push("keyword:logo");
+          }
+          if (combinedText.includes("brand")) {
+            score += 15;
+            reasons.push("keyword:brand");
+          }
+          if (combinedText.includes("home")) {
+            score += 10;
+            reasons.push("keyword:home");
+          }
+
+          // 3. Structure
+          const closestHeader = el.closest("header, .header, .navbar, .nav");
+          if (closestHeader) {
+            score += 10;
+            reasons.push("in:header");
+          }
+
+          if (parentLink && isHomeUrl(parentLink.getAttribute("href"))) {
+            score += 35;
+            reasons.push("link:root");
+          }
+
+          // 4. Geometry
+          const rect = el.getBoundingClientRect();
+          if (rect.width < 5 || rect.height < 5)
+            return { score: -1000, reasons: ["invisible"] };
+
+          // Aspect Ratio: Logos are usually wider (2:1 or 3:1), not square icons (1:1)
+          const aspect = rect.width / rect.height;
+          if (aspect > 1.5 && aspect < 6) {
+            score += 10;
+            reasons.push("aspect:wide");
+          }
+
+          // Size checks
+          if (rect.width > 200 && rect.width < 600) {
+            score += 10;
+            reasons.push("size:medium");
+          }
+
+          // Position checks
+          if (rect.top < 150) {
+            score += 10;
+            reasons.push("pos:top");
+          }
+          if (rect.left < window.innerWidth / 3) {
+            score += 15;
+            reasons.push("pos:left");
+          }
+
+          return { score, reasons };
+        };
+
+        // --- STRATEGY A: Schema.org (With Validation) ---
+        try {
+          console.log("[LogoExtractor] Strategy A: Checking Schema.org");
+          const schemas = Array.from(
+            document.querySelectorAll('script[type="application/ld+json"]'),
+          );
+          for (const schema of schemas) {
+            const json = JSON.parse(schema.textContent || "{}");
+            const objects = Array.isArray(json)
+              ? json
+              : json["@graph"] || [json];
+
+            for (const obj of objects) {
+              if (
+                (obj["@type"] === "Organization" || obj["@type"] === "Brand") &&
+                obj.logo
+              ) {
+                const url =
+                  typeof obj.logo === "string" ? obj.logo : obj.logo.url;
+                console.log(
+                  "[LogoExtractor] Found schema logo candidate:",
+                  url,
+                );
+
+                const isValid = await validateImage(url);
+                if (isValid) {
+                  console.log(
+                    "[LogoExtractor] Schema logo validated successfully.",
+                  );
+                  return url;
+                } else {
+                  console.warn(
+                    "[LogoExtractor] Schema logo failed validation (404/Error). Skipping.",
+                  );
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[LogoExtractor] Schema parsing error", e);
+        }
+
+        // --- STRATEGY B: DOM Scan ---
+        console.log("[LogoExtractor] Strategy B: Checking DOM images");
+        const images = Array.from(
+          document.querySelectorAll('img, svg, object[type="image/svg+xml"]'),
+        );
+        console.log(`[LogoExtractor] Found ${images.length} raw images`);
+
+        // 1. Score ALL images first
+        const candidates = images
+          .map((img) => {
+            if (img.getAttribute("aria-hidden") === "true")
+              return { el: img, score: -1000, reasons: ["aria-hidden"] };
+            const { score, reasons } = scoreElement(img);
+            return { el: img, score, reasons };
+          })
+          .filter((c) => c.score > 0); // Filter out garbage
+
+        // 2. Sort by highest score
+        candidates.sort((a, b) => b.score - a.score);
+
+        console.log(
+          `[LogoExtractor] Found ${candidates.length} viable candidates after scoring.`,
+        );
+
+        // 3. Iterate and Validate
+        for (const candidate of candidates) {
+          const isSvg = candidate.el.tagName.toLowerCase() === "svg";
+
+          // Detailed logging (only in debug mode)
+          if (debugMode) {
+            const logHtml = candidate.el.outerHTML.substring(0, 75) + "...";
+
+            console.log(
+              `[LogoExtractor] Candidate ${isSvg ? "SVG" : "IMG"}: ` +
+                JSON.stringify({
+                  score: candidate.score,
+                  reasons: candidate.reasons,
+                  html: logHtml,
+                }),
+            );
+          }
+
+          let candidateUrl = "";
+
+          if (isSvg) {
+            try {
+              const serializer = new XMLSerializer();
+              let svgStr = serializer.serializeToString(candidate.el);
+              // Fix xmlns if missing so browsers render it
+              if (!svgStr.includes('xmlns="http://www.w3.org/2000/svg"')) {
+                svgStr = svgStr.replace(
+                  "<svg",
+                  '<svg xmlns="http://www.w3.org/2000/svg"',
+                );
+              }
+              candidateUrl =
+                "data:image/svg+xml;base64," +
+                window.btoa(unescape(encodeURIComponent(svgStr)));
+            } catch (e) {
+              console.warn("[LogoExtractor] SVG Serialization failed", e);
+              continue;
+            }
+          } else {
+            // Standard Image
+            candidateUrl =
+              candidate.el.getAttribute("src") ||
+              candidate.el.getAttribute("data-src") ||
+              "";
+          }
+
+          if (!candidateUrl) continue;
+
+          // Validate
+          console.log("[LogoExtractor] Validating image availability...");
+          const isValid = await validateImage(candidateUrl);
+
+          if (isValid) {
+            console.log("[LogoExtractor] Validation PASSED. Returning.");
+            return candidateUrl;
+          } else {
+            console.log(
+              "[LogoExtractor] Validation FAILED (fetch error). Next candidate...",
+            );
+          }
+        }
+
+        return null;
+      },
+      { baseUrl, debugMode: DEBUG_MODE },
+    );
+
+    // Post-processing: Ensure absolute URL
+    let finalUrl = logoUrl;
+    if (logoUrl && !logoUrl.startsWith("data:")) {
+      try {
+        finalUrl = new URL(logoUrl, baseUrl).href;
+      } catch (e) {
+        console.warn(`[LogoExtractor] Failed to resolve absolute URL`, e);
+        return null;
+      }
+    }
+
+    if (!finalUrl) return null;
+
+    // Standardize: ALways return PNG Data URI
+    try {
+      console.log("[LogoExtractor] Standardizing logo to PNG Data URI...");
+      return await standardizeToPngDataUri(finalUrl);
+    } catch (e) {
+      console.error(
+        "[LogoExtractor] Standardization failed, returning original",
+        e,
+      );
+      return finalUrl;
+    }
+  } catch (error) {
+    console.error("Error extracting logo:", error);
+    return null;
   }
+}
 
-  // 4. Fallback: Meta tags (High quality but generic)
-  // If DOM scoring failed or confidence is low, trust the OpenGraph image
-  const ogImage = await page
-    .$eval('meta[property="og:image"], meta[name="og:image"]', (el) =>
-      el.getAttribute("content"),
-    )
-    .catch(() => null);
+/**
+ * Helper: Ensure content is always a PNG Data URI
+ */
+async function standardizeToPngDataUri(url: string): Promise<string> {
+  try {
+    let buffer: Buffer;
 
-  if (ogImage) {
-    return resolveUrl(ogImage, baseUrl);
+    // 1. Get Buffer from URL or Data URI
+    if (url.startsWith("data:")) {
+      const parts = url.split(",");
+      const base64 = parts[1];
+      if (!base64) return url; // Invalid data URI, return as-is (fallback)
+      buffer = Buffer.from(base64, "base64");
+    } else {
+      console.log(`[LogoExtractor] Fetching image for standardization: ${url}`);
+      const response = await fetch(url);
+      if (!response.ok)
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    }
+
+    // 2. Convert to PNG using sharp (Always)
+    const image = sharp(buffer);
+
+    // Optional: Resize if too large? For now, just format conversion.
+    // const metadata = await image.metadata();
+
+    const pngBuffer = await image.png().toBuffer();
+    return `data:image/png;base64,${pngBuffer.toString("base64")}`;
+  } catch (error) {
+    console.warn("[LogoExtractor] Standardization error:", error);
+    return url; // Fallback to original if conversion completely fails
   }
-
-  // 5. Fallback: Return the low-confidence DOM match if it exists
-  if (bestLogo) {
-    return resolveUrl(bestLogo.src, baseUrl);
-  }
-
-  // 6. Final Fallback: Apple Touch Icon
-  const touchIcon = await page
-    .$eval('link[rel="apple-touch-icon"]', (el) => el.getAttribute("href"))
-    .catch(() => null);
-
-  if (touchIcon) {
-    return resolveUrl(touchIcon, baseUrl);
-  }
-
-  return null;
 }

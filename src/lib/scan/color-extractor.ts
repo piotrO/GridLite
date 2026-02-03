@@ -3,10 +3,13 @@ import convert from "color-convert";
 import { BrandPalette } from "@/lib/shared/types";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { findProjectRoot, getDirname, isDebugMode } from "./extraction-utils";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = getDirname(import.meta.url);
+
+// Cache project root at module level
+const PROJECT_ROOT = findProjectRoot(__dirname);
+const DEBUG_MODE = isDebugMode("color");
 
 /**
  * Helper: Calculate Euclidean distance between two RGB colors.
@@ -30,46 +33,31 @@ function rgbToHex(r: number, g: number, b: number): string {
   return "#" + convert.rgb.hex([r, g, b]);
 }
 
-/**
- * Helper: Find the project root by looking for package.json
- */
-function findProjectRoot(startDir: string): string {
-  let current = startDir;
-  while (current !== path.parse(current).root) {
-    if (fs.existsSync(path.join(current, "package.json"))) {
-      return current;
-    }
-    current = path.dirname(current);
-  }
-  return process.cwd();
-}
-
 async function extractPaletteFromBuffer(
   buffer: Buffer,
   type: "screenshot" | "logo",
   debugName: string = "debug-image",
 ): Promise<BrandPalette> {
-  // DEBUG: Save images for troubleshooting
-  // We find the real project root to ensure we save to the Next.js public folder
-  const projectRoot = findProjectRoot(__dirname);
-  const debugDir = path.join(projectRoot, "public", "debug");
-  console.log(`[ColorExtractor] Saving debug images to: ${debugDir}`);
+  // DEBUG: Save images for troubleshooting (only when DEBUG_MODE is enabled)
+  if (DEBUG_MODE) {
+    const debugDir = path.join(PROJECT_ROOT, "public", "debug");
 
-  if (!fs.existsSync(debugDir)) {
-    try {
-      fs.mkdirSync(debugDir, { recursive: true });
-    } catch (e) {
-      console.error(`[ColorExtractor] Failed to create debug directory:`, e);
+    if (!fs.existsSync(debugDir)) {
+      try {
+        fs.mkdirSync(debugDir, { recursive: true });
+      } catch (e) {
+        console.error(`[ColorExtractor] Failed to create debug directory:`, e);
+      }
     }
-  }
 
-  if (fs.existsSync(debugDir)) {
-    try {
-      // 1. Save Original
-      const originalPath = path.join(debugDir, `${debugName}-original.png`);
-      fs.writeFileSync(originalPath, buffer);
-    } catch (e) {
-      console.error(`[ColorExtractor] Debug save failed:`, e);
+    if (fs.existsSync(debugDir)) {
+      try {
+        // 1. Save Original
+        const originalPath = path.join(debugDir, `${debugName}-original.png`);
+        fs.writeFileSync(originalPath, buffer);
+      } catch (e) {
+        console.error(`[ColorExtractor] Debug save failed:`, e);
+      }
     }
   }
 
@@ -80,14 +68,17 @@ async function extractPaletteFromBuffer(
     .ensureAlpha(); // keep alpha so we can skip transparent pixels
 
   // Save the "Analyzed" version (exactly what goes into raw pixels)
-  try {
-    const analyzedBuffer = await sharpInstance.clone().png().toBuffer();
-    fs.writeFileSync(
-      path.join(debugDir, `${debugName}-analyzed.png`),
-      analyzedBuffer,
-    );
-  } catch (e) {
-    /* Ignore */
+  if (DEBUG_MODE) {
+    try {
+      const analyzedBuffer = await sharpInstance.clone().png().toBuffer();
+      const debugDir = path.join(PROJECT_ROOT, "public", "debug");
+      fs.writeFileSync(
+        path.join(debugDir, `${debugName}-analyzed.png`),
+        analyzedBuffer,
+      );
+    } catch (e) {
+      /* Ignore */
+    }
   }
 
   const { data, info } = await sharpInstance
@@ -120,7 +111,8 @@ async function extractPaletteFromBuffer(
     let b = b0;
 
     // Skip white/near-white backgrounds
-    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold) continue;
+    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
+      continue;
 
     // Simple quantization to group noise (e.g. 254 vs 255)
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
@@ -281,7 +273,6 @@ export async function extractColorsFromScreenshot(
 export async function extractColorsFromLogo(
   logoUrl: string,
 ): Promise<BrandPalette> {
-  console.log(`[ColorExtractor] Extracting from logo: ${logoUrl}`);
   try {
     const response = await fetch(logoUrl);
     if (!response.ok) throw new Error("Failed to fetch");

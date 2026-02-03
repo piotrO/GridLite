@@ -438,8 +438,8 @@ const extractTextStep = createStep({
       const rawHtml = await session.page.content(); // Get raw HTML for color analysis
       console.log(`[Text&HTML] Extracted in ${Date.now() - start}ms`);
 
-      // Close the browser now that we're done with it
-      await closeBrowser(session.browser);
+      // Close the browser now that we're done with it using cleanup function
+      await session.cleanup();
       sessionStore.delete(sessionKey);
 
       return {
@@ -456,7 +456,7 @@ const extractTextStep = createStep({
       // Still try to close the browser
       const session = sessionStore.get(sessionKey);
       if (session) {
-        await closeBrowser(session.browser);
+        await session.cleanup();
         sessionStore.delete(sessionKey);
       }
 
@@ -797,7 +797,7 @@ export const brandScanWorkflow = createWorkflow({
 export async function cleanupSession(sessionKey: string): Promise<void> {
   const session = sessionStore.get(sessionKey);
   if (session) {
-    await closeBrowser(session.browser);
+    await session.cleanup();
     sessionStore.delete(sessionKey);
   }
 }

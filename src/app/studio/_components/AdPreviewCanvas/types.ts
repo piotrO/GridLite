@@ -1,3 +1,5 @@
+import { Typography } from "@/lib/shared/types";
+
 export interface AdSize {
   id: string;
   label: string;
@@ -18,6 +20,7 @@ export interface AdCanvasData {
     scaleFactor?: number;
     sizes?: string[]; // Specific sizes to apply to (e.g., ["300x600"] or ["all"])
   }>;
+  typography?: Typography | null;
 }
 
 export interface AdPreviewCanvasProps {

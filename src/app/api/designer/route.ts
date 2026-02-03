@@ -13,6 +13,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // Allow extra time for image generation
 
+const SKIP_IMAGE_GENERATION = true;
+
 interface DesignerRequest {
   // Brand profile (required)
   brandProfile: BrandProfile;
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest) {
 
       // Check if the response includes an image generation request
       let imageUrl: string | undefined;
-      if (response.imageGenerationRequest) {
+      if (response.imageGenerationRequest && !SKIP_IMAGE_GENERATION) {
         try {
           console.log(
             "[Designer] Generating image:",
@@ -107,30 +109,81 @@ export async function POST(request: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const sendStatus = (step: string) => {
-          const message = JSON.stringify({ type: "status", step }) + "\n";
+        const sendEvent = (event: any) => {
+          const message = JSON.stringify(event) + "\n";
           controller.enqueue(encoder.encode(message));
         };
 
         const sendError = (message: string) => {
-          const errorMsg = JSON.stringify({ type: "error", message }) + "\n";
-          controller.enqueue(encoder.encode(errorMsg));
+          sendEvent({ type: "error", message });
+        };
+
+        // Helper to simulate step execution
+        const runSyntheticStep = async (
+          id: string,
+          label: string,
+          action: () => Promise<void>,
+        ) => {
+          sendEvent({ type: "step_start", stepId: id, label });
+          try {
+            await action();
+            sendEvent({ type: "step_complete", stepId: id, success: true });
+          } catch (e) {
+            sendEvent({ type: "step_complete", stepId: id, success: false });
+            throw e;
+          }
         };
 
         try {
           const workflow = mastra.getWorkflow("designer");
 
-          sendStatus("analyzing_brand");
+          // Define step labels including synthetic ones
+          const stepLabels: Record<string, string> = {
+            "analyzing-brand": "Analyzing brand identity",
+            "reviewing-strategy": "Reviewing campaign strategy",
+            "generate-creative": "Crafting visual direction",
+            ...(SKIP_IMAGE_GENERATION
+              ? {}
+              : { "generate-image": "Generating hero image" }),
+          };
+
+          // Send init event
+          sendEvent({
+            type: "init",
+            steps: Object.keys(stepLabels).map((id) => ({
+              id,
+              label: stepLabels[id],
+            })),
+          });
+
+          // 1. Analyzing Brand (Synthetic)
+          await runSyntheticStep(
+            "analyzing-brand",
+            stepLabels["analyzing-brand"],
+            async () => {
+              await new Promise((resolve) => setTimeout(resolve, 600));
+            },
+          );
+
+          // 2. Reviewing Strategy (Synthetic)
+          await runSyntheticStep(
+            "reviewing-strategy",
+            stepLabels["reviewing-strategy"],
+            async () => {
+              await new Promise((resolve) => setTimeout(resolve, 600));
+            },
+          );
+
+          // 3. Generate Creative (Real Mastra Workflow)
+          // Explicitly send start event to ensure UI is updated immediately
+          // before the actual Mastra workflow starts processing
+          sendEvent({
+            type: "step_start",
+            stepId: "generate-creative",
+            label: stepLabels["generate-creative"],
+          });
 
           const run = await workflow.createRun();
-
-          // Small delay for UX (matches original behavior)
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          sendStatus("reviewing_strategy");
-
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          sendStatus("creating_visuals");
-
           const streamResult = await run.stream({
             inputData: {
               brandProfile: body.brandProfile,
@@ -139,98 +192,131 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          // Consume the stream
-          for await (const _event of streamResult.fullStream) {
-            // We already sent status updates manually
-          }
+          for await (const event of streamResult.fullStream) {
+            // Forward real step events using robust parsing
+            if (event.type === "workflow-step-start" && "payload" in event) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-          // Get the final result
-          const workflowResult = await streamResult.result;
-
-          if (workflowResult.status === "success" && workflowResult.result) {
-            const creativeResult = workflowResult.result as {
-              greeting: string;
-              creative: {
-                heroImagePrompt?: string;
-                imageDirection?: string;
-                moodKeywords?: string[];
-                [key: string]: unknown;
-              };
-            };
-
-            // Generate an initial image based on the creative direction
-            let imageUrl: string | undefined;
-
-            if (body.brandId) {
-              try {
-                sendStatus("generating_image");
-
-                // Use heroImagePrompt directly if available
-                const imagePrompt =
-                  creativeResult.creative.heroImagePrompt ||
-                  `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
-
-                console.log(
-                  "[Designer] Generating initial image:",
-                  imagePrompt,
-                );
-
-                const imageResult = await generateImage({
-                  prompt: imagePrompt,
-                  style: "hero",
-                  industry: body.brandProfile.industry,
-                  moodKeywords: creativeResult.creative.moodKeywords,
+              if (stepId === "generate-creative") {
+                // We already sent the start event, so we can ignore this or send it again (idempotent)
+                // Let's send it again just to be safe in case of re-connections or if timing was off
+                sendEvent({
+                  type: "step_start",
+                  stepId: "generate-creative",
+                  label: stepLabels["generate-creative"],
                 });
-
-                if (imageResult.success && imageResult.result) {
-                  imageUrl = getImageDataUrl(imageResult.result);
-                  console.log(
-                    "[Designer] Initial image generated successfully",
-                  );
-                } else {
-                  console.error(
-                    "[Designer] Initial image generation failed:",
-                    imageResult.error,
-                  );
-                }
-              } catch (imageError) {
-                console.error(
-                  "[Designer] Initial image generation failed:",
-                  imageError,
-                );
-                // Continue without image - don't fail the whole request
               }
             }
+            if (
+              (event.type === "workflow-step-completed" ||
+                // @ts-ignore
+                event.type === "workflow-step-finish") &&
+              "payload" in event
+            ) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
 
-            console.log(
-              "[Designer] Sending complete message with imageUrl:",
-              imageUrl ? "yes (length: " + imageUrl.length + ")" : "no",
-            );
-            const completeMessage =
-              JSON.stringify({
-                type: "complete",
-                data: {
-                  ...workflowResult.result,
-                  imageUrl, // Include generated image URL
-                },
-              }) + "\n";
-            console.log(
-              "[Designer] Complete message size:",
-              completeMessage.length,
-            );
-            controller.enqueue(encoder.encode(completeMessage));
-            console.log("[Designer] Complete message enqueued, closing stream");
-          } else {
-            console.error("[Designer] Workflow failed:", workflowResult);
-            sendError("Creative generation failed");
+              // Check success status from the result
+              const result = payload?.result as any;
+              const success = result?.success !== false;
+
+              if (stepId === "generate-creative") {
+                sendEvent({
+                  type: "step_complete",
+                  stepId: "generate-creative",
+                  success,
+                });
+              }
+            }
           }
 
+          const workflowResult = await streamResult.result;
+
+          if (workflowResult.status !== "success" || !workflowResult.result) {
+            throw new Error("Creative generation workflow failed");
+          }
+
+          // Ensure generate-creative is marked as complete if the stream loop somehow missed it
+          // This is a safety catch
+          sendEvent({
+            type: "step_complete",
+            stepId: "generate-creative",
+            success: true,
+          });
+
+          const creativeResult = workflowResult.result as {
+            greeting: string;
+            creative: CreativeData;
+          };
+
+          // 4. Generate Image (Synthetic)
+          let imageUrl: string | undefined;
+
+          if (body.brandId && !SKIP_IMAGE_GENERATION) {
+            await runSyntheticStep(
+              "generate-image",
+              stepLabels["generate-image"],
+              async () => {
+                try {
+                  const imagePrompt =
+                    creativeResult.creative.heroImagePrompt ||
+                    `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
+
+                  console.log(
+                    "[Designer] Generating initial image:",
+                    imagePrompt,
+                  );
+
+                  const imageResult = await generateImage({
+                    prompt: imagePrompt,
+                    style: "hero",
+                    industry: body.brandProfile.industry,
+                    moodKeywords: creativeResult.creative.moodKeywords,
+                  });
+
+                  if (imageResult.success && imageResult.result) {
+                    imageUrl = getImageDataUrl(imageResult.result);
+                  } else {
+                    console.error("Image generation failed", imageResult.error);
+                    // We don't throw here to avoid failing the whole request
+                  }
+                } catch (e) {
+                  console.error("Image generation exception", e);
+                }
+              },
+            );
+          }
+
+          sendEvent({
+            type: "complete",
+            data: {
+              ...workflowResult.result,
+              imageUrl,
+            },
+          });
+
           controller.close();
-          console.log("[Designer] Stream closed successfully");
         } catch (error) {
-          sendError(
-            error instanceof Error ? error.message : "Unknown error occurred",
-          );
+          // Check for rate limit errors
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          if (
+            errorMessage.includes("429") ||
+            errorMessage.toLowerCase().includes("too many requests")
+          ) {
+            sendError(
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
+            );
+          } else {
+            sendError(errorMessage);
+          }
           controller.close();
         }
       },

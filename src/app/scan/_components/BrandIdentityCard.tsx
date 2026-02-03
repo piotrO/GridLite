@@ -41,12 +41,14 @@ export function BrandIdentityCard({
       className="p-5 rounded-2xl bg-card border-2 border-border"
     >
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-researcher/20 flex items-center justify-center overflow-hidden">
-          {logo.startsWith("http") || logo.startsWith("/") ? (
+        <div className="w-12 h-12 p-1 rounded-lg bg-researcher/20 flex items-center justify-center overflow-hidden shrink-0">
+          {logo.startsWith("http") ||
+          logo.startsWith("/") ||
+          logo.startsWith("data:") ? (
             <img
               src={logo}
               alt="Brand logo"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
                 (e.target as HTMLImageElement).parentElement!.innerHTML = "🏢";

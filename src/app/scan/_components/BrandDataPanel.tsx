@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Check, ArrowRight, RefreshCw } from "lucide-react";
+import { Sparkles, Check, ArrowRight, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandIdentityCard } from "./BrandIdentityCard";
 import { ColorsTypographyCard } from "./ColorsTypographyCard";
@@ -55,6 +55,7 @@ interface BrandDataPanelProps {
   onApprove: () => void;
   onSaveToDashboard: () => void;
   onReanalyze?: () => void;
+  isApproving?: boolean;
 }
 
 export function BrandDataPanel({
@@ -65,6 +66,7 @@ export function BrandDataPanel({
   onApprove,
   onSaveToDashboard,
   onReanalyze,
+  isApproving = false,
 }: BrandDataPanelProps) {
   return (
     <div className="space-y-4">
@@ -140,10 +142,20 @@ export function BrandDataPanel({
                 variant="hero"
                 size="xl"
                 className="w-full"
+                disabled={isApproving}
               >
-                <Check className="w-5 h-5 mr-2" />
-                <span>Approve & Meet The Strategist</span>
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {isApproving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-5 h-5 mr-2" />
+                    <span>Approve & Meet The Strategist</span>
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
               </Button>
               <div className="grid grid-cols-2 gap-3">
                 <Button
