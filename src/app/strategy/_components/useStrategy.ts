@@ -12,6 +12,7 @@ import {
   StrategyData,
   ConversationMessage,
   BrandProfile,
+  CampaignType,
 } from "./types";
 import { STRATEGY_OPTIONS } from "./constants";
 
@@ -23,10 +24,12 @@ interface UseStrategyReturn {
   steps: WorkflowStep[];
   strategyData: StrategyData | null;
   strategyOptions: StrategyOption[];
+  campaignType: CampaignType;
 
   // Actions
   handleSend: (message: string) => Promise<void>;
   toggleOption: (id: string) => void;
+  setCampaignType: (type: CampaignType) => void;
 }
 
 export function useStrategy(): UseStrategyReturn {
@@ -44,6 +47,7 @@ export function useStrategy(): UseStrategyReturn {
     ConversationMessage[]
   >([]);
   const [strategyOptions, setStrategyOptions] = useState<StrategyOption[]>([]);
+  const [campaignType, setCampaignType] = useState<CampaignType>(null);
 
   // Build brand profile from active brand kit
   const buildBrandProfile = useCallback(
@@ -307,7 +311,9 @@ export function useStrategy(): UseStrategyReturn {
     steps,
     strategyData,
     strategyOptions,
+    campaignType,
     handleSend,
     toggleOption,
+    setCampaignType,
   };
 }

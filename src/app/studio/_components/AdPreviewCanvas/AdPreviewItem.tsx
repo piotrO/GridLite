@@ -30,6 +30,7 @@ export const AdPreviewItem = ({
   // Memoize the data object to prevent unnecessary re-renders
   const previewData = useMemo(
     () => ({
+      ...data, // Spread remaining data (price, label, subhead, etc.)
       headline: data.headline,
       bodyCopy: data.bodyCopy,
       ctaText: data.ctaText,

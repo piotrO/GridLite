@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="ad.size" content="width=1080,height=1350">
+    <title></title>
+    <link rel="stylesheet" type="text/css" href="styles.css"> <link rel="stylesheet" type="text/css" href="style.css">
+
+        
+            <script src="https://s0.2mdn.net/ads/studio/cached_libs/gsap_3.11.5_min.js"></script>
+            <script src="manifest.js"></script>
+            
+                <!-- VARIABLES -->
+                <script type="text/javascript">
+                    var clickTag = "https://google.com";
+                    var clickTag1 = "https://google.com/1";
+                    var clickTag2 = "https://google.com/2";
+                    var clickTag3 = "https://google.com/3";
+                    var clickTag4 = "https://google.com/4";
+                    var clickTag5 = "https://google.com/5";
+
+                    var WIDTH = manifest.settings.width;
+                    var HEIGHT = manifest.settings.height;
+                    var adID = manifest.settings.adID;
+                </script>
+                <script src="grid8player.min.js"></script>
+                <script src="animate.js"></script>
+                
+
+
+                    <!-- ANIMATIONS -->
+                    <script>
+                        function mouseOver(e, t) {
+
+                            grid8player.onMouseOver(e, t);
+
+                        }
+
+                        function mouseOut(e, t) {
+                            grid8player.onMouseOut(e, t);
+
+                        }
+
+                        function onClick() {
+                            console.log('click')
+                            let clickUrl = grid8player.getExitUrl();
+                            let shot = manifest.shots[grid8player.currentShot];
+                            if (shot.autoExitURL === false) {
+                                if (grid8player.currentShot == 0) window.open(clickTag1);
+                                if (grid8player.currentShot == 1) window.open(clickTag2);
+                                if (grid8player.currentShot == 2) window.open(clickTag3);
+                                if (grid8player.currentShot == 3) window.open(clickTag4);
+                                if (grid8player.currentShot == 4) window.open(clickTag5);
+                            } else {
+                                window.open(clickTag);
+                            }
+                        }
+                    </script>
+                    <style>
+
+
+                        
+                    </style>
+
+</head>
+
+<body>
+<div id="ad" onmouseenter="mouseOver(event,this)" onmouseleave="mouseOut(event,this)">
+
+
+</div>
+<!--<div id="clickLayer" onclick="onClick()"></div>-->
+<!--<div id="border"></div>-->
+
+
+<div class='resizable'>
+    <div class='resizers'>
+        <div class='rotator-wrapper'>
+            <div class='rotator'></div>
+        </div>
+        <div class='resizer top-left'></div>
+        <div class='resizer top-right'></div>
+        <div class='resizer bottom-left'></div>
+        <div class='resizer bottom-right'></div>
+    </div>
+</div>
+
+<div id="debug-panel">
+    <div id="slider-wrapper">
+        <input id="debug-slider" type="range" min="0" max="100" value="0" class="slider">
+    </div>
+    <div id="debug-label">0:00/0:00</div>
+    <div id="debug-control-bar">
+
+        <button id="debug-back">
+            <svg style="rotate:180deg;" xmlns="http://www.w3.org/2000/svg" width="7.678"
+                 height="9.709" viewBox="0 0 7.678 9.709">
+                <path id="Icon_metro-next" data-name="Icon metro-next"
+                      d="M7.678,0V9.709H5.484V5.259L0,9.3V.4L5.484,4.45V0Z"
+                      fill="#00004c"/>
+            </svg>
+        </button>
+        <button id="debug-play">
+            <svg xmlns="http://www.w3.org/2000/svg" id="play-debug-icon" width="8.511" height="10.851"
+                 viewBox="0 0 8.511 10.851">
+                <path id="Icon_ionic-md-play" data-name="Icon ionic-md-play" d="M6.75,3.656V14.507l8.511-5.425Z"
+                      transform="translate(-6.75 -3.656)" fill="#00004c"/>
+            </svg>
+
+            <svg xmlns="http://www.w3.org/2000/svg" id="pause-debug-icon" style="display:none" width="8.678"
+                 height="10.124" viewBox="0 0 8.678 10.124">
+                <path id="Icon_material-pause" data-name="Icon material-pause"
+                      d="M0,10.124H2.893V0H0ZM5.785,0V10.124H8.678V0Z" fill="#00004c"/>
+            </svg>
+        </button>
+
+        <button id="debug-forward">
+            <svg xmlns="http://www.w3.org/2000/svg" width="7.678" height="9.709"
+                 viewBox="0 0 7.678 9.709">
+                <path id="Icon_metro-next" data-name="Icon metro-next"
+                      d="M19.889,5.784v9.709H17.695v-4.45l-5.484,4.046v-8.9l5.484,4.046V5.784Z"
+                      transform="translate(-12.211 -5.784)" fill="#00004c"/>
+            </svg>
+        </button>
+    </div>
+
+</div>
+<script type="text/javascript">
+    $('#ad').style.width = WIDTH + "px";
+    $('#ad').style.height = HEIGHT + "px";
+
+    var queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    let dynamicData = {};
+    urlParams.forEach((value, key) => {
+        dynamicData[key] = value;
+    })
+    grid8player.dynamicData = dynamicData;
+
+    if (dynamicData['showDebug'] == "true" || dynamicData['grid8'] == "true") {
+        grid8player.debug(true);
+    } else {
+        grid8player.init();
+    }
+
+    function scaleDebugPanel() {
+        const params = new URLSearchParams(window.location.search);
+        if (grid8player.bDebugMode != true) return;
+
+        let scale = parseFloat(params.get('scale'));
+        console.log('scaling', scale)
+
+        // Calculate scale
+        if (scale > 1) scale = 1;
+        let s = 1 / scale;
+
+        if (scale == 0 || scale == undefined || scale == 1) {
+
+        } else {
+            gsap.set('#debug-panel', {"height": `${50 * s}px`});
+
+            gsap.set('.slider', {"height": `${20 * s}px`});
+            // document.querySelector('input[type="range"]::-webkit-slider-runnable-track').style.height = 2*s+"px";
+            // gsap.set('input[type="range"]::-webkit-slider-runnable-track', {"height": `${2 * s}px`});
+            // gsap.set('input[type="range"]::-webkit-slider-thumb', {"width": `${15 * s}px`, "height": `${15 * s}px`});
+            gsap.set('#debug-control-bar>button', {"width": `${22 * s}px`, "height": `${22 * s}px`});
+            gsap.set('#debug-control-bar>button>svg', {"scale": `${s}`});
+
+            const cssRule = `
+            #debug-label{
+            font-size:${12 * s}px !important
+            }
+                input[type="range"]::-webkit-slider-runnable-track {
+                  height: ${2 * s}px
+                }
+                 input[type="range"]::-webkit-slider-thumb {
+                  width: ${15 * s}px;
+                  height: ${15 * s}px;
+                    margin-top: -${7 * s}px;
+                }
+                `;
+
+            const styleElement = document.createElement('style');
+            styleElement.innerHTML = cssRule;
+            document.head.appendChild(styleElement);
+        }
+
+
+    }
+
+    scaleDebugPanel();
+    setTimeout(() => {
+        scaleDebugPanel()
+    }, 500);
+
+
+</script>
+
+<!-- SCRIPTS -->
+<script>
+grid8player.globalScripts=function(){
+
+}
+</script>
+<!-- //SCRIPTS -->
+<!-- CUSTOM EASE --><script>
+
+</script><!-- /CUSTOM EASE -->
+</body>
+</html>

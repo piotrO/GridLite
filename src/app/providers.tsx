@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { BrandProvider } from "@/contexts/BrandContext";
 import { CreditProvider } from "@/contexts/CreditContext";
 import { CampaignProvider } from "@/contexts/CampaignContext";
+import { ProductProvider } from "@/contexts/ProductContext";
 import { useState } from "react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -19,11 +20,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <BrandProvider>
           <CreditProvider>
             <CampaignProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                {children}
-              </TooltipProvider>
+              <ProductProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  {children}
+                </TooltipProvider>
+              </ProductProvider>
             </CampaignProvider>
           </CreditProvider>
         </BrandProvider>

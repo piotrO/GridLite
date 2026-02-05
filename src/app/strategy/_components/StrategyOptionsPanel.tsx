@@ -25,6 +25,11 @@ interface StrategyData {
   targetingTips: string[];
 }
 
+import { CampaignTypeId } from "@/components/CampaignTypeSelector";
+import { CatalogStats, Product } from "@/types/shopify";
+import { Package, Tag, Grid3X3, Store, Eye } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 interface StrategyOptionsPanelProps {
   brandName: string;
   options: StrategyOption[];
@@ -33,6 +38,9 @@ interface StrategyOptionsPanelProps {
   onApprove: () => void;
   strategyData?: StrategyData | null;
   isApproving?: boolean;
+  campaignType?: CampaignTypeId | null;
+  products?: Product[];
+  catalogStats?: CatalogStats | null;
 }
 
 export function StrategyOptionsPanel({
@@ -43,7 +51,12 @@ export function StrategyOptionsPanel({
   onApprove,
   strategyData,
   isApproving = false,
+  campaignType,
+  products = [],
+  catalogStats,
 }: StrategyOptionsPanelProps) {
+  const isDPA = campaignType === "dpa";
+
   return (
     <div className="space-y-6">
       <AnimatePresence>
@@ -58,6 +71,83 @@ export function StrategyOptionsPanel({
               <Sparkles className="w-4 h-4 text-strategist" />
               <span>Strategy recommendation for {brandName}</span>
             </div>
+
+            {/* Product Catalog Section (Only for DPA) */}
+            {isDPA && catalogStats && products.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-xl bg-card border border-border space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Store className="w-4 h-4 text-primary" />
+                    Product Catalog
+                  </h3>
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    {products.length} Products
+                  </span>
+                </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2 rounded-lg bg-muted/50 text-center">
+                    <p className="text-sm font-semibold text-foreground">
+                      {catalogStats.categories.length}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Categories
+                    </p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted/50 text-center">
+                    <p className="text-sm font-semibold text-foreground">
+                      {catalogStats.vendors.length}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Vendors</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted/50 text-center">
+                    <p className="text-sm font-semibold text-foreground">
+                      {catalogStats.inventoryStatus.inStock}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      In Stock
+                    </p>
+                  </div>
+                </div>
+
+                {/* Product Strip */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Top Products
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {products.slice(0, 4).map((product) => (
+                      <div
+                        key={product.id}
+                        className="aspect-square rounded-md border border-border bg-muted overflow-hidden relative group"
+                      >
+                        {product.images?.[0] ? (
+                          <img
+                            src={product.images[0].src}
+                            alt={product.title}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            <Store className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                          <p className="text-[10px] text-white truncate w-full">
+                            {product.title}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* Strategy Preview Card */}
             {strategyData && (

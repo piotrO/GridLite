@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Ad Builder – Auto-Fit 1080×1350</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { margin:0; padding:0; height:100%; font-family:Arial, sans-serif; }
+        body { display:flex; flex-direction:column; overflow:hidden; }
+        #header { padding:10px 20px; background:#f8f9fa; border-bottom:1px solid #ddd; font-weight:bold; font-size:1.1rem; }
+        .main-container { flex:1; display:flex; overflow:hidden; }
+        #left-panel { width:340px; min-width:320px; padding:20px; background:#f8f9fa; overflow-y:auto; border-right:1px solid #ddd; }
+        #right-panel { flex:1; display:flex; justify-content:center; align-items:center; background:#e9ecef; padding:10px; overflow:hidden; }
+        #preview-container { position:relative; width:100%; height:100%; display:flex; justify-content:center; align-items:center; }
+        #preview-wrapper { width:1080px; height:1350px; transform-origin:center center; background:white; box-shadow:0 6px 30px rgba(0,0,0,0.18); border-radius:8px; overflow:hidden; }
+        #preview-iframe { width:100%; height:100%; border:none; }
+
+        form { display:flex; flex-direction:column; gap:14px; }
+        label { font-weight:600; font-size:0.95rem; }
+        input { padding:9px 12px; font-size:15px; border:1px solid #ccc; border-radius:5px; }
+        button { padding:12px; background:#28a745; color:white; border:none; border-radius:6px; cursor:pointer; font-size:1rem; font-weight:600; }
+        button:hover { background:#218838; }
+
+        @media (max-width:1100px) {
+            .main-container { flex-direction:column; }
+            #left-panel { width:100%; max-height:40vh; border-right:none; border-bottom:1px solid #ddd; }
+        }
+
+        @media (max-width:1200px), (max-height:1600px) {
+            #preview-wrapper { transform: scale(var(--preview-scale, 0.65)); }
+        }
+        @media (max-width:700px) or (max-height:900px) {
+            #preview-wrapper { transform: scale(var(--preview-scale, 0.45)); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">JuiceFast Ad Builder – 1080 × 1350 (auto-fits screen)</div>
+
+    <div class="main-container">
+        <div id="left-panel">
+            <h2>Dynamic Data</h2>
+            <form id="dynamic-form">
+
+                <label for="bgImage">Background Image (e.g. bg-pattern.jpg):</label>
+                <input type="text" id="bgImage" name="bgImage" value="bg-pattern.jpg" placeholder="bg-pattern.jpg or full URL">
+
+                <label for="image">Product Image:</label>
+                <input type="text" id="image" name="image" value="https://raw.githubusercontent.com/lazarsto-create/lazarsto/refs/heads/main/display/SocialAds/example1/1080x1350/Product1.jpg">
+
+                <label for="logo">Logo:</label>
+                <input type="text" id="logo" name="logo" value="juicefast.png">
+
+                <label for="headline">Headline:</label>
+                <input type="text" id="headline" name="headline" value="Detox za energiju">
+
+                <label for="bgColor">Fallback Background Color (hex without #):</label>
+                <input type="text" id="bgColor" name="bgColor" value="FCFBF8">
+
+                <label for="cta">CTA text:</label>
+                <input type="text" id="cta" name="cta" value="3 dana 15 sokova">
+
+                <label for="label">Button/Label text:</label>
+                <input type="text" id="label" name="label" value="Istraži ponudu">
+
+                <label for="price">Price:</label>
+                <input type="text" id="price" name="price" value="85,50€">
+
+                <label for="oldPrice">Old price:</label>
+                <input type="text" id="oldPrice" name="oldPrice" value="90,00€">
+
+                <label for="sticker">Sticker text:</label>
+                <input type="text" id="sticker" name="sticker" value="Uštedi 5%">
+
+                <button type="button" id="update-preview">Update Preview</button>
+            </form>
+        </div>
+
+        <div id="right-panel">
+            <div id="preview-container">
+                <div id="preview-wrapper">
+                    <iframe id="preview-iframe"
+                            src="index.html?bgImage=bg-pattern.jpg&image=product1.jpg&logo=juicefast.png&headline=Detox%20za%20energiju&bgColor=FCFBF8&cta=3%20dana%2015%20sokova&label=Istra%C5%BEi%20ponudu&price=85,50%E2%82%AC&oldPrice=90,00%E2%82%AC&sticker=U%C5%A1tedi%205%25">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('dynamic-form');
+        const iframe = document.getElementById('preview-iframe');
+        const wrapper = document.getElementById('preview-wrapper');
+
+        function updateIframe() {
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                if (value.trim()) params.append(key, value);
+            }
+            iframe.src = 'index.html?' + params.toString();
+        }
+
+        function updateScale() {
+            const container = document.getElementById('preview-container');
+            if (!container) return;
+
+            const cw = container.clientWidth - 40;
+            const ch = container.clientHeight - 40;
+
+            const ratioW = cw / 1080;
+            const ratioH = ch / 1350;
+
+            let scale = Math.min(ratioW, ratioH, 1);
+            scale = Math.max(scale, 0.3);
+
+            document.documentElement.style.setProperty('--preview-scale', scale);
+        }
+
+        form.addEventListener('input', updateIframe);
+        document.getElementById('update-preview').addEventListener('click', updateIframe);
+
+        window.addEventListener('resize', updateScale);
+        setTimeout(updateScale, 100);
+        setTimeout(updateScale, 600);
+
+        setTimeout(updateIframe, 300);
+    </script>
+
+</body>
+</html>

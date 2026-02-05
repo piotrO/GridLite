@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Zap,
@@ -26,8 +26,11 @@ import { useDesigner } from "./useDesigner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand, BrandKit } from "@/contexts/BrandContext";
 import { useCampaign } from "@/contexts/CampaignContext";
+import { useProducts } from "@/contexts/ProductContext";
+import { Product } from "@/types/shopify";
 import { CreditWallet } from "@/components/CreditWallet";
 import { toast } from "@/hooks/use-toast";
+import { ProductBrowserSidebar } from "./ProductBrowserSidebar";
 import {
   Dialog,
   DialogContent,
@@ -46,12 +49,28 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LayoutGrid, ShoppingBag } from "lucide-react";
 
 export default function StudioPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode");
+  const isDPA = mode === "dpa";
+
   const { logout } = useAuth();
   const { brandKits, activeBrandKit, setActiveBrandKit } = useBrand();
+
   const { strategySession, setImageUrl, setLogoUrl } = useCampaign();
+  const { products } = useProducts();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Set initial selected product if available and in DPA mode
+  useEffect(() => {
+    if (isDPA && products.length > 0 && !selectedProduct) {
+      setSelectedProduct(products[0]);
+    }
+  }, [isDPA, products, selectedProduct]);
 
   // Use strategy data for content if available, otherwise defaults
   const [content, setContent] = useState({
@@ -155,7 +174,15 @@ export default function StudioPage() {
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState("test-template");
-  const [brand, setBrand] = useState(initialBrand);
+
+  // Force Shopify template in DPA mode
+  useEffect(() => {
+    if (isDPA) {
+      setSelectedTemplate("social/Shopify");
+    }
+  }, [isDPA]);
+
+  const [brand, setBrand] = useState(initialBrand as any);
 
   // Save logo to context whenever brand changes (for export)
   useEffect(() => {
@@ -368,6 +395,7 @@ export default function StudioPage() {
       {/* Main Content - Resizable Split View */}
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Panel - The Office (Chat) */}
+        {/* Left Panel - The Office (Chat) */}
         <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -380,7 +408,11 @@ export default function StudioPage() {
                 onSend={handleSend}
                 isTyping={isTyping}
                 typingPersona="designer"
-                placeholder="Ask Davinci about the design..."
+                placeholder={
+                  isDPA
+                    ? "Ask Davinci to tweak the DPA..."
+                    : "Ask Davinci about the design..."
+                }
               />
             </div>
           </motion.div>
@@ -407,23 +439,61 @@ export default function StudioPage() {
             <AdPreviewCanvas
               selectedTemplate={selectedTemplate}
               adName={`${brand.name} ${
-                strategySession.strategy?.campaignAngle || "Campaign"
+                isDPA
+                  ? selectedProduct?.title || "Product Ad"
+                  : strategySession.strategy?.campaignAngle || "Campaign"
               }`}
-              data={{
-                headline: content.headline,
-                bodyCopy: content.bodyCopy,
-                ctaText: content.ctaText,
-                imageUrl: content.imageUrl,
-                colors: [
-                  brand.palette?.primary || "#4F46E5",
-                  brand.palette?.secondary || "#F97316",
-                  brand.palette?.accent || "#10B981",
-                  creativeData?.colorScheme?.background || "#FFFFFF",
-                ],
-                logoUrl: brand.logo,
-                typography: brand.typography,
-                layerModifications: layerModifications,
-              }}
+              data={
+                isDPA && selectedProduct
+                  ? {
+                      // DPA Data Mapping
+                      headline: selectedProduct.title,
+                      subhead: selectedProduct.vendor, // Mapping vendor to subhead
+                      price: `${selectedProduct.currency} ${selectedProduct.price}`,
+                      ctaText: "SHOP NOW", // Default CTA
+                      cta: "SHOP NOW", // For project.js mapping
+                      label: "New Arrival", // Default label
+                      labelColor: brand.palette?.secondary
+                        ? brand.palette.secondary.replace("#", "")
+                        : "F97316", // Strip # for project.js if needed or pass as is
+                      ctaColor: brand.palette?.primary
+                        ? brand.palette.primary.replace("#", "")
+                        : "4F46E5",
+                      bgColor: creativeData?.colorScheme?.background
+                        ? creativeData.colorScheme.background.replace("#", "")
+                        : "FFFFFF",
+                      // Image
+                      imageUrl: selectedProduct.images?.[0]?.src || "",
+                      image: selectedProduct.images?.[0]?.src || "", // For project.js mapping
+
+                      // Brand & Colors
+                      colors: [
+                        brand.palette?.primary || "#4F46E5",
+                        brand.palette?.secondary || "#F97316",
+                        brand.palette?.accent || "#10B981",
+                        "#FFFFFF",
+                      ],
+                      logoUrl: brand.logo,
+                      typography: brand.typography,
+                      layerModifications: layerModifications,
+                    }
+                  : {
+                      // Standard Data Mapping
+                      headline: content.headline,
+                      bodyCopy: content.bodyCopy,
+                      ctaText: content.ctaText,
+                      imageUrl: content.imageUrl,
+                      colors: [
+                        brand.palette?.primary || "#4F46E5",
+                        brand.palette?.secondary || "#F97316",
+                        brand.palette?.accent || "#10B981",
+                        creativeData?.colorScheme?.background || "#FFFFFF",
+                      ],
+                      logoUrl: brand.logo,
+                      typography: brand.typography,
+                      layerModifications: layerModifications,
+                    }
+              }
             />
           </motion.div>
         </ResizablePanel>
@@ -438,25 +508,76 @@ export default function StudioPage() {
           </div>
         </ResizableHandle>
 
-        {/* Right Panel - Assets & Templates */}
+        {/* Right Panel - Assets & Templates OR Product Browser (DPA) */}
         <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="h-full border-l border-border p-4 space-y-4 overflow-y-auto"
-          >
-            <BrandAssetCard
-              brand={brand as any}
-              editable={true}
-              onBrandChange={setBrand as any}
-            />
-            <ContentPanel content={content} onChange={setContent} />
-            <TemplateSelector
-              selectedId={selectedTemplate}
-              onSelect={setSelectedTemplate}
-            />
-          </motion.div>
+          {isDPA ? (
+            <Tabs defaultValue="products" className="h-full flex flex-col">
+              <div className="px-4 pt-4 border-b border-border">
+                <TabsList className="w-full">
+                  <TabsTrigger value="products" className="flex-1">
+                    <ShoppingBag className="w-4 h-4 mr-2" />
+                    Products
+                  </TabsTrigger>
+                  <TabsTrigger value="design" className="flex-1">
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Design
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent
+                value="products"
+                className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
+              >
+                <ProductBrowserSidebar
+                  products={products}
+                  selectedProduct={selectedProduct}
+                  onSelectProduct={setSelectedProduct}
+                />
+              </TabsContent>
+
+              <TabsContent
+                value="design"
+                className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
+              >
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="h-full border-l border-border p-4 space-y-4 overflow-y-auto"
+                >
+                  <BrandAssetCard
+                    brand={brand as any}
+                    editable={true}
+                    onBrandChange={setBrand as any}
+                  />
+                  <ContentPanel content={content} onChange={setContent} />
+                  <TemplateSelector
+                    selectedId={selectedTemplate}
+                    onSelect={setSelectedTemplate}
+                  />
+                </motion.div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="h-full border-l border-border p-4 space-y-4 overflow-y-auto"
+            >
+              <BrandAssetCard
+                brand={brand as any}
+                editable={true}
+                onBrandChange={setBrand as any}
+              />
+              <ContentPanel content={content} onChange={setContent} />
+              <TemplateSelector
+                selectedId={selectedTemplate}
+                onSelect={setSelectedTemplate}
+              />
+            </motion.div>
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

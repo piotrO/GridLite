@@ -1,5 +1,8 @@
 import { LucideIcon } from "lucide-react";
 import { PersonaType } from "@/components/ChatInterface";
+import { CatalogStats, ProductSegment } from "@/types/shopify";
+
+export type CampaignType = "display" | "dpa" | "video" | "social" | null;
 
 export interface Message {
   id: string;
@@ -23,8 +26,16 @@ export interface StrategyData {
   subheadline: string;
   rationale: string;
   callToAction: string;
+  heroVisualConcept?: string;
   adFormats: string[];
   targetingTips: string[];
+  // DPA-specific fields
+  catalogAnalysis?: {
+    totalProducts: number;
+    segments: ProductSegment[];
+    topProducts: string[];
+    suggestedTemplates: string[];
+  };
 }
 
 export interface ConversationMessage {

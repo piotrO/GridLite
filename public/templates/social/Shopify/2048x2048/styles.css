@@ -1,0 +1,299 @@
+body {
+}
+
+* {
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and IE 11 */
+    user-select: none; /* Standard syntax */
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+
+
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    font-family: sans-serif;
+    overflow: hidden;
+    line-height: 1;
+    background-color: white;
+}
+
+#ad {
+    background-size: inherit;
+    position: relative;
+    cursor: pointer;
+    visibility: hidden;
+    transform-origin: 0% 0%;
+    overflow: hidden;
+    touch-action: none;
+
+}
+
+div#ad::after{
+    content:'';
+    inset:0;
+    position:absolute;
+    border:1px solid black;
+    z-index:999999;
+    pointer-events: none;
+}
+
+.transition-frame {
+    width: 100%;
+    height: 100%;
+    display: block;
+    top: 0;
+    left: 0;
+    position: absolute;
+}
+
+#overlay {
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    display: block;
+    position: relative;
+}
+
+
+
+#clickLayer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    z-index: 1000;
+    top: 0;
+}
+
+.layer-image {
+    display: block;
+    position: absolute;
+    object-fit: cover;
+    /* pointer-events:none; */
+}
+.cssMask{
+    z-index: -100;
+    visibility: hidden !important;
+}
+
+.resizable {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    width: 0%;
+    height: 0%;
+    z-index: 1;
+    cursor: move;
+}
+
+.resizable {
+    display: none;
+    transform-origin: 50% 50%;
+}
+
+.resizable .resizers {
+    width: 100%;
+    height: 100%;
+    border: 3px solid #4286f4;
+    box-sizing: border-box;
+}
+
+.resizable .resizers .resizer {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #4286f4;
+    position: absolute;
+    box-sizing: border-box;
+}
+
+.resizable .resizers .resizer.top-left {
+    left: -10px;
+    top: -10px;
+    cursor: nwse-resize;
+    /*resizer cursor*/
+}
+
+.resizable .resizers .resizer.top-right {
+    right: -10px;
+    top: -10px;
+    cursor: nesw-resize;
+}
+
+.resizable .resizers .resizer.bottom-left {
+    left: -10px;
+    bottom: -10px;
+    cursor: nesw-resize;
+}
+
+.resizable .resizers .resizer.bottom-right {
+    right: -10px;
+    bottom: -10px;
+    cursor: nwse-resize;
+}
+
+.rotator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #4286f4;
+    position: absolute;
+    box-sizing: border-box;
+    left: -8px;
+}
+
+.rotator-wrapper {
+    left: 50%;
+    top: -50px;
+    position: relative;
+    background-color: #4286f4;
+    height: 50px;
+    width: 3px;
+}
+
+.hidden8 {
+    visibility: hidden;
+}
+.hidden8 *{
+    visibility: hidden !important;
+}
+
+.label-marker-wrapper {
+    position: absolute;
+    width: 100%;
+    top: 0;
+}
+
+.label-marker {
+    width: 5px;
+    height: 5px;
+    background-color: #081EE0;
+    position: absolute;
+    top: 9px;
+    pointer-events: none;
+}
+
+
+#debug-panel {
+    width: 100%;
+    background-color: #E4E4E4;
+    color: white;
+    z-index: 10000000;
+    position: absolute;
+    bottom: -50px;
+    height: 50px;
+    display: none;
+    bottom: 0;
+}
+
+#debug-label {
+    text-align: center;
+    padding: 10px 10px 10px 0;
+    font-weight: bold;
+    float: right;
+    color: #00004C;
+    font-size: 12px;
+}
+
+#debug-control-bar {
+    display: flex;
+    padding: 0 10px;
+    margin-top: 0px;
+}
+
+#debug-control-bar button {
+    width: 22px;
+    height: 22px;
+    margin: 3px;
+    border-radius: 11px;
+    background-color: white;
+    box-shadow: 0px 1px 3px rgb(0 0 0 / 20%);
+}
+
+#debug-control-bar button:hover {
+    box-shadow: 0px 1px 3px rgb(0 0 0 / 30%);
+
+}
+
+.slider {
+    width: 100%;
+    margin-top: 7px;
+    height: 10px;
+}
+
+#slider-wrapper {
+    display: block;
+    padding: 0 10px;
+}
+
+/********** Range Input Styles **********/
+/*Range Reset*/
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+/* Removes default focus */
+input[type="range"]:focus {
+    outline: none;
+}
+
+/***** Chrome, Safari, Opera and Edge Chromium styles *****/
+/* slider track */
+input[type="range"]::-webkit-slider-runnable-track {
+    background-color: #B4B4B4;
+    border-radius: 0;
+    height: 2px;
+}
+
+/* slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; /* Override default look */
+    appearance: none;
+    margin-top: -7px; /* Centers thumb on the track */
+    border-radius: 8px;
+    /*custom styles*/
+    background-color: #081EE0;
+    border: 2px solid white;
+    height: 15px;
+    width: 15px;
+}
+
+
+/******** Firefox styles ********/
+/* slider track */
+input[type="range"]::-moz-range-track {
+    background-color: #B4B4B4;
+    border-radius: 0;
+    height: 2px;
+}
+
+/* slider thumb */
+input[type="range"]::-moz-range-thumb {
+    -webkit-appearance: none; /* Override default look */
+    appearance: none;
+    margin-top: -7px; /* Centers thumb on the track */
+    border-radius: 8px;
+    /*custom styles*/
+    background-color: #081EE0;
+    border: 2px solid white;
+    height: 15px;
+    width: 15px;
+}
