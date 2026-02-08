@@ -126,13 +126,32 @@ export function useAdPreviewBlob({
         `<script>${inlineManifest}</script>`,
       );
 
-      // Inject color override into dynamicData initialization
-      if (colors && colors.length > 0) {
-        const colorString = colors.slice(0, 3).join("|");
-        // Find the dynamicData initialization and inject colors
+      // Inject color override and extra data into dynamicData initialization
+      if (
+        (colors && colors.length > 0) ||
+        (modifiedManifest as { __extraData?: Record<string, string> })
+          .__extraData
+      ) {
+        let injectionScript = "";
+
+        if (colors && colors.length > 0) {
+          const colorString = colors.slice(0, 3).join("|");
+          injectionScript += `dynamicData["colors"] = "${colorString}";\n`;
+        }
+
+        const extraData = (
+          modifiedManifest as { __extraData?: Record<string, string> }
+        ).__extraData;
+        if (extraData) {
+          Object.entries(extraData).forEach(([key, value]) => {
+            injectionScript += `dynamicData["${key}"] = "${value}";\n`;
+          });
+        }
+
+        // Find the dynamicData initialization and inject data
         html = html.replace(
           /grid8player\.dynamicData\s*=\s*dynamicData;/,
-          `dynamicData["colors"] = "${colorString}";\n      grid8player.dynamicData = dynamicData;`,
+          `${injectionScript}      grid8player.dynamicData = dynamicData;`,
         );
       }
 

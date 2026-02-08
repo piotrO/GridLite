@@ -2,6 +2,8 @@
  * Utilities for parsing and manipulating Grid8 ad manifests
  */
 
+import { Typography } from "@/lib/shared/types";
+
 /**
  * Deep merge two objects, with source values overriding target
  */
@@ -140,8 +142,16 @@ export interface DynamicValueData {
   bodyCopy?: string;
   ctaText?: string;
   imageUrl?: string;
+  price?: string; // Product price (for DPA)
   logoUrl?: string;
   colors?: string[];
+  // DPA / Social fields
+  label?: string;
+  labelColor?: string;
+  ctaColor?: string;
+  cta?: string;
+  bgColor?: string;
+  image?: string;
   layerModifications?: Array<{
     layerName: string;
     positionDelta?: { x?: number; y?: number };
@@ -181,6 +191,8 @@ export function applyDynamicValues(
       ctaText: "s0_ctaText",
       imageUrl: "s0_imageUrl",
       logoUrl: "s0_logoUrl",
+      price: "s0_price", // DPA price mapping
+      label: "s0_label",
     };
 
     // Update each dynamic value
@@ -211,6 +223,17 @@ export function applyDynamicValues(
     // Also store as __colors for extraction by useAdPreviewBlob
     // This allows injecting colors into dynamicData directly
     (newManifest as Record<string, unknown>).__colors = data.colors;
+  }
+
+  // Handle other DPA specific fields that need to be in dynamicData
+  const extraData: Record<string, string> = {};
+  if (data.labelColor) extraData.labelColor = data.labelColor;
+  if (data.ctaColor) extraData.ctaColor = data.ctaColor;
+  if (data.cta) extraData.cta = data.cta;
+  if (data.bgColor) extraData.bgColor = data.bgColor;
+
+  if (Object.keys(extraData).length > 0) {
+    (newManifest as Record<string, unknown>).__extraData = extraData;
   }
 
   // Apply layer modifications if provided

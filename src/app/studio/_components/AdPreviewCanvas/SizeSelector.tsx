@@ -7,16 +7,21 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { AD_SIZES } from "./constants";
+import type { AdSize } from "./types";
 
 interface SizeSelectorProps {
   selectedSizes: string[];
   onToggleSize: (sizeId: string) => void;
+  availableSizes?: AdSize[];
 }
 
 export const SizeSelector = ({
   selectedSizes,
   onToggleSize,
+  availableSizes,
 }: SizeSelectorProps) => {
+  const sizesToDisplay = availableSizes || AD_SIZES;
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -30,7 +35,7 @@ export const SizeSelector = ({
         align="end"
       >
         <div className="space-y-1">
-          {AD_SIZES.map((size) => (
+          {sizesToDisplay.map((size) => (
             <button
               key={size.id}
               onClick={() => onToggleSize(size.id)}
@@ -38,7 +43,7 @@ export const SizeSelector = ({
                 "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
                 selectedSizes.includes(size.id)
                   ? "bg-primary/10 text-primary"
-                  : "hover:bg-muted text-foreground"
+                  : "hover:bg-muted text-foreground",
               )}
             >
               <div className="flex items-center gap-2">
@@ -47,7 +52,7 @@ export const SizeSelector = ({
                     "w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
                     selectedSizes.includes(size.id)
                       ? "bg-primary border-primary"
-                      : "border-border"
+                      : "border-border",
                   )}
                 >
                   {selectedSizes.includes(size.id) && (

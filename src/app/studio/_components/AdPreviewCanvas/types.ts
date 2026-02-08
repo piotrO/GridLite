@@ -12,8 +12,16 @@ export interface AdCanvasData {
   bodyCopy?: string;
   ctaText?: string;
   imageUrl?: string;
-  colors?: string[];
   logoUrl?: string;
+  colors?: string[];
+  price?: string;
+  // DPA / Social Template specific fields
+  label?: string;
+  labelColor?: string;
+  ctaColor?: string;
+  cta?: string;
+  bgColor?: string;
+  image?: string;
   layerModifications?: Array<{
     layerName: string;
     positionDelta?: { x?: number; y?: number };
@@ -26,6 +34,7 @@ export interface AdCanvasData {
 export interface AdPreviewCanvasProps {
   selectedTemplate: string;
   adName?: string;
+  isDPA?: boolean;
   data?: Partial<AdCanvasData>;
 }
 

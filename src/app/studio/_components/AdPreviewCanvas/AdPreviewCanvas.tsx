@@ -10,7 +10,11 @@ import { useCredits } from "@/contexts/CreditContext";
 import { UnlockModal } from "@/components/UnlockModal";
 import { parseManifestJs } from "@/lib/manifest-utils";
 
-import type { AdPreviewCanvasProps, TimelineViewMode, TimelineLayer } from "./types";
+import type {
+  AdPreviewCanvasProps,
+  TimelineViewMode,
+  TimelineLayer,
+} from "./types";
 import { AD_SIZES, DEFAULT_DURATION } from "./constants";
 import { AdPreviewItem } from "./AdPreviewItem";
 import { SizeSelector } from "./SizeSelector";
@@ -22,6 +26,7 @@ import { extractAnimatedLayers, getManifestDuration } from "./timeline-utils";
 export const AdPreviewCanvas = ({
   selectedTemplate,
   adName = "Summer Sale Banner",
+  isDPA = false,
   data = {},
 }: AdPreviewCanvasProps) => {
   const router = useRouter();
@@ -33,7 +38,9 @@ export const AdPreviewCanvas = ({
   const [duration, setDuration] = useState(DEFAULT_DURATION);
 
   // UI state
-  const [selectedSizes, setSelectedSizes] = useState<string[]>(["300x600"]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(
+    isDPA ? ["1080x1080"] : ["300x600"],
+  );
   const [timelineView, setTimelineView] = useState<TimelineViewMode>("simple");
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -78,6 +85,19 @@ export const AdPreviewCanvas = ({
 
     fetchManifest();
   }, [templatePath, selectedSizes]);
+
+  // Effect to handle mode switching (dpa <-> standard)
+  useEffect(() => {
+    if (isDPA) {
+      // For DPA, default to social square if not already selecting a social size
+      const hasSocialSize = selectedSizes.some((s) =>
+        ["1080x1080", "1080x1920"].includes(s),
+      );
+      if (!hasSocialSize) {
+        setSelectedSizes(["1080x1080"]);
+      }
+    }
+  }, [isDPA]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Playback sync effect
   useEffect(() => {
@@ -128,7 +148,7 @@ export const AdPreviewCanvas = ({
     setSelectedSizes((prev) =>
       prev.includes(sizeId)
         ? prev.filter((id) => id !== sizeId)
-        : [...prev, sizeId]
+        : [...prev, sizeId],
     );
   };
 
@@ -158,7 +178,7 @@ export const AdPreviewCanvas = ({
         iframeRefs.current.delete(sizeId);
       }
     },
-    []
+    [],
   );
 
   const handleSeek = (time: number) => {
@@ -193,10 +213,13 @@ export const AdPreviewCanvas = ({
   };
 
   // Computed values
-  const selectedAdSizes = useMemo(
-    () => AD_SIZES.filter((s) => selectedSizes.includes(s.id)),
-    [selectedSizes]
-  );
+  const selectedAdSizes = useMemo(() => {
+    let sizes = AD_SIZES;
+    if (isDPA) {
+      sizes = AD_SIZES.filter((s) => ["1080x1080", "1080x1920"].includes(s.id));
+    }
+    return sizes.filter((s) => selectedSizes.includes(s.id));
+  }, [selectedSizes, isDPA]);
 
   return (
     <div className="flex flex-col h-full">
@@ -215,6 +238,13 @@ export const AdPreviewCanvas = ({
           <SizeSelector
             selectedSizes={selectedSizes}
             onToggleSize={toggleSize}
+            availableSizes={
+              isDPA
+                ? AD_SIZES.filter((s) =>
+                    ["1080x1080", "1080x1920"].includes(s.id),
+                  )
+                : undefined
+            }
           />
           <Button variant="ghost" size="iconSm" onClick={handleRefresh}>
             <RefreshCw className="w-4 h-4" />
@@ -227,7 +257,7 @@ export const AdPreviewCanvas = ({
         ref={containerRef}
         className={cn(
           "flex-1 overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAyMCAwIEwgMCAwIDAgMjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')]",
-          isDragging ? "cursor-grabbing" : "cursor-grab"
+          isDragging ? "cursor-grabbing" : "cursor-grab",
         )}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

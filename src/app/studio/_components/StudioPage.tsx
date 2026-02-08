@@ -184,8 +184,25 @@ export default function StudioPage() {
 
   const [brand, setBrand] = useState(initialBrand as any);
 
+  // Sync brand state with activeBrandKit when it changes (e.g. after fetch)
+  useEffect(() => {
+    if (activeBrandKit) {
+      setBrand(activeBrandKit);
+    } else if (brandKits.length > 0 && !activeBrandKit) {
+      // If no active brand kit (e.g. refresh), default to first available
+      const firstKit = brandKits[0];
+      setActiveBrandKit(firstKit);
+      setBrand(firstKit);
+    }
+  }, [activeBrandKit, brandKits, setActiveBrandKit]);
+
   // Save logo to context whenever brand changes (for export)
   useEffect(() => {
+    console.log("[StudioPage] Brand changed:", {
+      name: brand.name,
+      logo: brand.logo,
+      isDPA,
+    });
     if (brand.logo) {
       setLogoUrl(brand.logo);
     }
@@ -443,12 +460,13 @@ export default function StudioPage() {
                   ? selectedProduct?.title || "Product Ad"
                   : strategySession.strategy?.campaignAngle || "Campaign"
               }`}
+              isDPA={isDPA}
               data={
                 isDPA && selectedProduct
                   ? {
                       // DPA Data Mapping
                       headline: selectedProduct.title,
-                      subhead: selectedProduct.vendor, // Mapping vendor to subhead
+                      bodyCopy: selectedProduct.vendor, // Mapping vendor to bodyCopy as requested
                       price: `${selectedProduct.currency} ${selectedProduct.price}`,
                       ctaText: "SHOP NOW", // Default CTA
                       cta: "SHOP NOW", // For project.js mapping

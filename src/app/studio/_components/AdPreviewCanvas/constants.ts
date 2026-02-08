@@ -5,6 +5,7 @@ export const AD_SIZES: AdSize[] = [
   { id: "300x250", label: "Medium Rectangle", width: 300, height: 250 },
   { id: "728x90", label: "Leaderboard", width: 728, height: 90 },
   { id: "1080x1080", label: "Social Square", width: 1080, height: 1080 },
+  { id: "1080x1920", label: "Social Story", width: 1080, height: 1920 },
   { id: "160x600", label: "Wide Skyscraper", width: 160, height: 600 },
   { id: "320x50", label: "Mobile Banner", width: 320, height: 50 },
 ];

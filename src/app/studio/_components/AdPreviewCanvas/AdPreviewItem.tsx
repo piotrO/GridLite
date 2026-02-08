@@ -34,6 +34,7 @@ export const AdPreviewItem = ({
       headline: data.headline,
       bodyCopy: data.bodyCopy,
       ctaText: data.ctaText,
+      price: data.price,
       imageUrl: data.imageUrl,
       logoUrl: data.logoUrl,
       colors: data.colors,
@@ -49,6 +50,11 @@ export const AdPreviewItem = ({
       colorsJson,
       layerModsJson,
       filteredLayerMods,
+      data.price,
+      data.label,
+      data.labelColor,
+      data.ctaColor,
+      data.bgColor,
     ],
   );
 
