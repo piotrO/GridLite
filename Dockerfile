@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -43,7 +43,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # We externalized these in next.config.mjs, so they are not in the standalone build
 # Skip browser download because we are using the playwright base image which already has them
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN npm install playwright @ghostery/adblocker-playwright sharp
+RUN npm install playwright @ghostery/adblocker-playwright sharp --legacy-peer-deps
 
 USER nextjs
 
