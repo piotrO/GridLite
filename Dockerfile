@@ -1,5 +1,5 @@
 # Use the Playwright image for all stages to ensure binary compatibility (glibc, etc.)
-FROM mcr.microsoft.com/playwright:v1.52.0-noble AS base
+FROM mcr.microsoft.com/playwright:v1.58.2-noble AS base
 
 # Install dependencies only when needed
 FROM base AS deps
