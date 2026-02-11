@@ -58,8 +58,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify state (CSRF protection)
+    // Verify state (CSRF protection)
+    // We try to retrieve from cookie first (more reliable for serverless)
+    const stateCookie = request.cookies.get("shopify_oauth_state");
+    const storedState = stateCookie?.value;
+
+    // Fallback to in-memory store if cookie is missing (legacy support)
     const storedShop = retrieveState(state);
-    if (!storedShop || storedShop !== shop) {
+
+    if (
+      (!storedState || storedState !== state) &&
+      (!storedShop || storedShop !== shop)
+    ) {
+      console.error("State mismatch", {
+        received: state,
+        storedCookie: storedState,
+        storedMemory: storedShop,
+      });
       return NextResponse.redirect(
         new URL("/strategy?error=invalid_state", request.url),
       );

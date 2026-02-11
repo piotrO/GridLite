@@ -38,6 +38,13 @@ export interface StrategyData {
   };
 }
 
+export interface DPAStrategyData {
+  segments: ProductSegment[];
+  selectedProductIds: string[];
+  productGroupStrategy: "hero" | "carousel" | "grid";
+  priceDisplayStyle: "prominent" | "subtle";
+}
+
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
@@ -52,6 +59,5 @@ export interface BrandProfile {
   brandSummary?: string;
   tone?: string;
   personality?: string[];
-  colors?: string[];
   audiences?: { name: string; description: string }[];
 }

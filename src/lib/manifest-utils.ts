@@ -327,6 +327,63 @@ export function applyDynamicValues(
     }
   }
 
+  // Handle Typography
+  if (data.typography && data.typography.fontFileBase64) {
+    const { primaryFontFamily, fontFileBase64, fontFormat } = data.typography;
+    const format = fontFormat || "woff2";
+    const fontUrl = `data:font/${format};charset=utf-8;base64,${fontFileBase64}`;
+
+    // 1. Add to webFonts
+    if (!settings.webFonts) {
+      settings.webFonts = [];
+    }
+    const webFonts = settings.webFonts as Array<{
+      fontFamily: string;
+      fontStyle: string;
+      fontUrl: string;
+      fontFamilyUser?: string;
+    }>;
+
+    // Check if already exists to avoid duplicates
+    const existingFont = webFonts.find(
+      (f) => f.fontFamily === primaryFontFamily,
+    );
+
+    if (!existingFont) {
+      webFonts.push({
+        fontFamily: primaryFontFamily,
+        fontStyle: "normal", // Defaulting to normal for now
+        fontUrl: fontUrl,
+        fontFamilyUser: primaryFontFamily,
+      });
+    }
+
+    // 2. Update text layers to use this font
+    const layers = newManifest.layers as Array<{
+      name: string;
+      fileType?: string;
+      fontFamily?: string;
+      cssClasses?: string;
+    }>;
+
+    if (layers) {
+      layers.forEach((layer) => {
+        if (layer.fileType === "text" && layer.cssClasses) {
+          const classes = layer.cssClasses.toLowerCase();
+
+          // Apply brand font if layer has .maincopy or .subcopy class
+          // This matches the logic in useAdPreviewBlob
+          const shouldApplyFont =
+            classes.includes("maincopy") || classes.includes("subcopy");
+
+          if (shouldApplyFont) {
+            layer.fontFamily = primaryFontFamily;
+          }
+        }
+      });
+    }
+  }
+
   return newManifest;
 }
 

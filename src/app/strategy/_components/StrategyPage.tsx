@@ -83,6 +83,7 @@ export default function StrategyPage() {
     isLoading,
     steps,
     strategyData,
+    dpaStrategyData,
     strategyOptions,
     handleSend,
     toggleOption,
@@ -286,6 +287,7 @@ export default function StrategyPage() {
             onToggleOption={toggleOption}
             onApprove={handleApprove}
             strategyData={strategyData}
+            dpaStrategyData={dpaStrategyData}
             isApproving={isApproving}
             campaignType={selectedCampaignType}
             products={products}

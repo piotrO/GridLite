@@ -13,15 +13,19 @@ const nextConfig = {
     ],
   },
 
-  // Webpack configuration to handle Puppeteer
+  // Output standalone build for Docker
+  output: "standalone",
+
+  // Webpack configuration to handle browser automation packages
   webpack: (config, { isServer }) => {
     if (isServer) {
-      // Externalize puppeteer and related packages for server-side
+      // Externalize playwright and related packages for server-side
       config.externals = [
         ...config.externals,
-        "puppeteer",
-        "puppeteer-extra",
-        "puppeteer-extra-plugin-stealth",
+        "playwright",
+        "playwright-core",
+        "@ghostery/adblocker-playwright",
+        "sharp", // sharp is also often better externalized in docker
       ];
     }
     return config;

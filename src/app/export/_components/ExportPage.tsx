@@ -16,6 +16,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import { useCredits } from "@/contexts/CreditContext";
 import { useCampaign } from "@/contexts/CampaignContext";
+import { useProducts } from "@/contexts/ProductContext";
+import { useBrand } from "@/contexts/BrandContext";
 import { PersonaType } from "@/components/ChatInterface";
 import {
   ResizableHandle,
@@ -25,10 +27,7 @@ import {
 import { StudioHeader } from "@/components/StudioHeader";
 import { ChatPanel } from "@/components/ChatPanel";
 import { GradientBackground } from "@/components/GradientBackground";
-import {
-  ExportProgressCard,
-  ExportCompleteCard,
-} from "./ExportStatusCards";
+import { ExportProgressCard, ExportCompleteCard } from "./ExportStatusCards";
 import { PlatformSelectionCard } from "./PlatformSelectionCard";
 import { ExportSummaryCard } from "./ExportSummaryCard";
 import { ExportFormatsCard, AdSizesCard } from "./ExportCards";
@@ -81,8 +80,24 @@ export default function ExportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { credits, useCredit } = useCredits();
-  const { exportSession, setExportSession, designSession, strategySession } = useCampaign();
-  
+  const {
+    exportSession,
+    setExportSession,
+    designSession,
+    strategySession,
+    selectedProductIds,
+    campaignType,
+  } = useCampaign();
+  const { products } = useProducts();
+  const { activeBrandKit } = useBrand();
+
+  // DPA mode is determined by campaignType from context (not URL param)
+  const isDPA = campaignType === "dpa";
+
+  // State for selected products (computed on client-side only to avoid hydration mismatch)
+  const [selectedProducts, setSelectedProducts] = useState<typeof products>([]);
+
+  // For DPA, default to "images" format only
   const [selectedFormats, setSelectedFormats] = useState<string[]>(["html5"]);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -90,9 +105,38 @@ export default function ExportPage() {
   const [exportComplete, setExportComplete] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [availableSizes, setAvailableSizes] = useState<AdSize[]>([]);
+  const [exportProgressText, setExportProgressText] = useState("");
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Get template from URL params or default
-  const templatePath = searchParams.get("template") || "test-template";
+  // Get template from URL params or default (Shopify for DPA)
+  const templatePath =
+    searchParams.get("template") ||
+    (isDPA ? "social/Shopify" : "test-template");
+
+  // Initialize client-side only state after hydration
+  useEffect(() => {
+    setIsHydrated(true);
+
+    // Set format based on campaign type
+    if (isDPA) {
+      setSelectedFormats(["images"]);
+    }
+
+    // Filter products based on selectedProductIds for DPA
+    if (isDPA && selectedProductIds.length > 0) {
+      const filtered = products.filter((p) =>
+        selectedProductIds.includes(p.id),
+      );
+      setSelectedProducts(filtered);
+    } else {
+      setSelectedProducts(products);
+    }
+  }, [isDPA, selectedProductIds, products]);
+
+  // Filter formats for DPA mode (only show Static Images)
+  const displayFormats = isDPA
+    ? exportFormats.filter((f) => f.id === "images")
+    : exportFormats;
 
   // Fetch available sizes on mount
   useEffect(() => {
@@ -107,7 +151,12 @@ export default function ExportPage() {
         console.error("Failed to fetch available sizes:", error);
         // Fallback to hardcoded sizes
         setAvailableSizes([
-          { id: "300x600", name: "Half Page", dimensions: "300 × 600", available: true },
+          {
+            id: "300x600",
+            name: "Half Page",
+            dimensions: "300 × 600",
+            available: true,
+          },
         ]);
       }
     };
@@ -126,6 +175,7 @@ export default function ExportPage() {
     },
   ]);
   const [isChatTyping, setIsChatTyping] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   const handleChatSend = (message: string) => {
     setChatMessages((prev) => [
@@ -163,7 +213,7 @@ export default function ExportPage() {
     setSelectedFormats((prev) =>
       prev.includes(formatId)
         ? prev.filter((f) => f !== formatId)
-        : [...prev, formatId]
+        : [...prev, formatId],
     );
     if (formatId === "html5" && selectedFormats.includes("html5"))
       setSelectedPlatform(null);
@@ -171,7 +221,7 @@ export default function ExportPage() {
 
   const totalCreditCost = selectedFormats.reduce(
     (t, id) => t + (exportFormats.find((f) => f.id === id)?.creditCost || 0),
-    0
+    0,
   );
 
   const handleExport = async () => {
@@ -179,7 +229,7 @@ export default function ExportPage() {
       toast({ title: "Select a format", variant: "destructive" });
       return;
     }
-    if (selectedFormats.includes("html5") && !selectedPlatform) {
+    if (!isDPA && selectedFormats.includes("html5") && !selectedPlatform) {
       toast({ title: "Select a platform", variant: "destructive" });
       return;
     }
@@ -193,14 +243,112 @@ export default function ExportPage() {
     setExportProgress(10);
 
     try {
+      // DPA Export - Call dedicated API endpoint
+      if (isDPA && selectedFormats.includes("images")) {
+        setExportProgressText(
+          `Generating images for ${selectedProducts.length} products...`,
+        );
+
+        // Get first available size
+        const exportSize = availableSizes[0]?.id || "1080x1080";
+
+        // Prepare product data for API
+        const productsForExport = selectedProducts.map((p) => ({
+          id: p.id,
+          title: p.title,
+          price: p.price,
+          currency: p.currency,
+          imageUrl: p.images?.[0]?.src,
+          vendor: p.vendor,
+        }));
+
+        // Prepare brand data
+        const brandData = {
+          logoUrl: activeBrandKit?.logo,
+          colors: activeBrandKit?.palette
+            ? [
+                activeBrandKit.palette.primary,
+                activeBrandKit.palette.secondary,
+                activeBrandKit.palette.accent,
+              ]
+            : undefined,
+          labelColor: activeBrandKit?.palette?.secondary,
+          ctaColor: activeBrandKit?.palette?.primary,
+          bgColor: "#FFFFFF",
+          typography: activeBrandKit?.typography,
+        };
+
+        // Simulate progress since API doesn't stream updates
+        // Estimate ~4 seconds per product (overhead + screenshot time)
+        const estimatedTimePerProduct = 4000;
+        const totalEstimatedTime =
+          selectedProducts.length * estimatedTimePerProduct;
+        const updateInterval = 500; // Update every 500ms
+        const steps = totalEstimatedTime / updateInterval;
+        const progressPerStep = 80 / steps; // Move from 10% to 90%
+
+        let currentProgress = 10;
+        const progressTimer = setInterval(() => {
+          currentProgress = Math.min(currentProgress + progressPerStep, 95);
+          setExportProgress(Math.floor(currentProgress));
+        }, updateInterval);
+
+        // Call DPA export API
+        const response = await fetch("/api/export-dpa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templatePath,
+            size: exportSize,
+            products: productsForExport,
+            brandData,
+          }),
+        });
+
+        if (!response.ok) {
+          clearInterval(progressTimer);
+          const error = await response.json();
+          throw new Error(error.error || "Export failed");
+        }
+
+        clearInterval(progressTimer);
+        setExportProgress(100);
+        setExportProgressText("Download starting...");
+
+        // Create URL but don't auto-download
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setDownloadUrl(url);
+
+        setExportProgress(100);
+        setIsExporting(false);
+        setExportComplete(true);
+        setExportProgressText("");
+        toast({
+          title: "Export complete! 🎉",
+          description: `Generated images for ${selectedProducts.length} products. Click Download to save.`,
+        });
+        return;
+      }
+
+      // Standard export flow (non-DPA)
       // Build dynamic values from context or URL params
       const dynamicValues = {
-        headline: searchParams.get("headline") || strategySession.strategy?.headline || "SUMMER SALE",
-        bodyCopy: searchParams.get("bodyCopy") || strategySession.strategy?.subheadline || "Don't miss out!",
-        ctaText: searchParams.get("ctaText") || strategySession.strategy?.callToAction || "Shop Now",
+        headline:
+          searchParams.get("headline") ||
+          strategySession.strategy?.headline ||
+          "SUMMER SALE",
+        bodyCopy:
+          searchParams.get("bodyCopy") ||
+          strategySession.strategy?.subheadline ||
+          "Don't miss out!",
+        ctaText:
+          searchParams.get("ctaText") ||
+          strategySession.strategy?.callToAction ||
+          "Shop Now",
         imageUrl: searchParams.get("imageUrl") || designSession.imageUrl || "",
         logoUrl: designSession.logoUrl || "",
-        colors: designSession.creative?.colorScheme 
+        colors: designSession.creative?.colorScheme
           ? [
               designSession.creative.colorScheme.primary,
               designSession.creative.colorScheme.secondary,
@@ -225,7 +373,9 @@ export default function ExportPage() {
       // Save export session to context for Launch page (actual download happens there)
       setExportSession({
         templatePath,
-        selectedSizes: availableSizes.filter(s => s.available).map(s => s.id),
+        selectedSizes: availableSizes
+          .filter((s) => s.available)
+          .map((s) => s.id),
         dynamicValues,
         layerModifications: layerModifications || [],
         exportedAt: new Date(),
@@ -234,20 +384,33 @@ export default function ExportPage() {
       setExportProgress(100);
       setIsExporting(false);
       setExportComplete(true);
-      toast({ title: "Ready to launch! 🚀", description: "Head to the Launch page to download your creatives." });
+      toast({
+        title: "Ready to launch! 🚀",
+        description: "Head to the Launch page to download your creatives.",
+      });
 
       // Navigate to launch page after a short delay
       setTimeout(() => router.push("/launch"), 1000);
-
     } catch (error) {
       console.error("Export error:", error);
       setIsExporting(false);
       setExportProgress(0);
-      toast({ 
-        title: "Export failed", 
-        description: "Please try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Export failed",
+        description: "Please try again.",
+        variant: "destructive",
       });
+    }
+  };
+
+  const handleDownload = () => {
+    if (downloadUrl) {
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `dpa-export-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
   };
 
@@ -260,17 +423,21 @@ export default function ExportPage() {
       {isExporting ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Exporting...
+          {exportProgressText || "Exporting..."}
         </>
       ) : exportComplete ? (
         <>
           <Check className="h-4 w-4" />
-          Download Again
+          {isDPA ? "Generate Again" : "Download Again"}
         </>
       ) : (
         <>
           <Download className="h-4 w-4" />
-          Export & Launch
+          {isDPA && isHydrated
+            ? `Export ${selectedProducts.length} Products`
+            : isDPA
+              ? "Export Products"
+              : "Export & Launch"}
         </>
       )}
     </Button>
@@ -297,21 +464,34 @@ export default function ExportPage() {
               {isExporting && <ExportProgressCard progress={exportProgress} />}
               {exportComplete && !isExporting && <ExportCompleteCard />}
               <ExportFormatsCard
-                formats={exportFormats}
+                formats={displayFormats}
                 selectedFormats={selectedFormats}
                 onToggleFormat={toggleFormat}
               />
-              <PlatformSelectionCard
-                platforms={adPlatforms}
-                selectedPlatform={selectedPlatform}
-                onSelect={setSelectedPlatform}
-                visible={selectedFormats.includes("html5")}
-              />
-              <AdSizesCard 
-                sizes={availableSizes.length > 0 
-                  ? availableSizes.map(s => ({ id: s.id, name: s.name, dimensions: s.dimensions }))
-                  : [{ id: "300x600", name: "Half Page", dimensions: "300 × 600" }]
-                } 
+              {!isDPA && (
+                <PlatformSelectionCard
+                  platforms={adPlatforms}
+                  selectedPlatform={selectedPlatform}
+                  onSelect={setSelectedPlatform}
+                  visible={selectedFormats.includes("html5")}
+                />
+              )}
+              <AdSizesCard
+                sizes={
+                  availableSizes.length > 0
+                    ? availableSizes.map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                        dimensions: s.dimensions,
+                      }))
+                    : [
+                        {
+                          id: "300x600",
+                          name: "Half Page",
+                          dimensions: "300 × 600",
+                        },
+                      ]
+                }
               />
               <ExportSummaryCard
                 formatCount={selectedFormats.length}
@@ -323,6 +503,22 @@ export default function ExportPage() {
                 }
                 creditCost={totalCreditCost}
               />
+
+              {downloadUrl && (
+                <div className="motion-safe:animate-fadeIn">
+                  <Button
+                    onClick={handleDownload}
+                    size="lg"
+                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md text-lg h-14"
+                  >
+                    <Download className="h-5 w-5" />
+                    Download ZIP ({selectedProducts.length} images)
+                  </Button>
+                  <p className="text-center text-sm text-muted-foreground mt-2">
+                    Click to save your generated ads
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </ResizablePanel>

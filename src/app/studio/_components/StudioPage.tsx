@@ -61,16 +61,23 @@ export default function StudioPage() {
   const { logout } = useAuth();
   const { brandKits, activeBrandKit, setActiveBrandKit } = useBrand();
 
-  const { strategySession, setImageUrl, setLogoUrl } = useCampaign();
+  const { strategySession, selectedProductIds, setImageUrl, setLogoUrl } =
+    useCampaign();
   const { products } = useProducts();
+
+  // In DPA mode, filter to only show products selected by strategy
+  const displayProducts =
+    isDPA && selectedProductIds.length > 0
+      ? products.filter((p) => selectedProductIds.includes(p.id))
+      : products;
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Set initial selected product if available and in DPA mode
   useEffect(() => {
-    if (isDPA && products.length > 0 && !selectedProduct) {
-      setSelectedProduct(products[0]);
+    if (isDPA && displayProducts.length > 0 && !selectedProduct) {
+      setSelectedProduct(displayProducts[0]);
     }
-  }, [isDPA, products, selectedProduct]);
+  }, [isDPA, displayProducts, selectedProduct]);
 
   // Use strategy data for content if available, otherwise defaults
   const [content, setContent] = useState({
@@ -548,7 +555,7 @@ export default function StudioPage() {
                 className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
               >
                 <ProductBrowserSidebar
-                  products={products}
+                  products={displayProducts}
                   selectedProduct={selectedProduct}
                   onSelectProduct={setSelectedProduct}
                 />

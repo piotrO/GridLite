@@ -3,6 +3,8 @@ import {
   brandScannerAgent,
   strategistAgent,
   strategistChatAgent,
+  strategistDpaAgent,
+  strategistDpaChatAgent,
   designerAgent,
   designerChatAgent,
   colorReasonerAgent,
@@ -10,6 +12,7 @@ import {
 import {
   brandScanWorkflow,
   strategyWorkflow,
+  strategyDpaWorkflow,
   designerWorkflow,
 } from "./workflows";
 
@@ -22,6 +25,8 @@ export const mastra = new Mastra({
     brandScanner: brandScannerAgent,
     strategist: strategistAgent,
     strategistChat: strategistChatAgent,
+    strategistDpa: strategistDpaAgent,
+    strategistDpaChat: strategistDpaChatAgent,
     designer: designerAgent,
     designerChat: designerChatAgent,
     colorReasoner: colorReasonerAgent,
@@ -29,6 +34,7 @@ export const mastra = new Mastra({
   workflows: {
     brandScan: brandScanWorkflow,
     strategy: strategyWorkflow,
+    strategyDpa: strategyDpaWorkflow,
     designer: designerWorkflow,
   },
 });

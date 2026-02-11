@@ -1,7 +1,14 @@
 "use client";
-
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, LucideIcon, Quote, Loader2 } from "lucide-react";
+import {
+  ArrowRight,
+  Sparkles,
+  LucideIcon,
+  Quote,
+  Loader2,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StrategyOptionCard } from "./StrategyOptionCard";
 import { AdFormatsPreview } from "./AdFormatsPreview";
@@ -26,8 +33,8 @@ interface StrategyData {
 }
 
 import { CampaignTypeId } from "@/components/CampaignTypeSelector";
-import { CatalogStats, Product } from "@/types/shopify";
-import { Package, Tag, Grid3X3, Store, Eye } from "lucide-react";
+import { CatalogStats, Product, DPAStrategy } from "@/types/shopify";
+import { Package, Tag, Grid3X3, Store, Eye, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StrategyOptionsPanelProps {
@@ -37,6 +44,18 @@ interface StrategyOptionsPanelProps {
   onToggleOption: (id: string) => void;
   onApprove: () => void;
   strategyData?: StrategyData | null;
+  dpaStrategyData?: {
+    segments: Array<{
+      id: string;
+      name: string;
+      description: string;
+      productIds: string[];
+      productCount: number;
+    }>;
+    selectedProductIds: string[];
+    productGroupStrategy: "hero" | "carousel" | "grid";
+    priceDisplayStyle: "prominent" | "subtle";
+  } | null;
   isApproving?: boolean;
   campaignType?: CampaignTypeId | null;
   products?: Product[];
@@ -50,12 +69,30 @@ export function StrategyOptionsPanel({
   onToggleOption,
   onApprove,
   strategyData,
+  dpaStrategyData,
   isApproving = false,
   campaignType,
   products = [],
   catalogStats,
 }: StrategyOptionsPanelProps) {
   const isDPA = campaignType === "dpa";
+
+  // Collapse states
+  const [catalogExpanded, setCatalogExpanded] = useState(false);
+  const [showAllSelected, setShowAllSelected] = useState(false);
+
+  // Get selected products from dpaStrategyData
+  const selectedProducts =
+    isDPA && dpaStrategyData?.selectedProductIds
+      ? products.filter((p) =>
+          dpaStrategyData.selectedProductIds.includes(p.id),
+        )
+      : [];
+
+  // Products to display in Selected section
+  const displayedSelectedProducts = showAllSelected
+    ? selectedProducts
+    : selectedProducts.slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -72,80 +109,106 @@ export function StrategyOptionsPanel({
               <span>Strategy recommendation for {brandName}</span>
             </div>
 
-            {/* Product Catalog Section (Only for DPA) */}
+            {/* Product Catalog Section (Only for DPA) - Collapsed by default */}
             {isDPA && catalogStats && products.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl bg-card border border-border space-y-4"
+                className="rounded-xl bg-card border border-border overflow-hidden"
               >
-                <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setCatalogExpanded(!catalogExpanded)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                >
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Store className="w-4 h-4 text-primary" />
                     Product Catalog
                   </h3>
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    {products.length} Products
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                      {products.length} Products
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
+                        catalogExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </div>
+                </button>
 
-                {/* Stats Row */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="p-2 rounded-lg bg-muted/50 text-center">
-                    <p className="text-sm font-semibold text-foreground">
-                      {catalogStats.categories.length}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Categories
-                    </p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-muted/50 text-center">
-                    <p className="text-sm font-semibold text-foreground">
-                      {catalogStats.vendors.length}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Vendors</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-muted/50 text-center">
-                    <p className="text-sm font-semibold text-foreground">
-                      {catalogStats.inventoryStatus.inStock}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      In Stock
-                    </p>
-                  </div>
-                </div>
-
-                {/* Product Strip */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Top Products
-                  </p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {products.slice(0, 4).map((product) => (
-                      <div
-                        key={product.id}
-                        className="aspect-square rounded-md border border-border bg-muted overflow-hidden relative group"
-                      >
-                        {product.images?.[0] ? (
-                          <img
-                            src={product.images[0].src}
-                            alt={product.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                            <Store className="w-4 h-4" />
+                <AnimatePresence>
+                  {catalogExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-4 pt-0 space-y-4">
+                        {/* Stats Row */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="p-2 rounded-lg bg-muted/50 text-center">
+                            <p className="text-sm font-semibold text-foreground">
+                              {catalogStats.categories.length}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Categories
+                            </p>
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
-                          <p className="text-[10px] text-white truncate w-full">
-                            {product.title}
+                          <div className="p-2 rounded-lg bg-muted/50 text-center">
+                            <p className="text-sm font-semibold text-foreground">
+                              {catalogStats.vendors.length}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Vendors
+                            </p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-muted/50 text-center">
+                            <p className="text-sm font-semibold text-foreground">
+                              {catalogStats.inventoryStatus.inStock}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              In Stock
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Product Strip */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Top Products
                           </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            {products.slice(0, 4).map((product) => (
+                              <div
+                                key={product.id}
+                                className="aspect-square rounded-md border border-border bg-muted overflow-hidden relative group"
+                              >
+                                {product.images?.[0] ? (
+                                  <img
+                                    src={product.images[0].src}
+                                    alt={product.title}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                    <Store className="w-4 h-4" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                                  <p className="text-[10px] text-white truncate w-full">
+                                    {product.title}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
 
@@ -187,6 +250,94 @@ export function StrategyOptionsPanel({
                     </span>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Selected Products for Campaign (DPA) */}
+            {isDPA && selectedProducts.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="p-4 rounded-xl bg-card border-2 border-accent/30 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-accent" />
+                    Selected Products
+                  </h3>
+                  <span className="text-xs text-accent bg-accent/10 px-2 py-1 rounded-full font-medium">
+                    {selectedProducts.length} selected
+                  </span>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Sarah picked these products for your DPA campaign
+                </p>
+
+                {/* Product Grid */}
+                <div className="grid grid-cols-3 gap-2">
+                  {displayedSelectedProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="aspect-square rounded-lg border border-accent/20 bg-muted overflow-hidden relative group"
+                    >
+                      {product.images?.[0] ? (
+                        <img
+                          src={product.images[0].src}
+                          alt={product.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          <Package className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
+                        <p className="text-[10px] text-white font-medium truncate">
+                          {product.title}
+                        </p>
+                        <p className="text-[9px] text-white/70">
+                          {product.currency} {product.price.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="absolute top-1 right-1">
+                        <CheckCircle2 className="w-4 h-4 text-accent drop-shadow-lg" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedProducts.length > 6 && (
+                  <button
+                    onClick={() => setShowAllSelected(!showAllSelected)}
+                    className="w-full text-xs text-accent hover:text-accent/80 transition-colors text-center py-1 hover:bg-accent/5 rounded-lg"
+                  >
+                    {showAllSelected
+                      ? "Show less"
+                      : `+${selectedProducts.length - 6} more products`}
+                  </button>
+                )}
+
+                {/* Segments Summary */}
+                {dpaStrategyData?.segments &&
+                  dpaStrategyData.segments.length > 0 && (
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        Campaign Segments
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {dpaStrategyData.segments.map((segment) => (
+                          <span
+                            key={segment.id}
+                            className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent"
+                          >
+                            {segment.name} ({segment.productCount})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </motion.div>
             )}
 

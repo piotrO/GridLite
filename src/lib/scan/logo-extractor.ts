@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { Buffer } from "buffer";
 import { isDebugMode } from "./extraction-utils";
 
-const DEBUG_MODE = isDebugMode("all");
+const DEBUG_MODE = isDebugMode("logo");
 
 export async function extractLogo(
   page: Page,
@@ -70,6 +70,32 @@ export async function extractLogo(
           }
         };
 
+        // new: Extract simplified brand name from hostname
+        let brandName = "";
+        try {
+          const urlObj = new URL(baseUrl);
+          const parts = urlObj.hostname.split(".");
+          // simplistic: longest part that isn't common TLD/www
+          const ignore = new Set([
+            "www",
+            "com",
+            "org",
+            "net",
+            "co",
+            "io",
+            "app",
+            "dev",
+            "shop",
+            "store",
+          ]);
+          brandName =
+            parts
+              .filter((p) => !ignore.has(p))
+              .sort((a, b) => b.length - a.length)[0] || "";
+        } catch (e) {
+          /* ignore */
+        }
+
         // --- HELPER: Scoring ---
         const scoreElement = (
           el: Element,
@@ -86,6 +112,8 @@ export async function extractLogo(
             el.id,
             el.getAttribute("alt"),
             el.getAttribute("aria-label"),
+            el.getAttribute("src"), // NEW
+            el.getAttribute("data-src"), // NEW
             parentLink?.className.toString(),
             parentLink?.id,
             parentLink?.getAttribute("aria-label"),
@@ -103,10 +131,14 @@ export async function extractLogo(
             "search",
             "bag",
             "close",
-            "menu",
+            // "menu" - REMOVED: Logos are often in the menu structure
             "facebook",
             "instagram",
             "twitter",
+            "button",
+            "icon",
+            "pic",
+            "action",
           ];
           for (const kw of negativeKeywords) {
             if (combinedText.includes(kw)) {
@@ -117,16 +149,22 @@ export async function extractLogo(
 
           // 2. Positive Keywords
           if (combinedText.includes("logo")) {
-            score += 25;
+            score += 40; // Increased from 25
             reasons.push("keyword:logo");
           }
           if (combinedText.includes("brand")) {
-            score += 15;
+            score += 25; // Increased from 15
             reasons.push("keyword:brand");
           }
           if (combinedText.includes("home")) {
             score += 10;
             reasons.push("keyword:home");
+          }
+
+          // NEW: Brand Name Match
+          if (brandName && combinedText.includes(brandName.toLowerCase())) {
+            score += 60; // Increased from 40
+            reasons.push(`brand-match:${brandName}`);
           }
 
           // 3. Structure
@@ -146,15 +184,29 @@ export async function extractLogo(
           if (rect.width < 5 || rect.height < 5)
             return { score: -1000, reasons: ["invisible"] };
 
-          // Aspect Ratio: Logos are usually wider (2:1 or 3:1), not square icons (1:1)
+          // Aspect Ratio:
           const aspect = rect.width / rect.height;
+
+          // Standard wide logos (2:1 or 3:1)
           if (aspect > 1.5 && aspect < 6) {
             score += 10;
             reasons.push("aspect:wide");
           }
+          // Square logos (approx 1.0) - Allow if valid, give bonus if "logo" or brand match found
+          else if (aspect >= 0.8 && aspect <= 1.5) {
+            const isStrongMatch = reasons.some(
+              (r) =>
+                r.startsWith("keyword:logo") || r.startsWith("brand-match"),
+            );
+            // If it's square AND has "logo" in name/class/alt, it's very likely the logo
+            if (isStrongMatch) {
+              score += 5;
+              reasons.push("aspect:square-valid");
+            }
+          }
 
           // Size checks
-          if (rect.width > 200 && rect.width < 600) {
+          if (rect.width > 80 && rect.width < 600) {
             score += 10;
             reasons.push("size:medium");
           }
@@ -237,6 +289,23 @@ export async function extractLogo(
         console.log(
           `[LogoExtractor] Found ${candidates.length} viable candidates after scoring.`,
         );
+
+        if (debugMode) {
+          console.log("[LogoExtractor] Top 10 Candidates Debug:");
+          candidates.slice(0, 10).forEach((candidate, index) => {
+            const isSvg = candidate.el.tagName.toLowerCase() === "svg";
+            const logHtml = candidate.el.outerHTML.substring(0, 100) + "...";
+            console.log(
+              `[LogoExtractor] #${index + 1} Score: ${candidate.score} (${
+                isSvg ? "SVG" : "IMG"
+              }) ` +
+                JSON.stringify({
+                  reasons: candidate.reasons,
+                  html: logHtml,
+                }),
+            );
+          });
+        }
 
         // 3. Iterate and Validate
         for (const candidate of candidates) {

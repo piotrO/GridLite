@@ -65,7 +65,18 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set("state", state);
 
     // Return the auth URL (frontend will redirect)
-    return NextResponse.json({ authUrl: authUrl.toString(), state });
+    const response = NextResponse.json({ authUrl: authUrl.toString(), state });
+
+    // Set state cookie for reliability
+    response.cookies.set("shopify_oauth_state", state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 10, // 10 minutes
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Shopify auth error:", error);
     return NextResponse.json(

@@ -65,12 +65,20 @@ interface CampaignContextType {
   campaigns: Campaign[];
   setCampaignStatus: (id: string, status: Campaign["status"]) => void;
 
+  // Campaign type (display or dpa)
+  campaignType: "display" | "dpa";
+  setCampaignType: (type: "display" | "dpa") => void;
+
   // Strategy session management
   strategySession: StrategySession;
   setRawWebsiteText: (text: string) => void;
   setCampaignData: (data: StrategySession["campaignData"]) => void;
   setStrategy: (strategy: StrategySession["strategy"]) => void;
   clearStrategySession: () => void;
+
+  // DPA: Selected products for Studio
+  selectedProductIds: string[];
+  setSelectedProductIds: (ids: string[]) => void;
 
   // Design session management
   designSession: DesignSession;
@@ -123,22 +131,28 @@ const emptyDesignSession: DesignSession = {
 };
 
 const CampaignContext = createContext<CampaignContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
+  const [campaignType, setCampaignType] = useState<"display" | "dpa">(
+    "display",
+  );
   const [strategySession, setStrategySession] =
     useState<StrategySession>(emptyStrategySession);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [designSession, setDesignSession] =
     useState<DesignSession>(emptyDesignSession);
-  const [exportSession, setExportSessionState] = useState<ExportSession | null>(null);
+  const [exportSession, setExportSessionState] = useState<ExportSession | null>(
+    null,
+  );
 
   const setCampaignStatus = (id: string, status: Campaign["status"]) => {
     setCampaigns((prev) =>
       prev.map((campaign) =>
-        campaign.id === id ? { ...campaign, status } : campaign
-      )
+        campaign.id === id ? { ...campaign, status } : campaign,
+      ),
     );
   };
 
@@ -179,7 +193,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   };
 
   const updateExportSession = (updates: Partial<ExportSession>) => {
-    setExportSessionState((prev) => prev ? { ...prev, ...updates } : null);
+    setExportSessionState((prev) => (prev ? { ...prev, ...updates } : null));
   };
 
   const clearExportSession = () => {
@@ -191,11 +205,15 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       value={{
         campaigns,
         setCampaignStatus,
+        campaignType,
+        setCampaignType,
         strategySession,
         setRawWebsiteText,
         setCampaignData,
         setStrategy,
         clearStrategySession,
+        selectedProductIds,
+        setSelectedProductIds,
         designSession,
         setCreative,
         setImageUrl,
