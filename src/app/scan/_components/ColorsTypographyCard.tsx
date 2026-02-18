@@ -6,7 +6,7 @@ import { BrandPalette } from "@/lib/shared/types";
 import { PrimaryPaletteSection } from "./PrimaryPaletteSection";
 import { ExtraColorsSection } from "./ExtraColorsSection";
 import { Typography } from "@/lib/shared/types";
-import { TypographySection } from "./TypographySection";
+import { TypographySection } from "@/components/TypographySection";
 
 interface ColorsTypographyCardProps {
   palette: BrandPalette;

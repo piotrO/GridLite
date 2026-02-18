@@ -8,10 +8,7 @@ import {
   extractCampaignData,
   CampaignData,
 } from "@/lib/strategy/strategy-analyzer";
-import {
-  BrandProfile,
-  StrategyDocument,
-} from "@/lib/shared/types";
+import { BrandProfile, StrategyDocument } from "@/lib/shared/types";
 
 /**
  * Input schema for the strategy workflow.
@@ -101,38 +98,73 @@ const fetchWebsiteTextStep = createStep({
       return { brandProfile, websiteText: rawWebsiteText, success: true };
     }
 
-    // If we have a URL, fetch the text
+    // Default fallback text construction
+    const fallbackText = `Brand Name: ${brandProfile.name}. 
+Industry: ${brandProfile.industry || "Unknown"}. 
+Summary: ${brandProfile.brandSummary || "N/A"}. 
+Tagline: ${brandProfile.tagline || "N/A"}. 
+Key Audiences: ${brandProfile.audiences?.map((a) => a.name).join(", ") || "General"}.`;
+
+    // If we have a URL, try to fetch the text
     if (websiteUrl) {
       const normalizedUrl = parseUrl(websiteUrl);
+
+      // If URL is invalid, just proceed with fallback
       if (!normalizedUrl) {
         return {
           brandProfile,
-          websiteText: `${brandProfile.name}. ${brandProfile.brandSummary || ""} ${brandProfile.tagline || ""}`,
-          success: false,
-          error: "Invalid website URL",
+          websiteText: fallbackText,
+          success: true, // Treat as success to keep workflow moving
+          error: "Invalid website URL - used brand profile instead",
         };
       }
 
       try {
-        const session = await createBrowserSession(normalizedUrl);
+        // Attempt scraping with a timeout
+        const session = await Promise.race([
+          createBrowserSession(normalizedUrl),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Browser session timeout")),
+              25000,
+            ),
+          ),
+        ]);
+
         const websiteText = await extractWebsiteText(session.page);
         await closeBrowser(session.browser);
+
+        // If extracted text is too short, use fallback
+        if (!websiteText || websiteText.length < 50) {
+          return {
+            brandProfile,
+            websiteText: fallbackText,
+            success: true,
+            error: "Extracted text too short - used brand profile instead",
+          };
+        }
+
         return { brandProfile, websiteText, success: true };
       } catch (error) {
+        // Gracefully fail back to brand profile data
+        console.error(
+          "Strategy workflow scraping failed, using fallback:",
+          error,
+        );
         return {
           brandProfile,
-          websiteText: `${brandProfile.name}. ${brandProfile.brandSummary || ""} ${brandProfile.tagline || ""}`,
-          success: false,
+          websiteText: fallbackText,
+          success: true, // CRITICAL: Return true so the workflow continues
           error:
             error instanceof Error ? error.message : "Failed to fetch website",
         };
       }
     }
 
-    // Fallback: use brand info as text
+    // Fallback: use brand info as text (when no URL provided)
     return {
       brandProfile,
-      websiteText: `${brandProfile.name}. ${brandProfile.brandSummary || ""} ${brandProfile.tagline || ""}`,
+      websiteText: fallbackText,
       success: true,
     };
   },
@@ -217,7 +249,10 @@ Calls to Action: ${campaignData?.callsToAction.join(", ") || "N/A"}
 
       const result = await agent.generate([
         { role: "user", content: contextPrompt },
-        { role: "user", content: "Generate the initial strategy in JSON format." },
+        {
+          role: "user",
+          content: "Generate the initial strategy in JSON format.",
+        },
       ]);
 
       let parsed;
@@ -230,7 +265,8 @@ Calls to Action: ${campaignData?.callsToAction.join(", ") || "N/A"}
       }
 
       return {
-        greeting: parsed.greeting || "Hey! I've put together a strategy for you.",
+        greeting:
+          parsed.greeting || "Hey! I've put together a strategy for you.",
         strategy: parsed.strategy as z.infer<typeof StrategyDocumentSchema>,
         campaignData: campaignData as CampaignData,
       };

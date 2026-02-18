@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Palette,
@@ -12,7 +12,8 @@ import {
 import { ColorPicker } from "@/components/ColorPicker";
 import { EditableText } from "@/components/EditableText";
 import { FontPickerModal } from "@/components/FontPickerModal";
-import { BrandPalette } from "@/lib/shared/types";
+import { TypographySection } from "@/components/TypographySection";
+import { BrandPalette, Typography } from "@/lib/shared/types";
 
 interface BrandData {
   name: string;
@@ -20,6 +21,7 @@ interface BrandData {
   logo?: string;
   tagline?: string;
   font?: string;
+  typography?: Typography | null;
 }
 
 interface BrandAssetCardProps {
@@ -37,6 +39,11 @@ export function BrandAssetCard({
   const [localBrand, setLocalBrand] = useState(brand);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync local state when prop changes (e.g. switching brand kits)
+  useEffect(() => {
+    setLocalBrand(brand);
+  }, [brand]);
 
   const handlePrimaryChange = (color: string) => {
     const updated = {
@@ -103,7 +110,7 @@ export function BrandAssetCard({
   };
 
   const handleFontChange = (font: string) => {
-    const updated = { ...localBrand, font };
+    const updated = { ...localBrand, font, typography: null };
     setLocalBrand(updated);
     onBrandChange?.(updated);
   };
@@ -236,22 +243,11 @@ export function BrandAssetCard({
 
               {/* Typography */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Type className="w-4 h-4" />
-                  <span>Typography</span>
-                </div>
-                <button
-                  onClick={() => setShowFontPicker(true)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border hover:border-primary/50 hover:bg-muted transition-all group"
-                >
-                  <span
-                    className="text-sm font-medium text-foreground"
-                    style={{ fontFamily: localBrand.font || "Inter" }}
-                  >
-                    {localBrand.font || "Inter (Detected)"}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                </button>
+                <TypographySection
+                  font={localBrand.font || "Inter"}
+                  typography={localBrand.typography}
+                  onFontClick={() => setShowFontPicker(true)}
+                />
               </div>
 
               {/* Font Picker Modal */}

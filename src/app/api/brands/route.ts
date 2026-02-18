@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     if (!token) {
       return NextResponse.json(
         { error: "Authorization token required" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     console.error("Brands API GET error:", error);
     return NextResponse.json(
       { error: "Failed to fetch brands" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (!token) {
       return NextResponse.json(
         { error: "Authorization token required" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -71,19 +71,19 @@ export async function POST(request: NextRequest) {
           adAccounts: body.adAccounts || [],
           ...(body.notes && { notes: body.notes }),
         }),
-      }
+      },
     );
 
     const data = await response.json();
 
-    console.log("Create brand response:", JSON.stringify(data, null, 2));
+    console.log("Create brand response:", { id: data._id, name: data.name });
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Brands API POST error:", error);
     return NextResponse.json(
       { error: "Failed to create brand" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

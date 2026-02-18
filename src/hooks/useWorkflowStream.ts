@@ -49,6 +49,70 @@ export function useWorkflowStream<TResult = any>(
         }
 
         let buffer = "";
+        let receivedResult = false;
+
+        const processLine = (line: string) => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) return;
+
+          try {
+            const message = JSON.parse(trimmedLine);
+
+            if (message.type === "init") {
+              setSteps(
+                message.steps.map((s: any) => ({
+                  id: s.id,
+                  label: s.label,
+                  status: "pending",
+                })),
+              );
+            } else if (message.type === "step_start") {
+              setSteps((prev) =>
+                prev.map((s) => {
+                  if (s.id === message.stepId) {
+                    if (s.status === "completed" || s.status === "failed")
+                      return s;
+                    return { ...s, status: "running", startTime: Date.now() };
+                  }
+                  if (s.status === "running") {
+                    return { ...s, status: "completed", endTime: Date.now() };
+                  }
+                  return s;
+                }),
+              );
+            } else if (message.type === "step_complete") {
+              const success = message.success !== false;
+              setSteps((prev) =>
+                prev.map((s) =>
+                  s.id === message.stepId
+                    ? {
+                        ...s,
+                        status: success ? "completed" : "failed",
+                        endTime: Date.now(),
+                      }
+                    : s,
+                ),
+              );
+            } else if (message.type === "complete") {
+              receivedResult = true;
+              setData(message.data);
+              if (optionsRef.current.onComplete) {
+                optionsRef.current.onComplete(message.data);
+              }
+            } else if (message.type === "error") {
+              throw new Error(message.message);
+            }
+          } catch (e) {
+            // Rethrow stream errors and real processing errors
+            if (
+              e instanceof Error &&
+              e.message !== "Unexpected end of JSON input"
+            ) {
+              throw e;
+            }
+            // Ignore JSON parse errors for malformed lines
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
@@ -56,77 +120,24 @@ export function useWorkflowStream<TResult = any>(
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
-          // Keep the last part in the buffer as it might be incomplete
           buffer = lines.pop() || "";
 
           for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
-
-            try {
-              const message = JSON.parse(trimmedLine);
-
-              if (message.type === "init") {
-                setSteps(
-                  message.steps.map((s: any) => ({
-                    id: s.id,
-                    label: s.label,
-                    status: "pending",
-                  })),
-                );
-              } else if (message.type === "step_start") {
-                setSteps((prev) =>
-                  prev.map((s) => {
-                    if (s.id === message.stepId) {
-                      if (s.status === "completed" || s.status === "failed")
-                        return s;
-                      return { ...s, status: "running", startTime: Date.now() };
-                    }
-                    // If another step was running, mark it completed (handled by step_complete usually, but just in case)
-                    if (s.status === "running") {
-                      return { ...s, status: "completed", endTime: Date.now() };
-                    }
-                    return s;
-                  }),
-                );
-              } else if (message.type === "step_complete") {
-                const success = message.success !== false;
-                setSteps((prev) =>
-                  prev.map((s) =>
-                    s.id === message.stepId
-                      ? {
-                          ...s,
-                          status: success ? "completed" : "failed",
-                          endTime: Date.now(),
-                        }
-                      : s,
-                  ),
-                );
-              } else if (message.type === "complete") {
-                setData(message.data);
-                if (optionsRef.current.onComplete) {
-                  optionsRef.current.onComplete(message.data);
-                }
-              } else if (message.type === "error") {
-                throw new Error(message.message);
-              }
-            } catch (e) {
-              // If it was our thrown error, rethrow it to outer catch
-              if (
-                e instanceof Error &&
-                e.message !== "Unexpected end of JSON input" &&
-                !line.includes("SyntaxError")
-              ) {
-                // Only rethrow if it's an explicit error from the stream or critical logic
-                // Check if the error message matches what we threw above
-                try {
-                  const msg = JSON.parse(trimmedLine);
-                  if (msg.type === "error") throw e;
-                } catch {}
-              }
-              // Otherwise ignore JSON parse errors for partial lines (though buffer logic should prevent most)
-            }
+            processLine(line);
           }
+        }
+
+        // Process any remaining content in buffer after stream ends
+        if (buffer.trim()) {
+          processLine(buffer);
+        }
+
+        // Safety net: if stream ended without a 'complete' or 'error' event,
+        // trigger onError so the UI shows a fallback instead of a blank error screen
+        if (!receivedResult) {
+          const noDataMsg = "Workflow stream ended without producing a result";
+          setError(noDataMsg);
+          if (optionsRef.current.onError) optionsRef.current.onError(noDataMsg);
         }
       } catch (err: any) {
         const msg = err instanceof Error ? err.message : "Workflow failed";

@@ -104,9 +104,7 @@ export default function MediaBuyerPage() {
     id,
     name: sizeNames[id] || id,
     dimensions: id.replace("x", " × "),
-  })) || [
-    { id: "300x600", name: "Half Page", dimensions: "300 × 600" },
-  ];
+  })) || [{ id: "300x600", name: "Half Page", dimensions: "300 × 600" }];
 
   const [messages, setMessages] = useState<
     { id: string; persona: PersonaType; content: string; timestamp: Date }[]
@@ -187,6 +185,7 @@ export default function MediaBuyerPage() {
           sizes,
           dynamicValues: exportSession.dynamicValues,
           layerModifications: exportSession.layerModifications,
+          localizations: exportSession.localizations,
         }),
       });
 
@@ -198,9 +197,10 @@ export default function MediaBuyerPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = sizes.length === 1 
-        ? `${sizes[0]}-export.zip`
-        : `campaign-export-${Date.now()}.zip`;
+      a.download =
+        sizes.length === 1
+          ? `${sizes[0]}-export.zip`
+          : `campaign-export-${Date.now()}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -208,12 +208,13 @@ export default function MediaBuyerPage() {
 
       // Mark as downloaded
       setDownloadedFiles((prev) => [...new Set([...prev, ...sizes])]);
-      
+
       toast({
         title: "Download complete! 📦",
-        description: sizes.length === 1 
-          ? `${sizes[0]} has been downloaded.`
-          : `${sizes.length} sizes have been downloaded.`,
+        description:
+          sizes.length === 1
+            ? `${sizes[0]} has been downloaded.`
+            : `${sizes.length} sizes have been downloaded.`,
       });
     } catch (error) {
       console.error("Download error:", error);
@@ -246,7 +247,7 @@ export default function MediaBuyerPage() {
     setDownloadedFiles((prev) =>
       prev.includes(sizeId)
         ? prev.filter((id) => id !== sizeId)
-        : [...prev, sizeId]
+        : [...prev, sizeId],
     );
   };
 
@@ -311,13 +312,17 @@ export default function MediaBuyerPage() {
                       Campaign Assets
                       {exportSession?.exportedAt && (
                         <span className="text-xs text-muted-foreground font-normal">
-                          (exported {new Date(exportSession.exportedAt).toLocaleTimeString()})
+                          (exported{" "}
+                          {new Date(
+                            exportSession.exportedAt,
+                          ).toLocaleTimeString()}
+                          )
                         </span>
                       )}
                     </CardTitle>
                     <div className="flex gap-2">
-                      <Button 
-                        onClick={handleDownloadAll} 
+                      <Button
+                        onClick={handleDownloadAll}
                         className="gap-2"
                         disabled={isDownloading}
                       >
@@ -340,8 +345,12 @@ export default function MediaBuyerPage() {
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium text-foreground">{size.name}</p>
-                              <p className="text-sm text-muted-foreground">{size.dimensions}</p>
+                              <p className="font-medium text-foreground">
+                                {size.name}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {size.dimensions}
+                              </p>
                             </div>
                             <div className="flex items-center gap-2">
                               {downloadedFiles.includes(size.id) && (

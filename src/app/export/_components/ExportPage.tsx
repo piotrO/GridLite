@@ -13,6 +13,7 @@ import {
 import { UnlockModal } from "@/components/UnlockModal";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DynamicValueData } from "@/lib/manifest-utils";
 import { toast } from "@/hooks/use-toast";
 import { useCredits } from "@/contexts/CreditContext";
 import { useCampaign } from "@/contexts/CampaignContext";
@@ -87,6 +88,7 @@ export default function ExportPage() {
     strategySession,
     selectedProductIds,
     campaignType,
+    localization,
   } = useCampaign();
   const { products } = useProducts();
   const { activeBrandKit } = useBrand();
@@ -245,8 +247,19 @@ export default function ExportPage() {
     try {
       // DPA Export - Call dedicated API endpoint
       if (isDPA && selectedFormats.includes("images")) {
+        // Determine number of languages for progress display
+        const exportLangCount =
+          localization.selectedLanguages.length > 1
+            ? localization.selectedLanguages.filter(
+                (l) =>
+                  l === "en" || localization.translations[l]?.status === "done",
+              ).length
+            : 1;
+
         setExportProgressText(
-          `Generating images for ${selectedProducts.length} products...`,
+          exportLangCount > 1
+            ? `Generating ${selectedProducts.length} product images × ${exportLangCount} languages...`
+            : `Generating images for ${selectedProducts.length} products...`,
         );
 
         // Get first available size
@@ -278,20 +291,46 @@ export default function ExportPage() {
           typography: activeBrandKit?.typography,
         };
 
-        // Simulate progress since API doesn't stream updates
-        // Estimate ~4 seconds per product (overhead + screenshot time)
+        // Simulate progress — account for language count
         const estimatedTimePerProduct = 4000;
         const totalEstimatedTime =
-          selectedProducts.length * estimatedTimePerProduct;
-        const updateInterval = 500; // Update every 500ms
+          selectedProducts.length * estimatedTimePerProduct * exportLangCount;
+        const updateInterval = 500;
         const steps = totalEstimatedTime / updateInterval;
-        const progressPerStep = 80 / steps; // Move from 10% to 90%
+        const progressPerStep = 80 / steps;
 
         let currentProgress = 10;
         const progressTimer = setInterval(() => {
           currentProgress = Math.min(currentProgress + progressPerStep, 95);
           setExportProgress(Math.floor(currentProgress));
         }, updateInterval);
+
+        // Build localizations data — include ALL selected languages (including English with original data)
+        // so the export API creates subfolders per language
+        const doneLangs = localization.selectedLanguages.filter(
+          (l) => l === "en" || localization.translations[l]?.status === "done",
+        );
+        const localizationsPayload:
+          | Record<string, { products: any[] }>
+          | undefined =
+          doneLangs.length > 1
+            ? Object.fromEntries(
+                doneLangs.map((code) => [
+                  code,
+                  {
+                    products:
+                      code === "en"
+                        ? productsForExport.map((p) => ({
+                            productId: p.id,
+                            title: p.title,
+                            vendor: p.vendor || "",
+                            ctaText: "SHOP NOW",
+                          }))
+                        : localization.translations[code]?.productCopies || [],
+                  },
+                ]),
+              )
+            : undefined;
 
         // Call DPA export API
         const response = await fetch("/api/export-dpa", {
@@ -302,6 +341,7 @@ export default function ExportPage() {
             size: exportSize,
             products: productsForExport,
             brandData,
+            localizations: localizationsPayload,
           }),
         });
 
@@ -326,7 +366,10 @@ export default function ExportPage() {
         setExportProgressText("");
         toast({
           title: "Export complete! 🎉",
-          description: `Generated images for ${selectedProducts.length} products. Click Download to save.`,
+          description:
+            exportLangCount > 1
+              ? `Generated images for ${selectedProducts.length} products in ${exportLangCount} languages. Click Download to save.`
+              : `Generated images for ${selectedProducts.length} products. Click Download to save.`,
         });
         return;
       }
@@ -347,15 +390,50 @@ export default function ExportPage() {
           strategySession.strategy?.callToAction ||
           "Shop Now",
         imageUrl: searchParams.get("imageUrl") || designSession.imageUrl || "",
-        logoUrl: designSession.logoUrl || "",
-        colors: designSession.creative?.colorScheme
-          ? [
-              designSession.creative.colorScheme.primary,
-              designSession.creative.colorScheme.secondary,
-              designSession.creative.colorScheme.accent,
-            ]
-          : undefined,
+        logoUrl: activeBrandKit?.logo || designSession.logoUrl || "",
+        colors: [
+          activeBrandKit?.palette?.primary || "#4F46E5",
+          activeBrandKit?.palette?.secondary || "#F97316",
+          activeBrandKit?.palette?.accent || "#10B981",
+        ],
+        typography: activeBrandKit?.typography || null,
       };
+
+      console.log("[ExportPage] Preparing export with values:", {
+        headline: dynamicValues.headline,
+        imageUrl: dynamicValues.imageUrl,
+        logoUrl: dynamicValues.logoUrl,
+        colors: dynamicValues.colors,
+        hasTypography: !!dynamicValues.typography,
+        activeBrandKitId: activeBrandKit?.id,
+        designSessionImageUrl: designSession.imageUrl,
+        searchParamsImageUrl: searchParams.get("imageUrl"),
+      });
+
+      // Create localizations map for standard export
+      let localizations: Record<string, DynamicValueData> | undefined;
+      const doneLangs = localization.selectedLanguages.filter(
+        (l) => l === "en" || localization.translations[l]?.status === "done",
+      );
+
+      if (doneLangs.length > 1) {
+        localizations = {};
+        doneLangs.forEach((code) => {
+          if (code === "en") {
+            localizations![code] = dynamicValues;
+          } else {
+            const translation = localization.translations[code]?.copy;
+            if (translation) {
+              localizations![code] = {
+                ...dynamicValues,
+                headline: translation.headline,
+                bodyCopy: translation.bodyCopy,
+                ctaText: translation.ctaText,
+              };
+            }
+          }
+        });
+      }
 
       // Parse layer modifications from URL if present
       let layerModifications;
@@ -378,6 +456,7 @@ export default function ExportPage() {
           .map((s) => s.id),
         dynamicValues,
         layerModifications: layerModifications || [],
+        localizations,
         exportedAt: new Date(),
       });
 

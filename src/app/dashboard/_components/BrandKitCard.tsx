@@ -98,7 +98,9 @@ export function BrandKitCard({
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl overflow-hidden">
-              {logo.startsWith("http") || logo.startsWith("/") ? (
+              {logo.startsWith("http") ||
+              logo.startsWith("/") ||
+              logo.startsWith("data:image") ? (
                 <img
                   src={logo}
                   alt={`${name} logo`}

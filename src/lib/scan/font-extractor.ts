@@ -1,20 +1,13 @@
 import { Page } from "playwright";
+import { FontDetail, Typography } from "@/lib/shared/types";
 
-/**
- * Result of the font extraction process
- */
-export interface FontResult {
-  primaryFontFamily: string;
-  fontFileBase64: string | null;
-  fontFormat: "woff2" | "woff" | "ttf" | "otf" | null;
-  isSystemFont: boolean;
-}
+// Removed local FontResult interface, using shared Typography
 
 /**
  * Extracts the primary brand font from a page.
  * Intercepts font files during a reload and matches the computed font-family style.
  */
-export async function extractBrandFonts(page: Page): Promise<FontResult> {
+export async function extractBrandFonts(page: Page): Promise<Typography> {
   const fontFiles = new Map<
     string,
     { buffer: Buffer; contentType: string; initiator: string }
@@ -83,13 +76,7 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
 
     // 3. Analyze DOM for computed styles
     const computedStyles = (await page.evaluate(`(() => {
-      const h1 = document.querySelector("h1");
-      const body = document.body;
-
-      // Get computed style
-      const h1Style = h1 ? window.getComputedStyle(h1).fontFamily : "";
-      const bodyStyle = window.getComputedStyle(body).fontFamily;
-
+      // Helper to clean font family string
       const clean = (str) => {
         if (!str) return "";
         // Split by comma to get stack, take first one
@@ -97,90 +84,186 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
         return str.split(",")[0].trim().replace(/['"]/g, "");
       };
 
-      return {
-        h1Font: clean(h1Style),
-        bodyFont: clean(bodyStyle),
-        fullH1Stack: h1Style,
+      /**
+       * Analyze fonts for a set of tags and weights
+       */
+      const getDominantFont = (tags, weights) => {
+        const fontScores = {};
+
+        tags.forEach(tag => {
+          // Limit to first 100 elements for common tags to avoid performance issues
+          const elements = Array.from(document.querySelectorAll(tag)).slice(0, 100);
+          
+          elements.forEach(el => {
+            // Basic heuristics to ignore invisible or empty elements
+            if (el.innerText.trim().length === 0) return;
+            
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+
+            const fontFamily = clean(style.fontFamily);
+            if (!fontFamily) return;
+
+            // Initialize score for this font if not exists
+            if (!fontScores[fontFamily]) fontScores[fontFamily] = 0;
+
+            // Add weighted score
+            const weight = weights[tag] || 1;
+            fontScores[fontFamily] += weight;
+          });
+        });
+
+        // Find winner
+        let bestFont = "";
+        let maxScore = -1;
+
+        for (const [font, score] of Object.entries(fontScores)) {
+          if (score > maxScore) {
+            maxScore = score;
+            bestFont = font;
+          }
+        }
+
+        return bestFont;
       };
-    })()`)) as { h1Font: string; bodyFont: string; fullH1Stack: string };
 
-    const primaryFont = computedStyles.h1Font || computedStyles.bodyFont;
-
-    if (!primaryFont) {
-      return {
-        primaryFontFamily: "system-ui",
-        fontFileBase64: null,
-        fontFormat: null,
-        isSystemFont: true,
+      // Configuration for Headers
+      const HEADER_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+      const HEADER_WEIGHTS = {
+        h1: 4,
+        h2: 3,
+        h3: 2,
+        h4: 1,
+        h5: 1,
+        h6: 1
       };
-    }
 
-    // 4. Match Logic
-    let match: { url: string; buffer: Buffer; contentType: string } | undefined;
+      // Configuration for Body
+      // Prioritize P tags heavily as they are the standard for body copy
+      const BODY_TAGS = ['p', 'span', 'li', 'article', 'div'];
+      const BODY_WEIGHTS = {
+        p: 4,
+        article: 3,
+        li: 2,
+        span: 1,
+        div: 0.5 // Divs are noisy, give them low weight
+      };
 
-    // Strategy A: Direct Name Match
-    for (const [url, data] of fontFiles.entries()) {
-      if (
-        url
-          .toLowerCase()
-          .includes(primaryFont.toLowerCase().replace(/\s+/g, "-")) ||
-        url
-          .toLowerCase()
-          .includes(primaryFont.toLowerCase().replace(/\s+/g, ""))
-      ) {
-        match = { url, ...data };
-        break;
+      const headerFamily = getDominantFont(HEADER_TAGS, HEADER_WEIGHTS);
+      const bodyFamily = getDominantFont(BODY_TAGS, BODY_WEIGHTS);
+
+      // Fallback: If no body font found (e.g. all divs), try document.body
+      const finalBodyFamily = bodyFamily || clean(window.getComputedStyle(document.body).fontFamily);
+      const finalHeaderFamily = headerFamily || finalBodyFamily; // Fallback to body font if no headers
+
+      return {
+        headerFamily: finalHeaderFamily,
+        bodyFamily: finalBodyFamily,
+        fullH1Stack: finalHeaderFamily,
+      };
+    })()`)) as {
+      headerFamily: string;
+      bodyFamily: string;
+      fullH1Stack: string;
+    };
+
+    const { headerFamily, bodyFamily } = computedStyles;
+
+    // Helper to resolve a font family to a captured file
+    const resolveFont = (
+      fontName: string,
+    ): {
+      url: string;
+      buffer: Buffer;
+      contentType: string;
+      isSystem: boolean;
+    } | null => {
+      if (!fontName) return null;
+
+      // Common system fonts to skip immediately
+      const systemFonts = [
+        "arial",
+        "helvetica",
+        "times new roman",
+        "times",
+        "courier new",
+        "courier",
+        "verdana",
+        "georgia",
+        "palatino",
+        "garamond",
+        "bookman",
+        "comic sans ms",
+        "trebuchet ms",
+        "arial black",
+        "impact",
+        "system-ui",
+        "sans-serif",
+        "serif",
+        "monospace",
+      ];
+      if (systemFonts.includes(fontName.toLowerCase())) {
+        return {
+          url: "",
+          buffer: Buffer.from([]),
+          contentType: "",
+          isSystem: true,
+        };
       }
-    }
 
-    // Strategy B: Fallback (check CSS initiators)
-    if (!match && fontFiles.size > 0) {
-      console.log(
-        `[Font Extraction] No direct name match for '${primaryFont}'. Checking CSS initiators...`,
-      );
+      let match:
+        | { url: string; buffer: Buffer; contentType: string }
+        | undefined;
 
-      for (const [fontUrl, fontData] of fontFiles.entries()) {
-        const initiatorUrl = fontData.initiator;
-        if (!initiatorUrl) continue;
-
-        const cssContent = cssFiles.get(initiatorUrl);
-        if (!cssContent) continue;
-
-        // Check if this CSS file mentions the primary font
-        // Simple check: does the font name appear in the CSS?
-        // More robust: check if it appears in a font-family declaration?
-        // For now, let's trust that if the CSS *that loaded this font* mentions the target font name, likely it's the one.
-        const fontNameRegex = new RegExp(
-          `font-family:[^;]*${primaryFont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-          "i",
-        );
-
+      // Strategy A: Direct Name Match
+      for (const [url, data] of fontFiles.entries()) {
         if (
-          cssContent.includes(primaryFont) || // Broad check
-          fontNameRegex.test(cssContent) // Specific CSS property check
+          url
+            .toLowerCase()
+            .includes(fontName.toLowerCase().replace(/\s+/g, "-")) ||
+          url.toLowerCase().includes(fontName.toLowerCase().replace(/\s+/g, ""))
         ) {
-          console.log(
-            `[Font Extraction] Found match via CSS initiator (${initiatorUrl}) for font: ${fontUrl}`,
-          );
-          match = { url: fontUrl, ...fontData };
+          match = { url, ...data };
           break;
         }
       }
-    }
 
-    // Strategy C: Last Resort Fallback (largest captured font)
-    if (!match && fontFiles.size > 0) {
-      const candidates = Array.from(fontFiles.entries())
-        .filter(([_, data]) => data.buffer.length > 4000) // > 4KB
-        .sort((a, b) => b[1].buffer.length - a[1].buffer.length); // Largest first
+      // Strategy B: Fallback (check CSS initiators)
+      if (!match && fontFiles.size > 0) {
+        for (const [fontUrl, fontData] of fontFiles.entries()) {
+          const initiatorUrl = fontData.initiator;
+          if (!initiatorUrl) continue;
 
-      if (candidates.length > 0) {
-        console.log(
-          `[Font Extraction] No match found. Falling back to largest captured font: ${candidates[0][0]}`,
-        );
-        match = { url: candidates[0][0], ...candidates[0][1] };
+          const cssContent = cssFiles.get(initiatorUrl);
+          if (!cssContent) continue;
+
+          const fontNameRegex = new RegExp(
+            `font-family:[^;]*${fontName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+            "i",
+          );
+
+          if (
+            cssContent.includes(fontName) || // Broad check
+            fontNameRegex.test(cssContent) // Specific CSS property check
+          ) {
+            match = { url: fontUrl, ...fontData };
+            break;
+          }
+        }
       }
-    }
+
+      if (match) {
+        return { ...match, isSystem: false };
+      }
+
+      // If no match found but it's not a known system font, we assume it's system or uncapturable
+      return {
+        url: "",
+        buffer: Buffer.from([]),
+        contentType: "",
+        isSystem: true,
+      };
+    };
 
     const getFormat = (url: string, contentType: string) => {
       const lowerUrl = url.toLowerCase();
@@ -195,7 +278,6 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
       if (lowerUrl.includes(".otf") || lowerCT.includes("otf"))
         return "otf" as const;
 
-      // Secondary check with regex if needed
       if (/\.woff2($|\?)/.test(lowerUrl)) return "woff2" as const;
       if (/\.woff($|\?)/.test(lowerUrl)) return "woff" as const;
       if (/\.ttf($|\?)/.test(lowerUrl)) return "ttf" as const;
@@ -204,13 +286,32 @@ export async function extractBrandFonts(page: Page): Promise<FontResult> {
       return null;
     };
 
-    const format = match ? getFormat(match.url, match.contentType) : null;
+    const buildFontDetail = (
+      familyName: string,
+      resolved: ReturnType<typeof resolveFont>,
+    ): FontDetail => {
+      if (!resolved || resolved.isSystem) {
+        return {
+          fontFamily: familyName || "system-ui",
+          fontFileBase64: null,
+          fontFormat: null,
+          isSystemFont: true,
+        };
+      }
+      return {
+        fontFamily: familyName,
+        fontFileBase64: resolved.buffer.toString("base64"),
+        fontFormat: getFormat(resolved.url, resolved.contentType),
+        isSystemFont: false,
+      };
+    };
+
+    const headerResolved = resolveFont(headerFamily);
+    const bodyResolved = resolveFont(bodyFamily);
 
     return {
-      primaryFontFamily: primaryFont,
-      fontFileBase64: match ? match.buffer.toString("base64") : null,
-      fontFormat: format,
-      isSystemFont: !match || !format,
+      headerFont: buildFontDetail(headerFamily, headerResolved),
+      bodyFont: buildFontDetail(bodyFamily, bodyResolved),
     };
   } finally {
     // Cleanup listener

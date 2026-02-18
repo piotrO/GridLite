@@ -6,6 +6,8 @@ import {
   serializeManifest,
   fixRelativePaths,
   applyDynamicValues,
+  generateColorCss,
+  injectFonts,
   DynamicValueData,
 } from "@/lib/manifest-utils";
 
@@ -113,10 +115,6 @@ export function useAdPreviewBlob({
       // Apply dynamic values
       const modifiedManifest = applyDynamicValues(baseManifest, data);
 
-      // Extract colors for injection (stored by applyDynamicValues)
-      const colors = (modifiedManifest as { __colors?: string[] }).__colors;
-      delete (modifiedManifest as { __colors?: string[] }).__colors;
-
       // Serialize the modified manifest
       const inlineManifest = serializeManifest(modifiedManifest);
 
@@ -126,29 +124,15 @@ export function useAdPreviewBlob({
         `<script>${inlineManifest}</script>`,
       );
 
-      // Inject color override and extra data into dynamicData initialization
-      if (
-        (colors && colors.length > 0) ||
-        (modifiedManifest as { __extraData?: Record<string, string> })
-          .__extraData
-      ) {
+      // Inject extra DPA data into dynamicData initialization
+      const extraData = (
+        modifiedManifest as { __extraData?: Record<string, string> }
+      ).__extraData;
+      if (extraData) {
         let injectionScript = "";
-
-        if (colors && colors.length > 0) {
-          const colorString = colors.slice(0, 3).join("|");
-          injectionScript += `dynamicData["colors"] = "${colorString}";\n`;
-        }
-
-        const extraData = (
-          modifiedManifest as { __extraData?: Record<string, string> }
-        ).__extraData;
-        if (extraData) {
-          Object.entries(extraData).forEach(([key, value]) => {
-            injectionScript += `dynamicData["${key}"] = "${value}";\n`;
-          });
-        }
-
-        // Find the dynamicData initialization and inject data
+        Object.entries(extraData).forEach(([key, value]) => {
+          injectionScript += `dynamicData["${key}"] = "${value}";\n`;
+        });
         html = html.replace(
           /grid8player\.dynamicData\s*=\s*dynamicData;/,
           `${injectionScript}      grid8player.dynamicData = dynamicData;`,
@@ -164,38 +148,12 @@ export function useAdPreviewBlob({
       html = html.replace(/<head([^>]*)>/i, `<head$1>\n    ${baseTag}`);
 
       // Inject custom font if available
-      if (data.typography?.fontFileBase64 && data.typography.fontFormat) {
-        const { fontFileBase64, fontFormat, primaryFontFamily } =
-          data.typography;
-        const customFontName = `CustomBrandFont`;
+      html = injectFonts(html, data.typography);
 
-        // Map format to correct CSS strings
-        const formatMap: Record<string, string> = {
-          ttf: "truetype",
-          otf: "opentype",
-          woff: "woff",
-          woff2: "woff2",
-        };
-        const cssFormat = formatMap[fontFormat] || fontFormat;
-        const mimeType = `font/${fontFormat === "ttf" ? "ttf" : fontFormat === "otf" ? "otf" : fontFormat}`;
-
-        const fontCss = `
-                    <style>
-                        @font-face {
-                            font-family: '${customFontName}';
-                            src: url(data:${mimeType};base64,${fontFileBase64}) format('${cssFormat}');
-                            font-weight: normal;
-                            font-style: normal;
-                            font-display: swap;
-                        }
-                        
-                        .maincopy, .subcopy, .ctaCopy {
-                            font-family: '${customFontName}', ${primaryFontFamily}, sans-serif !important;
-                        }
-                    </style>
-                `;
-
-        html = html.replace("</head>", `${fontCss}\n</head>`);
+      // Inject color utility CSS (Tailwind-like .color-primary-500 etc.)
+      if (data.colors && data.colors.length > 0) {
+        const colorCss = generateColorCss(data.colors);
+        html = html.replace("</head>", `${colorCss}\n</head>`);
       }
 
       // Debug: Log a snippet to verify paths were fixed

@@ -3,6 +3,11 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { ExportSession, LayerModification } from "@/types/export-types";
 import { DynamicValueData } from "@/lib/manifest-utils";
+import {
+  LocalizationState,
+  LanguageTranslation,
+  emptyLocalizationState,
+} from "@/types/localization";
 
 export interface Campaign {
   id: string;
@@ -92,6 +97,14 @@ interface CampaignContextType {
   setExportSession: (session: ExportSession) => void;
   updateExportSession: (updates: Partial<ExportSession>) => void;
   clearExportSession: () => void;
+
+  // Localization
+  localization: LocalizationState;
+  setSelectedLanguages: (codes: string[]) => void;
+  setTranslation: (langCode: string, translation: LanguageTranslation) => void;
+  setPreviewLanguage: (code: string | null) => void;
+  setLocalizationTranslating: (translating: boolean) => void;
+  clearLocalization: () => void;
 }
 
 const initialCampaigns: Campaign[] = [
@@ -147,6 +160,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [exportSession, setExportSessionState] = useState<ExportSession | null>(
     null,
   );
+  const [localization, setLocalization] = useState<LocalizationState>(
+    emptyLocalizationState,
+  );
 
   const setCampaignStatus = (id: string, status: Campaign["status"]) => {
     setCampaigns((prev) =>
@@ -200,6 +216,32 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setExportSessionState(null);
   };
 
+  const setSelectedLanguages = (codes: string[]) => {
+    setLocalization((prev) => ({ ...prev, selectedLanguages: codes }));
+  };
+
+  const setTranslation = (
+    langCode: string,
+    translation: LanguageTranslation,
+  ) => {
+    setLocalization((prev) => ({
+      ...prev,
+      translations: { ...prev.translations, [langCode]: translation },
+    }));
+  };
+
+  const setPreviewLanguage = (code: string | null) => {
+    setLocalization((prev) => ({ ...prev, previewLanguage: code }));
+  };
+
+  const setLocalizationTranslating = (translating: boolean) => {
+    setLocalization((prev) => ({ ...prev, isTranslating: translating }));
+  };
+
+  const clearLocalization = () => {
+    setLocalization(emptyLocalizationState);
+  };
+
   return (
     <CampaignContext.Provider
       value={{
@@ -223,6 +265,12 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setExportSession,
         updateExportSession,
         clearExportSession,
+        localization,
+        setSelectedLanguages,
+        setTranslation,
+        setPreviewLanguage,
+        setLocalizationTranslating,
+        clearLocalization,
       }}
     >
       {children}

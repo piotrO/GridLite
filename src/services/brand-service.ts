@@ -66,7 +66,6 @@ export function convertGrid8BrandToBrandKit(
   try {
     if (grid8Brand.notes?.book) {
       profile = JSON.parse(grid8Brand.notes.book);
-      console.log(profile);
     }
   } catch {
     // notes.book is not valid JSON, ignore
@@ -194,15 +193,41 @@ export async function createBrandOnGrid8(
         personality: brandData.personality,
         brandSummary: brandData.brandSummary,
         targetAudiences: brandData.audiences,
+        voiceLabel: brandData.voiceLabel,
+        voiceInstructions: brandData.voiceInstructions,
+        dos: brandData.dos,
+        donts: brandData.donts,
+        personality_dimensions: brandData.personalityDimensions,
+        linguistic_mechanics: brandData.linguisticMechanics,
+        archetype: brandData.archetype,
         analyzedAt: new Date().toISOString(),
       }
     : undefined;
 
+  // Sanitize brandProfile to remove large base64 strings from typography
+  const sanitizedProfile = brandProfile
+    ? {
+        ...brandProfile,
+        typography: brandProfile.typography
+          ? {
+              headerFont: {
+                ...brandProfile.typography.headerFont,
+                fontFileBase64: null,
+              },
+              bodyFont: {
+                ...brandProfile.typography.bodyFont,
+                fontFileBase64: null,
+              },
+            }
+          : null,
+      }
+    : undefined;
+
   // Store brandProfile as JSON in notes.book
-  const notes = brandProfile
+  const notes = sanitizedProfile
     ? {
         innovation: "",
-        book: JSON.stringify(brandProfile),
+        book: JSON.stringify(sanitizedProfile),
       }
     : undefined;
 
@@ -221,7 +246,11 @@ export async function createBrandOnGrid8(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to create brand on Grid8");
+    const errorText = await response.text();
+    console.error("Grid8 Create Error:", errorText);
+    throw new Error(
+      `Failed to create brand on Grid8: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response.json();
@@ -236,6 +265,17 @@ export async function updateBrandOnGrid8(
   grid8Id: string,
   updates: { name?: string; notes?: { innovation?: string; book?: string } },
 ): Promise<void> {
+  // If we are updating notes.book, we need to deserialize, strip base64, and reserialize
+  // But wait, the caller passes `updates`. We should probably handle it there or here.
+  // The caller (BrandContext) calls JSON.stringify.
+
+  // It's better to intercept the call in BrandContext, but fixing it here is more robust if we assume `updates` contains the large string.
+  // However, `updates.notes.book` is already a string. Parsing it again is wasteful.
+  // Let's modify BrandContext instead for the UPDATE, but for CREATE we modified here.
+
+  // Actually, consistency is better. Let's revert the change to `updateBrandOnGrid8` signature and just handle the POST request here.
+  // For UPDATE, I'll modify BrandContext.tsx.
+
   const response = await fetch(`/api/brands/${grid8Id}`, {
     method: "PATCH",
     headers: {
@@ -246,7 +286,11 @@ export async function updateBrandOnGrid8(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to update brand on Grid8");
+    const errorText = await response.text();
+    console.error("Grid8 Update Error:", errorText);
+    throw new Error(
+      `Failed to update brand on Grid8: ${response.status} ${response.statusText}`,
+    );
   }
 }
 
@@ -269,6 +313,12 @@ export async function deleteBrandOnGrid8(
   }
 }
 
+/**
+ * Upload a brand avatar/logo to Grid8
+ * @param token - Auth token
+ * @param grid8Id - The Grid8 brand ID
+ * @param logoUrl - URL of the logo to upload (will be fetched and re-uploaded)
+ */
 /**
  * Upload a brand avatar/logo to Grid8
  * @param token - Auth token
@@ -302,4 +352,127 @@ export async function uploadBrandAvatar(
     console.error("Failed to upload brand avatar:", error);
     // Don't throw - avatar upload is optional, brand was already created
   }
+}
+
+/**
+ * Upload a generic asset (like a font) to Grid8 for a brand
+ * @param token - Auth token
+ * @param brandId - The Grid8 brand ID
+ * @param file - The file to upload
+ * @param assetType - The type of asset (e.g., "font") - mostly for logging/metadata if needed
+ */
+export async function uploadBrandAsset(
+  token: string,
+  brandId: string,
+  file: File | Blob,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("brandId", brandId); // Required by /api/asset/upload
+
+  console.log("[brand-service] Uploading asset...", {
+    brandId,
+    fileSize: file.size,
+  });
+  try {
+    const response = await fetch(`/api/asset/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    console.log("[brand-service] Fetch response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[brand-service] Fetch failed text:", errorText);
+      throw new Error(
+        `Failed to upload asset: ${response.status} ${errorText}`,
+      );
+    }
+
+    const data = await response.json();
+    console.log(
+      "[brand-service] Upload success data (FULL):",
+      JSON.stringify(data, null, 2),
+    );
+
+    // Grid8 asset upload response is an array of asset objects
+    const item = Array.isArray(data) ? data[0] : data;
+
+    // Construct URL from the versions array if available, otherwise fallback to url property
+    let url = item?.url;
+
+    if (!url && item?.versions?.[0]?.name) {
+      // CDN URL pattern: https://grid8.fra1.cdn.digitaloceanspaces.com/{filename}
+      url = `https://grid8.fra1.cdn.digitaloceanspaces.com/${item.versions[0].name}`;
+    }
+
+    console.log("[brand-service] Extracted/Constructed URL:", url);
+
+    return url || "";
+  } catch (e) {
+    console.error("[brand-service] Fetch error:", e);
+    throw e;
+  }
+}
+
+/**
+ * Fetch a CSS file from URL and parse out base64 font data
+ * This allows "hydrating" a brand kit with the heavy base64 data only when needed
+ */
+export async function fetchAndParseFontCss(
+  cssUrl: string,
+): Promise<Record<string, string>> {
+  try {
+    // Use local proxy to avoid CORS issues with CDN
+    const proxyUrl = `/api/proxy-asset?url=${encodeURIComponent(cssUrl)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) return {};
+    const cssContent = await response.text();
+
+    const fontData: Record<string, string> = {};
+
+    // Regex to match @font-face blocks and extract font-family + src data uri
+    // Simple regex for standard generated CSS structure
+    // Matches: font-family: 'Name'; ... src: url('data:font/woff2;base64,DATA')
+    const fontFaceRegex =
+      /@font-face\s*{[^}]*?font-family:\s*['"]([^'"]+)['"][^}]*?src:\s*url\(['"]data:[^;]+;base64,([^'"]+)['"]\)/g;
+
+    let match;
+    while ((match = fontFaceRegex.exec(cssContent)) !== null) {
+      const fontFamily = match[1];
+      const base64Data = match[2];
+      if (fontFamily && base64Data) {
+        fontData[fontFamily] = base64Data;
+      }
+    }
+
+    return fontData;
+  } catch (error) {
+    console.error("Failed to fetch/parse font CSS:", error);
+    return {};
+  }
+}
+
+/**
+ * Helper to convert Base64 string to Blob
+ */
+export function base64ToBlob(base64: string, contentType: string = ""): Blob {
+  const byteCharacters = atob(base64.split(",")[1] || base64);
+  const byteArrays = [];
+
+  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+    const slice = byteCharacters.slice(offset, offset + 512);
+    const byteNumbers = new Array(slice.length);
+    for (let i = 0; i < slice.length; i++) {
+      byteNumbers[i] = slice.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    byteArrays.push(byteArray);
+  }
+
+  return new Blob(byteArrays, { type: contentType });
 }

@@ -19,6 +19,7 @@ export interface ExportRequest {
   sizes: string[];
   dynamicValues: DynamicValueData;
   layerModifications?: LayerModification[];
+  localizations?: Record<string, DynamicValueData>;
 }
 
 /**
@@ -29,6 +30,7 @@ export interface ExportSession {
   selectedSizes: string[];
   dynamicValues: DynamicValueData;
   layerModifications: LayerModification[];
+  localizations?: Record<string, DynamicValueData>;
   exportedAt?: Date;
 }
 

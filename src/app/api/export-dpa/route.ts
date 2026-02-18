@@ -9,6 +9,7 @@ import {
   applyDynamicValues,
   fixRelativePaths,
   DynamicValueData,
+  injectFonts,
 } from "@/lib/manifest-utils";
 import { Typography } from "@/lib/shared/types";
 
@@ -33,6 +34,17 @@ interface DpaExportRequest {
     bgColor?: string;
     typography?: Typography;
   };
+  localizations?: Record<
+    string,
+    {
+      products: {
+        productId: string;
+        title: string;
+        vendor: string;
+        ctaText: string;
+      }[];
+    }
+  >;
 }
 
 /**
@@ -71,8 +83,8 @@ async function generateProductHtml(
   const dynamicData: DynamicValueData = {
     headline: product.title,
     bodyCopy: product.vendor || "",
-    ctaText: "SHOP NOW",
-    cta: "SHOP NOW",
+    ctaText: (product as any).ctaText || "SHOP NOW",
+    cta: (product as any).ctaText || "SHOP NOW",
     price: `${product.currency} ${product.price.toFixed(2)}`,
     label: "New Arrival",
     imageUrl: product.imageUrl || "",
@@ -126,6 +138,9 @@ async function generateProductHtml(
     /<head([^>]*)>/i,
     `<head$1>\n    <base href="${basePath}/">`,
   );
+
+  // Inject custom font if available
+  html = injectFonts(html, brandData.typography);
 
   return html;
 }
@@ -202,7 +217,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: DpaExportRequest = await request.json();
-    const { templatePath, size, products, brandData } = body;
+    const { templatePath, size, products, brandData, localizations } = body;
 
     if (!templatePath || !size || !products?.length) {
       return NextResponse.json(
@@ -223,8 +238,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine language folders to generate
+    const langCodes = localizations ? Object.keys(localizations) : [];
+    const useSubfolders = langCodes.length > 1;
+
     console.log(
-      `[DPA Export] Starting export for ${products.length} products at ${size}`,
+      `[DPA Export] Starting export for ${products.length} products at ${size}` +
+        (langCodes.length > 0 ? ` in ${langCodes.length} languages` : ""),
     );
 
     // Get base URL for asset loading
@@ -250,38 +270,74 @@ export async function POST(request: NextRequest) {
 
     archive.on("data", (chunk) => chunks.push(chunk));
 
-    // Process each product
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
-      console.log(
-        `[DPA Export] Processing ${i + 1}/${products.length}: ${product.title}`,
-      );
-
-      try {
-        // Generate HTML with product data and base tag
-        const html = await generateProductHtml(
-          templatePath,
-          size,
-          product,
-          brandData,
-          baseUrl,
+    // Helper to generate images for a set of products
+    const generateForProducts = async (
+      productsToExport: DpaExportProduct[],
+      folder: string,
+    ) => {
+      for (let i = 0; i < productsToExport.length; i++) {
+        const product = productsToExport[i];
+        console.log(
+          `[DPA Export] Processing ${folder ? folder + "/" : ""}${i + 1}/${productsToExport.length}: ${product.title}`,
         );
 
-        // Take screenshot using setContent with base tag
-        const screenshot = await screenshotHtml(browser, html, width, height);
+        try {
+          const html = await generateProductHtml(
+            templatePath,
+            size,
+            product,
+            brandData,
+            baseUrl,
+          );
 
-        // Add to ZIP
-        const filename = `${sanitizeFilename(product.title)}_${size}.png`;
-        archive.append(screenshot, { name: filename });
+          const screenshot = await screenshotHtml(
+            browser!,
+            html,
+            width,
+            height,
+          );
 
-        console.log(`[DPA Export] Added: ${filename}`);
-      } catch (error) {
-        console.error(
-          `[DPA Export] Failed to process product ${product.id}:`,
-          error,
-        );
-        // Continue with other products
+          const filename = `${sanitizeFilename(product.title)}_${size}.png`;
+          const entryName = folder ? `${folder}/${filename}` : filename;
+          archive.append(screenshot, { name: entryName });
+
+          console.log(`[DPA Export] Added: ${entryName}`);
+        } catch (error) {
+          console.error(
+            `[DPA Export] Failed to process product ${product.id}:`,
+            error,
+          );
+        }
       }
+    };
+
+    if (langCodes.length > 0) {
+      // Multi-language export
+      for (const langCode of langCodes) {
+        const langData = localizations![langCode];
+        const folder = useSubfolders ? langCode : "";
+
+        // Create localized product list by merging translations with original products
+        const localizedProducts: DpaExportProduct[] = products.map((p) => {
+          const translation = langData.products.find(
+            (lp) => lp.productId === p.id,
+          );
+          if (translation) {
+            return {
+              ...p,
+              title: translation.title,
+              vendor: translation.vendor || p.vendor,
+              ctaText: translation.ctaText,
+            } as any;
+          }
+          return p;
+        });
+
+        await generateForProducts(localizedProducts, folder);
+      }
+    } else {
+      // Default: no localization
+      await generateForProducts(products, "");
     }
 
     // Finalize archive (must be after all appends)

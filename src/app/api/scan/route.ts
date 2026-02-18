@@ -137,6 +137,14 @@ export async function POST(request: NextRequest) {
           // Get the final result
           const workflowResult = await streamResult.result;
 
+          console.log("DEBUG: Workflow status:", workflowResult.status);
+          if (workflowResult.status === "success") {
+            console.log(
+              "DEBUG: Workflow result keys:",
+              Object.keys(workflowResult.result || {}),
+            );
+          }
+
           if (workflowResult.status === "success" && workflowResult.result) {
             const finalResult = workflowResult.result as ScanResult;
             sendEvent({ type: "complete", data: finalResult });

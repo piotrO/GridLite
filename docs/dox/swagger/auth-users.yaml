@@ -1,0 +1,323 @@
+paths: 
+  /user:
+    get:
+      tags:
+        - user 
+      security:
+        - bearerAuth: []
+      operationId: getUsers
+      summary: List all users
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query 
+          required: false
+          schema:
+            type: int
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: int
+            default: 40
+        - name: sortField
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, lastName, phone, role, createdAt, updatedAt, email, specialization]
+            default: createdAt
+        - name: sortType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [admin, developer, projectManager, viewer, readonly]
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: enum
+            enum: [admin, guest]
+        - name: active
+          in: query
+          required: false
+          schema:
+            type: bool
+            enum: [true, false]
+      responses: 
+        200:
+          $ref: '#/components/responses/users'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - user
+      security:
+        - bearerAuth: []
+      operationId: createUser
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createUserForm'
+      responses:
+        200:
+          $ref: '#/components/responses/user'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /user/{id}:
+    get: 
+      tags:
+        - user
+      security:
+        - bearerAuth: []
+      operationId: getUser
+      summary: Get user data by id
+      parameters:
+        - name: id
+          in: path
+          description: id of user
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses:
+        200:
+          $ref: '#/components/responses/user'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put: 
+      tags:
+        - user
+      security:
+        - bearerAuth: []
+      operationId: updateUser
+      summary: Update user by id
+      parameters:
+        - name: id
+          in: path
+          description: id of user
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateUserForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/user'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - user
+      security:
+        - bearerAuth: []
+      operationId: deleteUser
+      summary: Delete user by id
+      parameters:
+        - name: id
+          in: path
+          description: id of user
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses: 
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  ##
+  responses:
+    #
+    users:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              total:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/user'
+    #
+    user:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/user'
+    #
+  schemas:
+    user:
+      type: object
+      additionalProperties: false
+      required:
+      - _id
+      - email
+      - name
+      - lastName
+      - role
+      - type
+      - phone
+      - active
+      - createdAt
+      - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: "^[0-9a-fA-F]{24}$"
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        lastName:
+          type: string
+          nullable: true
+        specialization:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: ['admin', 'developer', 'brandManager', 'projectManager', 'viewer', 'readonly']
+        type:
+          type: string
+          enum: ['admin', 'guest']
+        phone:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    createUserForm:
+      type: object
+      required:
+        - email
+        - password
+        - name
+        - lastName
+        - role
+        - type
+        - active
+      properties:
+        email:
+          type: string
+          example: 'test@somedomain.com'
+        password:
+          type: string
+          example: '123456'
+        name:
+          type: string
+          example: 'John'
+        lastName:
+          type: string
+          example: 'Doe'
+        role:
+          type: string
+          example: 'projectManager'
+          enum: ['admin', 'developer', 'brandManager', 'projectManager', 'viewer', 'readonly']
+        type:
+          type: string
+          enum: ['admin', 'guest']
+          example: 'admin'
+        phone:
+          type: string
+          example: '+31 371263683'
+        active:
+          type: boolean
+          example: true
+    #
+    updateUserForm:
+      type: object
+      oneOf:
+        - properties:
+            email:
+              type: string
+              example: 'test@somedomain.com'
+              format: email
+        - properties:
+            password:
+              type: string
+              example: '123456'
+        - properties:
+            name:
+              type: string
+              example: 'John'
+        - properties:
+            lastName:
+              type: string
+              example: 'Doe'
+        - properties:
+            role:
+              type: string
+              enum: ['admin', 'developer', 'brandManager', 'projectManager', 'viewer', 'readonly']
+        - properties:
+            phone:
+              type: string
+              example: '+31 371263683'
+        - properties:
+            active:
+              type: boolean
+              example: true

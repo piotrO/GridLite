@@ -1,0 +1,330 @@
+paths:
+  /access/{type}/{id}/users:
+    get:
+      tags:
+        - 'access'
+      security:
+        - bearerAuth: []
+      operationId: 'getInvolvedUsers'
+      summary: 'get users involved in team or brand'
+      parameters:
+        - name: 'type'
+          in: 'path'
+          description: 'type of related object [brand, team]'
+          required: true
+          schema:
+            type: 'string'
+            enum: [brand, team]
+        - name: 'id'
+          in: 'path'
+          description: 'id of relative object'
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/usersForMention'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /access/{type}/{id}:
+    get:
+      tags:
+        - 'access'
+      security:
+        - bearerAuth: []
+      operationId: 'getAccesses'
+      summary: 'get access list to [brand, team]'
+      parameters:
+        - name: 'type'
+          in: 'path'
+          description: 'type of related object [brand, team]'
+          required: true
+          schema:
+            type: 'string'
+            enum: [brand, team]
+        - name: 'id'
+          in: 'path'
+          description: 'id of relative object'
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/accesses'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - access
+      security:
+        - bearerAuth: []
+      operationId: grandAccess
+      summary: grand user access to [brand, team]
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [brand, team]
+          required: true
+          schema:
+            type: string
+            enum: [brand, team]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createAccessForm'
+      responses:
+        200:
+          $ref: '#/components/responses/access'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /access/{id}:
+    put:
+      tags:
+        - access
+      security:
+        - bearerAuth: []
+      operationId: updateAccess
+      summary: update user access
+      parameters:
+        - name: id
+          in: path
+          description: id of access item
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateAccessForm'
+      responses:
+        200:
+          $ref: '#/components/responses/access'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - access
+      security:
+        - bearerAuth: []
+      operationId: deleteUser
+      summary: Delete user by id
+      parameters:
+        - name: id
+          in: path
+          description: id of user
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    usersForMention:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - email
+        - name
+        - lastName
+        - mention
+        - active
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        lastName:
+          type: string
+          nullable: true
+        mention:
+          type: boolean
+        active:
+          type: boolean
+    #
+    createAccessForm:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+          example: 'test@somedomain.com'
+        role:
+          type: string
+          example: 'projectManager'
+          enum: [developer, projectManager, brandManager, viewer, readonly]
+    #
+    updateAccessForm:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          example: 'projectManager'
+          enum: [developer, projectManager, brandManager, viewer, readonly]
+    #
+    access:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - userId
+        - relativeId
+        - relativeType
+        - email
+        - role
+        - status
+        - user
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        userId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          nullable: true
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          enum: ['brand', 'team']
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+            [admin, developer, projectManager, brandManager, viewer, readonly]
+        status:
+          type: string
+          enum: ['PENDING', 'ACCEPTED']
+        user:
+          type: object
+          nullable: true
+          required:
+            - _id
+            - name
+            - lastName
+            - type
+            - active
+          properties:
+            _id:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+            name:
+              type: string
+            lastName:
+              type: string
+              nullable: true
+            type:
+              type: string
+              enum: [admin, guest]
+            active:
+              type: boolean
+        createdBy:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        acceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+  ##
+  responses:
+    #
+    accesses:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/access'
+    #
+    access:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/access'
+    #
+    usersForMention:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/usersForMention'

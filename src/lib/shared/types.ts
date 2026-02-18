@@ -172,11 +172,24 @@ export interface ChatResponse {
 /**
  * Typography extracted from the website
  */
-export interface Typography {
-  primaryFontFamily: string;
+/**
+ * Detail for a single font (family + file)
+ */
+export interface FontDetail {
+  fontFamily: string;
+  fontUrl?: string; // URL to the uploaded font file
   fontFileBase64: string | null;
   fontFormat: "woff2" | "woff" | "ttf" | "otf" | null;
   isSystemFont: boolean;
+}
+
+/**
+ * Typography extracted from the website
+ */
+export interface Typography {
+  headerFont: FontDetail;
+  bodyFont: FontDetail;
+  fontCssUrl?: string; // URL to a CSS file containing @font-face definitions
 }
 
 /**

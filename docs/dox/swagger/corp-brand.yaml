@@ -1,0 +1,298 @@
+paths: 
+  /brand:
+    get:
+      tags:
+        - brand 
+      security:
+        - bearerAuth: []
+      operationId: getBrands
+      summary: List all brands
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: dcmProfileId
+          in: query
+          schema:
+            type: string
+        - name: adAccount
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query 
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 40
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            default: createdAt
+            enum: [name, dcmProfileId, createdAt, updatedAt]
+        - name: sortType
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+      responses: 
+        200:
+          $ref: '#/components/responses/brands'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - brand
+      security:
+        - bearerAuth: []
+      operationId: createBrand
+      summary: Create a brand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createBrandForm'
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /brand/{id}:
+    get: 
+      tags:
+        - brand
+      security:
+        - bearerAuth: []
+      operationId: getBrand
+      summary: Get brand data by id
+      parameters:
+        - name: id
+          in: path
+          description: of brand
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put: 
+      tags:
+        - brand
+      security:
+        - bearerAuth: []
+      operationId: updateBrand
+      summary: Update brand by id
+      parameters:
+        - name: id
+          in: path
+          description: id of brand
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateBrandForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - brand
+      security:
+        - bearerAuth: []
+      operationId: deleteBrand
+      summary: Delete brand by id
+      parameters:
+        - name: id
+          in: path
+          description: id of brand
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses: 
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    createBrandForm:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: 'testCompany'
+        dcmProfileId:
+          type: number
+          example: 11111
+          nullable: true
+        adAccounts:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          example: [1111111111, 222222222]
+    #
+    updateBrandForm:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+          - name
+          properties:
+            name:
+              type: string
+              example: 'testCompany'
+        - type: object
+          additionalProperties: false
+          required:
+          - dcmProfileId
+          properties:
+            dcmProfileId:
+              type: integer
+              example: 111
+        - type: object
+          additionalProperties: false
+          required:
+          - adAccounts
+          properties:
+            adAccounts:
+              type: array
+              nullable: true
+              items:
+                type: integer
+              example: [1111111111, 222222222]
+        - type: object
+          additionalProperties: false
+          required:
+          - 'notes.book'
+          properties:
+            'notes.book':
+              type: string
+              nullable: true
+              example: notes for brand book
+        - type: object
+          additionalProperties: false
+          required:
+          - 'notes.innovation'
+          properties:
+            'notes.innovation':
+              type: string
+              nullable: true
+              example: notes for brand innovation
+    #
+    brand:
+      type: object
+      additionalProperties: false
+      required:
+      - _id
+      - name
+      - dcmProfileId
+      - adAccounts
+      - notes
+      - createdAt
+      - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: "^[0-9a-fA-F]{24}$"
+        name:
+          type: string
+        dcmProfileId:
+          type: number
+          nullable: true
+        adAccounts:
+          type: array
+          items:
+            type: integer
+          nullable: true
+        notes:
+          type: object
+          additionalProperties: false
+          properties:
+            innovation:
+              type: string
+            book:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+  ##
+  responses:
+    #
+    brands:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              total:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/brand'
+    #
+    brand:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/brand'

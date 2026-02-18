@@ -1,0 +1,320 @@
+paths:
+  /:
+    post:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: addSetup
+      summary: Create a setup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/setup'
+      responses:
+        200:
+          $ref: '#/components/responses/setup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: editSetup
+      summary: Update setup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/setup'
+      responses:
+        200:
+          $ref: '#/components/responses/setup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /list:
+    post:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: list
+      summary: List all setups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/list'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /listWithAdRefs:
+    post:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: listWithAdRefs
+      summary: List all setups with ad references
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/list'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /locked:
+    post:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: changeLockedState
+      summary: Change locked state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/idInObject'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}:
+    get:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: getSetup
+      summary: returns a setup object
+      parameters:
+        - name: id
+          in: path
+          description: of setup
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/setup'
+    delete:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: deleteSetup
+      summary: delete setup
+      parameters:
+        - name: id
+          in: path
+          description: of ad
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/deleteResult'
+  /{id}/manifest:
+    get:
+      tags:
+        - setups
+      security:
+        - bearerAuth: []
+      operationId: getSetupManifest
+      summary: get setup manifest, for creative developers
+      parameters:
+        - name: id
+          in: path
+          description: of ad
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/manifest'
+components:
+  schemas:
+    #
+    idInObject:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5a'
+    #
+    list:
+      type: object
+      additionalProperties: false
+      required:
+        - parents.brandId
+        - parents.projectId
+        - parents.teamId
+      properties:
+        parents.brandId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+        parents.projectId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+          nullable: true
+        parents.teamId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+          nullable: true
+    #
+    setup:
+      type: object
+      properties:
+        setupName:
+          type: string
+          example: 'Setup Name'
+        parents:
+          type: object
+          properties:
+          parents.brandId:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '61952abc6a908a79b4e97a5c'
+          parents.projectId:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '61952abc6a908a79b4e97a5c'
+            nullable: true
+          parents.teamId:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+            example: '61952abc6a908a79b4e97a5c'
+            nullable: true
+        maxShots:
+          type: number
+          example: 3
+        publishLink:
+          type: string
+          example: 'https://some.link.com/feed/123'
+        autoSchedule:
+          type: boolean
+          example: false
+        locked:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: 'Something to note about this setup'
+        sizes:
+          type: array
+          items:
+            type: object
+            properties:
+              width:
+                type: number
+                example: 600
+              height:
+                type: number
+                example: 300
+              enabled:
+                type: boolean
+                example: false
+              assetId:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+                example: '61952abc6a908a79b4e97a5c'
+        adColumns:
+          type: object
+          properties:
+            DynamicFieldName:
+              type: object
+              properties:
+                type: String
+        setup:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '63579d78626a087acbbdf883'
+    #
+    adArray:
+      type: array
+      items:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+        example: '61952abc6a908a79b4e97a5c'
+  ##
+  responses:
+    #
+    list:
+      description: successfull response
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              oneOf:
+                - $ref: '#/components/schemas/ad'
+    #
+    ad:
+      description: successfull response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ad'

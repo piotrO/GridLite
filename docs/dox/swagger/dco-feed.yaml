@@ -1,0 +1,33 @@
+paths:
+  /feed/{id}:
+    get:
+      tags:
+        - feed
+      operationId: getFeed
+      summary: Get feed data by id
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/csv'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  responses:
+    #
+    csv:
+      description: successfull response
+      content:
+        text/csv: {}

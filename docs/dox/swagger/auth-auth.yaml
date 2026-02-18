@@ -1,0 +1,245 @@
+paths:
+  /token:
+    get:
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      operationId: tokenCheck
+      summary: Check token and returns signed in user
+      responses:
+        200:
+          $ref: '#/components/responses/signedInUser'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+  /login:
+    post:
+      tags:
+        - auth
+      operationId: login
+      summary: Login request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/loginForm'
+      responses:
+        200:
+          $ref: '#/components/responses/userWithToken'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+  /registration:
+    post:
+      tags:
+        - auth
+      operationId: registration
+      summary: Registration request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/registrationForm'
+      responses:
+        200:
+          $ref: '#/components/responses/userWithToken'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+  /logout:
+    delete:
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      operationId: logout
+      summary: Logout a user
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+#
+#
+#
+components:
+  ##
+  responses:
+    #
+    signedInUser:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/signedInUser'
+    #
+    userWithToken:
+      description: successfull responce
+      headers:
+        access-token:
+          required: true
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/signedInUser'
+  ##
+  schemas:
+    #
+    signedInUser:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - email
+        - name
+        - lastName
+        - role
+        - type
+        - phone
+        - active
+        - access
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        lastName:
+          type: string
+          nullable: true
+        specialization:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum:
+            [
+              'admin',
+              'developer',
+              'brandManager',
+              'projectManager',
+              'viewer',
+              'readonly',
+            ]
+        type:
+          type: string
+          enum: ['admin', 'guest']
+        phone:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        access:
+          type: object
+          properties:
+            brand:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    enum:
+                      [
+                        'admin',
+                        'developer',
+                        'brandManager',
+                        'projectManager',
+                        'viewer',
+                        'readonly',
+                      ]
+            team:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    enum:
+                      [
+                        'admin',
+                        'developer',
+                        'brandManager',
+                        'projectManager',
+                        'viewer',
+                        'readonly',
+                      ]
+                  brandId:
+                    type: string
+                    pattern: '^[0-9a-fA-F]{24}$'
+    #
+    loginForm:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+        - token
+      properties:
+        email:
+          type: string
+          example: 'test@test.com'
+        password:
+          type: string
+          example: '123456'
+        token:
+          type: string
+          example: testTokenForSwaggerUI
+          description: use 'testTokenForSwaggerUI' to pass recaptcha validation (only for dev)
+    #
+    registrationForm:
+      type: object
+      additionalProperties: false
+      required:
+        - password
+        - confirmPassword
+        - name
+        - invitationToken
+        - token
+      properties:
+        password:
+          type: string
+        confirmPassword:
+          type: string
+        name:
+          type: string
+        lastName:
+          type: string
+        invitationToken:
+          type: string
+        specialization:
+          type: string
+        token:
+          type: string
+          example: testTokenForSwaggerUI
+          description: use 'testTokenForSwaggerUI' to pass recaptcha validation (only for dev)

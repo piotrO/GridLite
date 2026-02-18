@@ -21,6 +21,7 @@ import { AdPreviewCanvas } from "./AdPreviewCanvas";
 import { BrandAssetCard } from "./BrandAssetCard";
 import { TemplateSelector } from "./TemplateSelector";
 import { ContentPanel } from "./ContentPanel";
+import { LocalizationPanel } from "./LocalizationPanel";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useDesigner } from "./useDesigner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,7 +51,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutGrid, ShoppingBag } from "lucide-react";
+import { LayoutGrid, ShoppingBag, Globe } from "lucide-react";
 
 export default function StudioPage() {
   const router = useRouter();
@@ -61,9 +62,20 @@ export default function StudioPage() {
   const { logout } = useAuth();
   const { brandKits, activeBrandKit, setActiveBrandKit } = useBrand();
 
-  const { strategySession, selectedProductIds, setImageUrl, setLogoUrl } =
-    useCampaign();
+  const {
+    strategySession,
+    selectedProductIds,
+    setImageUrl,
+    setLogoUrl,
+    localization,
+  } = useCampaign();
   const { products } = useProducts();
+
+  // Compute localized copy override for preview
+  const previewLang = localization.previewLanguage;
+  const previewTranslation = previewLang
+    ? localization.translations[previewLang]
+    : null;
 
   // In DPA mode, filter to only show products selected by strategy
   const displayProducts =
@@ -471,27 +483,33 @@ export default function StudioPage() {
               data={
                 isDPA && selectedProduct
                   ? {
-                      // DPA Data Mapping
-                      headline: selectedProduct.title,
-                      bodyCopy: selectedProduct.vendor, // Mapping vendor to bodyCopy as requested
+                      // DPA Data Mapping — with optional localization override
+                      headline:
+                        previewTranslation?.productCopies?.find(
+                          (pc) => pc.productId === selectedProduct.id,
+                        )?.title || selectedProduct.title,
+                      bodyCopy: selectedProduct.vendor,
                       price: `${selectedProduct.currency} ${selectedProduct.price}`,
-                      ctaText: "SHOP NOW", // Default CTA
-                      cta: "SHOP NOW", // For project.js mapping
-                      label: "New Arrival", // Default label
+                      ctaText:
+                        previewTranslation?.productCopies?.find(
+                          (pc) => pc.productId === selectedProduct.id,
+                        )?.ctaText || "SHOP NOW",
+                      cta:
+                        previewTranslation?.productCopies?.find(
+                          (pc) => pc.productId === selectedProduct.id,
+                        )?.ctaText || "SHOP NOW",
+                      label: "New Arrival",
                       labelColor: brand.palette?.secondary
                         ? brand.palette.secondary.replace("#", "")
-                        : "F97316", // Strip # for project.js if needed or pass as is
+                        : "F97316",
                       ctaColor: brand.palette?.primary
                         ? brand.palette.primary.replace("#", "")
                         : "4F46E5",
                       bgColor: creativeData?.colorScheme?.background
                         ? creativeData.colorScheme.background.replace("#", "")
                         : "FFFFFF",
-                      // Image
                       imageUrl: selectedProduct.images?.[0]?.src || "",
-                      image: selectedProduct.images?.[0]?.src || "", // For project.js mapping
-
-                      // Brand & Colors
+                      image: selectedProduct.images?.[0]?.src || "",
                       colors: [
                         brand.palette?.primary || "#4F46E5",
                         brand.palette?.secondary || "#F97316",
@@ -503,10 +521,13 @@ export default function StudioPage() {
                       layerModifications: layerModifications,
                     }
                   : {
-                      // Standard Data Mapping
-                      headline: content.headline,
-                      bodyCopy: content.bodyCopy,
-                      ctaText: content.ctaText,
+                      // Standard Data Mapping — with optional localization override
+                      headline:
+                        previewTranslation?.copy?.headline || content.headline,
+                      bodyCopy:
+                        previewTranslation?.copy?.bodyCopy || content.bodyCopy,
+                      ctaText:
+                        previewTranslation?.copy?.ctaText || content.ctaText,
                       imageUrl: content.imageUrl,
                       colors: [
                         brand.palette?.primary || "#4F46E5",
@@ -547,6 +568,10 @@ export default function StudioPage() {
                     <LayoutGrid className="w-4 h-4 mr-2" />
                     Design
                   </TabsTrigger>
+                  <TabsTrigger value="localization" className="flex-1">
+                    <Globe className="w-4 h-4 mr-2" />
+                    Localize
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -583,25 +608,67 @@ export default function StudioPage() {
                   />
                 </motion.div>
               </TabsContent>
+
+              <TabsContent
+                value="localization"
+                className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
+              >
+                <LocalizationPanel
+                  content={content}
+                  isDPA={true}
+                  selectedProductIds={selectedProductIds}
+                />
+              </TabsContent>
             </Tabs>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="h-full border-l border-border p-4 space-y-4 overflow-y-auto"
-            >
-              <BrandAssetCard
-                brand={brand as any}
-                editable={true}
-                onBrandChange={setBrand as any}
-              />
-              <ContentPanel content={content} onChange={setContent} />
-              <TemplateSelector
-                selectedId={selectedTemplate}
-                onSelect={setSelectedTemplate}
-              />
-            </motion.div>
+            <Tabs defaultValue="design" className="h-full flex flex-col">
+              <div className="px-4 pt-4 border-b border-border">
+                <TabsList className="w-full">
+                  <TabsTrigger value="design" className="flex-1">
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Design
+                  </TabsTrigger>
+                  <TabsTrigger value="localization" className="flex-1">
+                    <Globe className="w-4 h-4 mr-2" />
+                    Localize
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent
+                value="design"
+                className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
+              >
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="h-full border-l border-border p-4 space-y-4 overflow-y-auto"
+                >
+                  <BrandAssetCard
+                    brand={brand as any}
+                    editable={true}
+                    onBrandChange={setBrand as any}
+                  />
+                  <ContentPanel content={content} onChange={setContent} />
+                  <TemplateSelector
+                    selectedId={selectedTemplate}
+                    onSelect={setSelectedTemplate}
+                  />
+                </motion.div>
+              </TabsContent>
+
+              <TabsContent
+                value="localization"
+                className="flex-1 overflow-hidden data-[state=inactive]:hidden mt-0"
+              >
+                <LocalizationPanel
+                  content={content}
+                  isDPA={false}
+                  selectedProductIds={[]}
+                />
+              </TabsContent>
+            </Tabs>
           )}
         </ResizablePanel>
       </ResizablePanelGroup>

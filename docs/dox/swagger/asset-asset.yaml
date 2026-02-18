@@ -1,0 +1,650 @@
+paths:
+  /{type}/{id}:
+    get:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: getFiles
+      summary: Get files
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [brand, brand_book, brand_innovation, team, project]
+          required: true
+          schema:
+            type: string
+            enum: [brand, brand_book, brand_innovation, team, project]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/assets'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: uploadFile
+      summary: upload file
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [brand, team, project]
+          required: true
+          schema:
+            type: string
+            enum: [brand, team, project]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/uploadFileForm'
+      responses:
+        200:
+          $ref: '#/components/responses/assets'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{type}/{id}/url:
+    post:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: addUrl
+      summary: add url asset
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [brand, brand_book, brand_innovation, team, project]
+          required: true
+          schema:
+            type: string
+            enum: [brand, brand_book, brand_innovation, team, project]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/addLinkForm'
+      responses:
+        200:
+          $ref: '#/components/responses/assets'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{type}/{id}/creative:
+    post:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: addCreative
+      summary: add creative
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [brand, team, project]
+          required: true
+          schema:
+            type: string
+            enum: [brand, team, project]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/addCreativeForm'
+      responses:
+        200:
+          $ref: '#/components/responses/assets'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}:
+    get:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: getFile
+      summary: Get file by id
+      parameters:
+        - name: id
+          in: path
+          description: id of file
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/asset'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - asset
+      security:
+        - bearerAuth: []
+      operationId: deleteFile
+      summary: Delete file by id
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}/{version}/brainsight:
+    post:
+      tags:
+        - asset
+      operationId: brainsight
+      parameters:
+        - name: id
+          in: path
+          description: id of asset
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: version
+          in: path
+          description: version number
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/brainsight'
+  /feedfwd:
+    post:
+      tags:
+        - asset
+      operationId: feedfwd
+      summary: forward csv feed from dco to s3 bucket
+components:
+  schemas:
+    #
+    uploadFileForm:
+      type: object
+      additionalProperties: false
+      required:
+        - asset
+      properties:
+        asset:
+          type: string
+          format: binary
+    #
+    addLinkForm:
+      type: object
+      additionalProperties: false
+      required:
+        - path
+        - url
+        - title
+        - embed
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        path:
+          type: string
+          example: '/'
+        embed:
+          type: boolean
+    #
+    addCreativeForm:
+      type: object
+      additionalProperties: false
+      required:
+        - width
+        - height
+        - displayName
+        - creativeTitle
+        - indexFile
+        - path
+        - creative
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+        creativeTitle:
+          type: string
+        displayName:
+          type: string
+        indexFile:
+          type: string
+        path:
+          type: string
+        creative:
+          type: array
+          items:
+            type: string
+            format: binary
+    #
+
+    #
+    file:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - kind
+        - parents
+        - relativeId
+        - relativeType
+        - hash
+        - displayName
+        - path
+        - status
+        - versions
+        - mime
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        kind:
+          type: string
+          enum: ['FILE']
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              nullable: true
+            teamId:
+              type: string
+              nullable: true
+            projectId:
+              type: string
+              nullable: true
+            fileId:
+              type: string
+              nullable: true
+            adId:
+              type: string
+              nullable: true
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          enum: ['brand', 'team', 'project']
+        hash:
+          type: string
+        displayName:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: ['PENDING', 'APPROVED', 'DENIED']
+        versions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - _id
+              - name
+              - createdBy
+              - createdAt
+            properties:
+              _id:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              name:
+                type: string
+              createdBy:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              createdAt:
+                type: string
+                format: date-time
+              deletedAt:
+                type: string
+                format: date-time
+                nullable: true
+        mime:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    creative:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - kind
+        - parents
+        - relativeId
+        - relativeType
+        - displayName
+        - creativeTitle
+        - path
+        - status
+        - versions
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        kind:
+          type: string
+          enum: ['CREATIVE']
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              nullable: true
+            teamId:
+              type: string
+              nullable: true
+            projectId:
+              type: string
+              nullable: true
+            fileId:
+              type: string
+              nullable: true
+            adId:
+              type: string
+              nullable: true
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          enum: ['brand', 'team', 'project']
+        displayName:
+          type: string
+        creativeTitle:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: ['PENDING', 'APPROVED', 'DENIED']
+        versions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - _id
+              - dir
+              - width
+              - height
+              - indexFile
+              - files
+              - createdBy
+              - createdAt
+            properties:
+              _id:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              dir:
+                type: string
+              width:
+                type: integer
+              height:
+                type: integer
+              indexFile:
+                type: string
+              files:
+                type: array
+                items:
+                  type: string
+              createdBy:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              createdAt:
+                type: string
+                format: date-time
+              deletedAt:
+                type: string
+                format: date-time
+                nullable: true
+        variants:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/creative'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    url:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - kind
+        - parents
+        - relativeId
+        - relativeType
+        - displayName
+        - path
+        - hash
+        - status
+        - versions
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        kind:
+          type: string
+          enum: ['URL']
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              nullable: true
+            teamId:
+              type: string
+              nullable: true
+            projectId:
+              type: string
+              nullable: true
+            fileId:
+              type: string
+              nullable: true
+            adId:
+              type: string
+              nullable: true
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          enum: ['brand', 'brand_book', 'brand_innovation', 'team', 'project']
+        displayName:
+          type: string
+        path:
+          type: string
+        status:
+          type: string
+          enum: ['PENDING', 'APPROVED', 'DENIED']
+        hash:
+          type: string
+        versions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - _id
+              - url
+              - embed
+              - createdBy
+              - createdAt
+            properties:
+              _id:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              url:
+                type: string
+              embed:
+                type: boolean
+              createdBy:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+              createdAt:
+                type: string
+                format: date-time
+              deletedAt:
+                type: string
+                format: date-time
+                nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    asset:
+      oneOf:
+        - $ref: '#/components/schemas/file'
+        - $ref: '#/components/schemas/creative'
+        - $ref: '#/components/schemas/url'
+      discriminator:
+        propertyName: kind
+        mapping:
+          FILE: '#/components/schemas/file'
+          CREATIVE: '#/components/schemas/creative'
+          URL: '#/components/schemas/url'
+    #
+    brainsight:
+      type: object
+      additionalProperties: false
+      required:
+        - appOptions
+        - size
+        - extension
+        - position
+      properties:
+        appOptions:
+          type: string
+          enum:
+            [
+              'Display Ads',
+              'UX Design',
+              'Social Media',
+              '(Digital) Out-Of Home',
+              'Ad / commercial (video)',
+            ]
+        size:
+          type: string
+          pattern: '^[0-9]$x^[0-9]$'
+  ##
+  responses:
+    #
+    assets:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/asset'
+    #
+    asset:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/asset'

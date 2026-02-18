@@ -1,0 +1,307 @@
+paths:
+  /colorGroup/{brandId}:
+    get:
+      tags:
+        - colors 
+      security:
+        - bearerAuth: []
+      operationId: getColorGroups
+      summary: get color groups
+      parameters:
+        - name: brandId
+          in: path
+          description: id of brand
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"     
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroups'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - colors 
+      security:
+        - bearerAuth: []
+      operationId: createColorGroup
+      summary: create a color group
+      parameters:
+        - name: brandId
+          in: path
+          description: id of brand
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"    
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/colorGroupForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put: 
+      tags:
+        - colors
+      security:
+        - bearerAuth: []
+      operationId: updateColorGroup
+      summary: Update color group by group id
+      parameters:
+        - name: groupId
+          in: path
+          description: id of group
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/colorGroupForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - colors
+      security:
+        - bearerAuth: []
+      operationId: deleteColorGroup
+      summary: Delete color group by id
+      parameters:
+        - name: groupId
+          in: path
+          description: id of group
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses: 
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /color/{groupId}:
+    post:
+      tags:
+        - colors 
+      security:
+        - bearerAuth: []
+      operationId: addColorToGroup
+      summary: add new color to the group
+      parameters:
+        - name: groupId
+          in: path
+          description: id of group
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/colorForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /color/{groupId}/{colorId}:
+    put:
+      tags:
+        - colors 
+      security:
+        - bearerAuth: []
+      operationId: updateColor
+      summary: Update color
+      parameters:
+        - name: groupId
+          in: path
+          description: id of group
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+        - name: colorId
+          in: path
+          description: id of color
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/colorForm'
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - colors
+      security:
+        - bearerAuth: []
+      operationId: deleteColorFromGroup
+      summary: Delete color from the group
+      parameters:
+        - name: groupId
+          in: path
+          description: id of group
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+        - name: colorId
+          in: path
+          description: id of color
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F]{24}$"
+      responses: 
+        200:
+          $ref: '#/components/responses/colorGroup'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    colorGroup:
+      type: object
+      additionalProperties: false
+      required:
+      - _id
+      - brandId
+      - name
+      - colors
+      - createdAt
+      - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: "^[0-9a-fA-F]{24}$"
+        brandId:
+          type: string
+          pattern: "^[0-9a-fA-F]{24}$"
+        name:
+          type: string
+        colors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/color'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    color:
+      type: object
+      additionalProperties: false
+      required:
+      - _id
+      - hex
+      properties:
+        _id:
+          type: string
+          pattern: "^[0-9a-fA-F]{24}$"
+        hex:
+          type: string
+    #
+    colorGroupForm:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+    #
+    colorForm:
+      type: object
+      additionalProperties: false
+      required:
+      - color
+      properties:
+        color:
+          type: string
+  ##
+  responses:
+    #
+    colorGroups:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/colorGroup'
+    #
+    colorGroup:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/colorGroup'

@@ -1,0 +1,627 @@
+paths:
+  /:
+    get:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: getTeams
+      summary: List all teams
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: brandId
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 40
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            default: createdAt
+            enum: [name, createdAt, updatedAt]
+        - name: sortType
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+      responses:
+        200:
+          $ref: '#/components/responses/teams'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: createTeam
+      summary: Create a team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createTeamForm'
+      responses:
+        200:
+          $ref: '#/components/responses/team'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}:
+    get:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: getTeam
+      summary: Get team data by id
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/team'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: updateTeam
+      summary: Update team by id
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateTeamForm'
+      responses:
+        200:
+          $ref: '#/components/responses/team'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: deleteTeam
+      summary: Delete team by id
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}/pages:
+    post:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: createLandingPage
+      summary: create landing Page
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/landingPageForm'
+      responses:
+        200:
+          $ref: '#/components/responses/team'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}/pages/{pageId}:
+    put:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: editLandingPage
+      summary: edit landing page
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: pageId
+          in: path
+          description: id of page
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/landingPageForm'
+      responses:
+        200:
+          $ref: '#/components/responses/team'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - team
+      security:
+        - bearerAuth: []
+      operationId: deleteLandingPage
+      summary: delete landing page
+      parameters:
+        - name: id
+          in: path
+          description: id of team
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: pageId
+          in: path
+          description: id of page
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+##
+components:
+  schemas:
+    #
+    createTeamForm:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - brandId
+      properties:
+        name:
+          type: string
+          example: 'testCompany'
+        brandId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+    #
+    updateTeamForm:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              example: 'testTeam'
+        - type: object
+          additionalProperties: false
+          required:
+            - 'briefing.runtime.start'
+            - 'briefing.runtime.end'
+          properties:
+            'briefing.runtime.start':
+              type: string
+              format: date-time
+            'briefing.runtime.end':
+              type: string
+              format: date-time
+        - type: object
+          additionalProperties: false
+          required:
+            - 'briefing.description'
+          properties:
+            'briefing.description':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'briefing.message'
+          properties:
+            'briefing.message':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'briefing.goals'
+          properties:
+            'briefing.goals':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'briefing.notes'
+          properties:
+            'briefing.notes':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'media.targeting'
+          properties:
+            'media.targeting':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'media.interests'
+          properties:
+            'media.interests':
+              type: array
+              nullable: true
+              items:
+                type: string
+        - type: object
+          additionalProperties: false
+          required:
+            - 'media.notes'
+          properties:
+            'media.notes':
+              type: string
+              nullable: true
+        - type: object
+          additionalProperties: false
+          required:
+            - 'planning.notes'
+          properties:
+            'planning.notes':
+              type: string
+              nullable: true
+    #
+    landingPageForm:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - url
+      properties:
+        title:
+          type: string
+          example: 'test page'
+        url:
+          type: string
+    #
+    team:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - name
+        - brand
+        - parents
+        - briefing
+        - media
+        - planning
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        name:
+          type: string
+        brand:
+          type: object
+          properties:
+            _id:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+            name:
+              type: string
+        parents:
+          type: object
+          additionalProperties: false
+          required:
+            - brandId
+          properties:
+            brandId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+        briefing:
+          type: object
+          additionalProperties: false
+          properties:
+            runtime:
+              type: object
+              properties:
+                start:
+                  type: string
+                  format: date-time
+                  nullable: true
+                end:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            description:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            message:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            goals:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            notes:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+        media:
+          type: object
+          additionalProperties: false
+          properties:
+            notes:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            targeting:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            interests:
+              type: object
+              properties:
+                value:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+            landingPages:
+              type: array
+              nullable: true
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  _id:
+                    type: string
+                    pattern: '^[0-9a-fA-F]{24}$'
+                  title:
+                    type: string
+                  url:
+                    type: string
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  updatedBy:
+                    type: string
+                    pattern: '^[0-9a-fA-F]{24}$'
+                    nullable: true
+        planning:
+          type: object
+          additionalProperties: false
+          properties:
+            notes:
+              type: object
+              additionalProperties: false
+              properties:
+                value:
+                  type: string
+                  nullable: true
+                updatedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                updatedBy:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{24}$'
+                  nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+  ##
+  responses:
+    #
+    teams:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              total:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/team'
+    #
+    team:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/team'

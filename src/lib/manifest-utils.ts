@@ -5,6 +5,105 @@
 import { Typography } from "@/lib/shared/types";
 
 /**
+ * Generate CSS for custom fonts and inject into HTML head
+ */
+export function injectFonts(
+  html: string,
+  typography: Typography | null | undefined,
+): string {
+  if (!typography || !typography.headerFont) return html;
+
+  const { headerFont, bodyFont, fontCssUrl } = typography;
+
+  // If we have a CSS URL, use that instead of generating inline @font-face
+  if (fontCssUrl) {
+    const headerFamily = headerFont.fontFamily || "sans-serif";
+    const bodyFamily = bodyFont.fontFamily || "sans-serif";
+
+    const cssLink = `<link rel="stylesheet" href="${fontCssUrl}">`;
+    const fontClasses = `
+    <style>
+        .header-font {
+            font-family: '${headerFamily}', sans-serif !important;
+        }
+        
+        .body-font {
+            font-family: '${bodyFamily}', sans-serif !important;
+        }
+    </style>
+      `;
+    // Inject both link and style
+    return html.replace("</head>", `${cssLink}\n${fontClasses}\n</head>`);
+  }
+
+  // Fallback: Generate inline CSS (old method, kept for backward compatibility or if CSS upload failed)
+  // Helper to generate @font-face and font-family string
+  const getFontCss = (font: typeof headerFont, name: string) => {
+    if (!font || (!font.fontFileBase64 && !font.fontUrl) || !font.fontFormat)
+      return "";
+
+    const formatMap: Record<string, string> = {
+      ttf: "truetype",
+      otf: "opentype",
+      woff: "woff",
+      woff2: "woff2",
+    };
+    const cssFormat = formatMap[font.fontFormat] || font.fontFormat;
+
+    let srcRule = "";
+    if (font.fontUrl) {
+      srcRule = `url('${font.fontUrl}') format('${cssFormat}')`;
+    } else if (font.fontFileBase64) {
+      const mimeType = `font/${font.fontFormat === "ttf" ? "ttf" : font.fontFormat === "otf" ? "otf" : font.fontFormat}`;
+      srcRule = `url(data:${mimeType};base64,${font.fontFileBase64}) format('${cssFormat}')`;
+    }
+
+    return `
+      @font-face {
+          font-family: '${name}';
+          src: ${srcRule};
+          font-weight: normal;
+          font-style: normal;
+          font-display: swap;
+      }
+    `;
+  };
+
+  const headerFontName = "CustomHeaderFont";
+  const bodyFontName = "CustomBodyFont";
+
+  const headerFontFace = getFontCss(headerFont, headerFontName);
+  const bodyFontFace = getFontCss(bodyFont, bodyFontName);
+
+  // For inline, we used CustomHeaderFont alias.
+  // But if we want consistency, maybe we should've used real names.
+  // But let's keep old behavior for old data.
+  const headerFamily = headerFont.isSystemFont
+    ? headerFont.fontFamily
+    : `'${headerFontName}', ${headerFont.fontFamily}, sans-serif`;
+  const bodyFamily = bodyFont.isSystemFont
+    ? bodyFont.fontFamily
+    : `'${bodyFontName}', ${bodyFont.fontFamily}, sans-serif`;
+
+  const fontCss = `
+    <style>
+        ${headerFontFace}
+        ${bodyFontFace}
+        
+        .header-font {
+            font-family: ${headerFamily} !important;
+        }
+        
+        .body-font {
+            font-family: ${bodyFamily} !important;
+        }
+    </style>
+  `;
+
+  return html.replace("</head>", `${fontCss}\n</head>`);
+}
+
+/**
  * Deep merge two objects, with source values overriding target
  */
 export function deepMerge<T extends Record<string, unknown>>(
@@ -219,10 +318,6 @@ export function applyDynamicValues(
     (settings.defaults as Record<string, string>).colors = data.colors
       .slice(0, 3)
       .join("|");
-
-    // Also store as __colors for extraction by useAdPreviewBlob
-    // This allows injecting colors into dynamicData directly
-    (newManifest as Record<string, unknown>).__colors = data.colors;
   }
 
   // Handle other DPA specific fields that need to be in dynamicData
@@ -328,10 +423,8 @@ export function applyDynamicValues(
   }
 
   // Handle Typography
-  if (data.typography && data.typography.fontFileBase64) {
-    const { primaryFontFamily, fontFileBase64, fontFormat } = data.typography;
-    const format = fontFormat || "woff2";
-    const fontUrl = `data:font/${format};charset=utf-8;base64,${fontFileBase64}`;
+  if (data.typography && data.typography.headerFont) {
+    const { headerFont, bodyFont } = data.typography;
 
     // 1. Add to webFonts
     if (!settings.webFonts) {
@@ -344,19 +437,32 @@ export function applyDynamicValues(
       fontFamilyUser?: string;
     }>;
 
-    // Check if already exists to avoid duplicates
-    const existingFont = webFonts.find(
-      (f) => f.fontFamily === primaryFontFamily,
-    );
+    const addFont = (font: typeof headerFont) => {
+      if (
+        font &&
+        font.fontFamily &&
+        font.fontFileBase64 &&
+        !font.isSystemFont
+      ) {
+        const existingFont = webFonts.find(
+          (f) => f.fontFamily === font.fontFamily,
+        );
+        if (!existingFont) {
+          const format = font.fontFormat || "woff2";
+          const fontUrl = `data:font/${format};charset=utf-8;base64,${font.fontFileBase64}`;
 
-    if (!existingFont) {
-      webFonts.push({
-        fontFamily: primaryFontFamily,
-        fontStyle: "normal", // Defaulting to normal for now
-        fontUrl: fontUrl,
-        fontFamilyUser: primaryFontFamily,
-      });
-    }
+          webFonts.push({
+            fontFamily: font.fontFamily,
+            fontStyle: "normal",
+            fontUrl: fontUrl,
+            fontFamilyUser: font.fontFamily,
+          });
+        }
+      }
+    };
+
+    addFont(headerFont);
+    addFont(bodyFont);
 
     // 2. Update text layers to use this font
     const layers = newManifest.layers as Array<{
@@ -371,13 +477,29 @@ export function applyDynamicValues(
         if (layer.fileType === "text" && layer.cssClasses) {
           const classes = layer.cssClasses.toLowerCase();
 
-          // Apply brand font if layer has .maincopy or .subcopy class
-          // This matches the logic in useAdPreviewBlob
-          const shouldApplyFont =
-            classes.includes("maincopy") || classes.includes("subcopy");
+          // Apply Header Font
+          if (
+            classes.includes("maincopy") ||
+            classes.includes("headline") ||
+            classes.includes("h1") ||
+            classes.includes("h2")
+          ) {
+            layer.fontFamily = headerFont.fontFamily;
+          }
 
-          if (shouldApplyFont) {
-            layer.fontFamily = primaryFontFamily;
+          // Apply Body Font
+          if (
+            classes.includes("subcopy") ||
+            classes.includes("body") ||
+            classes.includes("p") ||
+            classes.includes("desc")
+          ) {
+            layer.fontFamily = bodyFont.fontFamily;
+          }
+
+          // Apply Header Font to CTA by default (for impact)
+          if (classes.includes("cta") || classes.includes("button")) {
+            layer.fontFamily = headerFont.fontFamily;
           }
         }
       });
@@ -388,18 +510,144 @@ export function applyDynamicValues(
 }
 
 /**
- * Generate the inline script that sets up dynamicData with colors
+ * Convert hex color to HSL
  */
-export function generateDynamicDataScript(colors?: string[]): string {
-  if (!colors || colors.length === 0) {
-    return "";
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16) / 255;
+  const g = parseInt(clean.substring(2, 4), 16) / 255;
+  const b = parseInt(clean.substring(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+
+  if (max === min) return { h: 0, s: 0, l };
+
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+
+  return { h: h * 360, s, l };
+}
+
+/**
+ * Convert HSL to hex color
+ */
+function hslToHex(h: number, s: number, l: number): string {
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+
+  let r: number, g: number, b: number;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h / 360 + 1 / 3);
+    g = hue2rgb(p, q, h / 360);
+    b = hue2rgb(p, q, h / 360 - 1 / 3);
   }
 
-  const colorString = colors.slice(0, 3).join("|");
-  return `
-    <script>
-      // Injected by Studio preview
-      window.__studioColors = "${colorString}";
-    </script>
-  `;
+  const toHex = (v: number) =>
+    Math.round(v * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * WCAG relative luminance
+ */
+function getLuminance(hex: string): number {
+  const clean = hex.replace("#", "");
+  let r = parseInt(clean.substring(0, 2), 16) / 255;
+  let g = parseInt(clean.substring(2, 4), 16) / 255;
+  let b = parseInt(clean.substring(4, 6), 16) / 255;
+
+  r = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+  g = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+  b = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function getContrastColor(hex: string): string {
+  return getLuminance(hex) > 0.179 ? "#1a1a1a" : "#ffffff";
+}
+
+// Shade step → target lightness (0–1). 500 = original color lightness.
+const SHADE_LIGHTNESS: Record<number, number> = {
+  50: 0.97,
+  100: 0.94,
+  200: 0.86,
+  300: 0.76,
+  400: 0.64,
+  500: -1, // placeholder — keep original
+  600: 0.42,
+  700: 0.34,
+  800: 0.26,
+  900: 0.18,
+  950: 0.1,
+};
+
+/**
+ * Generate a palette of shades from a single hex color.
+ * The 500 step is the original color; lighter / darker steps are HSL-shifted.
+ */
+function generateShades(hex: string): Record<number, string> {
+  const { h, s } = hexToHsl(hex);
+  const shades: Record<number, string> = {};
+
+  for (const [step, targetL] of Object.entries(SHADE_LIGHTNESS)) {
+    const n = Number(step);
+    if (n === 500) {
+      shades[n] = hex;
+    } else {
+      shades[n] = hslToHex(h, s, targetL);
+    }
+  }
+  return shades;
+}
+
+/**
+ * Generate a complete CSS string with Tailwind-like color utility classes.
+ *
+ * Classes produced (per color role):
+ *   .bg-{role}-{step}        → background-color  (for divs, buttons)
+ *   .fill-{role}-{step}      → fill on element & child paths  (for SVGs)
+ *   .text-over-{role}-{step} → color  (text on top of that shade)
+ *
+ * Roles: primary (colors[0]), secondary (colors[1]), accent (colors[2])
+ * Steps: 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950
+ */
+export function generateColorCss(colors: string[]): string {
+  const roles = ["primary", "secondary", "accent"] as const;
+  let css = "";
+
+  roles.forEach((role, i) => {
+    const baseHex = colors[i];
+    if (!baseHex) return;
+
+    const shades = generateShades(baseHex);
+
+    for (const [step, hex] of Object.entries(shades)) {
+      css += `.bg-${role}-${step}{background-color:${hex} !important}\n`;
+      const s = `.fill-${role}-${step}`;
+      css += `${s},${s} path,${s} rect,${s} circle,${s} ellipse,${s} polygon,${s} polyline{fill:${hex} !important}\n`;
+      css += `.text-over-${role}-${step}{color:${getContrastColor(hex)} !important}\n`;
+    }
+  });
+
+  return `<style>\n${css}</style>`;
 }

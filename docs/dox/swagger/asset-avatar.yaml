@@ -1,0 +1,123 @@
+paths:
+  /avatar/{type}/{id}:
+    post:
+      tags:
+        - avatar
+      security:
+        - bearerAuth: []
+      operationId: upload avatar
+      summary: upload avatar
+      parameters:
+        - name: id
+          in: path
+          description: id of eather [user, brand, team, project]
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: type
+          in: path
+          description: type of the avatar
+          required: true
+          schema:
+            type: string
+            enum: [user, brand, team, project]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/uploadAvatarForm'
+      responses:
+        200:
+          $ref: '#/components/responses/avatar'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    # get:
+    #   tags:
+    #     - avatar
+    #   security:
+    #     - bearerAuth: []
+    #   operationId: get avatar for users, brands, teams, projects
+    #   summary: get avatar for users, brands, teams, projects
+    #   parameters:
+    #   - name: ids[]
+    #     in: query
+    #     required: true
+    #     style: form
+    #     explode: true
+    #     schema:
+    #       type: array
+    #       items:
+    #         type: string
+    #   - name: type
+    #     in: path
+    #     description: type of the avatar
+    #     required: true
+    #     schema:
+    #       type: string
+    #       enum: [user, brand, team, project]
+    #   responses:
+    #     '200':
+    #       $ref: '#/components/responses/200list'
+    #     '500':
+    #       $ref: '#/components/responses/500'
+    #     '401':
+    #       $ref: '#/components/responses/401'
+components:
+  schemas:
+    #
+    avatar:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - fileName
+        - relativeType
+        - relativeId
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        fileName:
+          type: string
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    uploadAvatarForm:
+      type: object
+      additionalProperties: false
+      required:
+        - image
+      properties:
+        image:
+          type: string
+          format: binary
+  ##
+  responses:
+    #
+    avatar:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/avatar'

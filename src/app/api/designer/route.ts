@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // Allow extra time for image generation
 
-const SKIP_IMAGE_GENERATION = true;
+const SKIP_IMAGE_GENERATION = false;
 
 interface DesignerRequest {
   // Brand profile (required)

@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import archiver from "archiver";
 import fs from "fs";
 import path from "path";
-import { parseManifestJs, serializeManifest, applyDynamicValues, DynamicValueData } from "@/lib/manifest-utils";
+import {
+  parseManifestJs,
+  serializeManifest,
+  applyDynamicValues,
+  injectFonts,
+  generateColorCss,
+  DynamicValueData,
+} from "@/lib/manifest-utils";
 import { LayerModification } from "@/types/export-types";
 
 interface ExportRequestBody {
@@ -10,6 +17,7 @@ interface ExportRequestBody {
   sizes: string[];
   dynamicValues: DynamicValueData;
   layerModifications?: LayerModification[];
+  localizations?: Record<string, DynamicValueData>;
 }
 
 /**
@@ -24,10 +32,17 @@ async function getImageBuffer(imageUrl: string): Promise<Buffer | null> {
       const matches = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
       if (matches && matches[1]) {
         const buffer = Buffer.from(matches[1], "base64");
-        console.log("[Export] Decoded base64 image, size:", buffer.length, "bytes");
+        console.log(
+          "[Export] Decoded base64 image, size:",
+          buffer.length,
+          "bytes",
+        );
         return buffer;
       }
-      console.error("[Export] Invalid base64 data URI format. URL starts with:", imageUrl.substring(0, 50));
+      console.error(
+        "[Export] Invalid base64 data URI format. URL starts with:",
+        imageUrl.substring(0, 50),
+      );
       return null;
     }
 
@@ -71,18 +86,23 @@ export async function POST(request: NextRequest) {
     if (!templatePath || !sizes || sizes.length === 0) {
       return NextResponse.json(
         { error: "Missing required fields: templatePath and sizes" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Get the base path for templates
-    const publicDir = path.join(process.cwd(), "public", "templates", templatePath);
+    const publicDir = path.join(
+      process.cwd(),
+      "public",
+      "templates",
+      templatePath,
+    );
 
     // Check if template exists
     if (!fs.existsSync(publicDir)) {
       return NextResponse.json(
         { error: `Template not found: ${templatePath}` },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -93,7 +113,10 @@ export async function POST(request: NextRequest) {
       console.log("[Export] Processing dynamic image...");
       dynamicImageBuffer = await getImageBuffer(imageUrl);
       if (dynamicImageBuffer) {
-        console.log("[Export] Image buffer ready, size:", dynamicImageBuffer.length);
+        console.log(
+          "[Export] Image buffer ready, size:",
+          dynamicImageBuffer.length,
+        );
       }
     }
 
@@ -133,94 +156,189 @@ export async function POST(request: NextRequest) {
       // Read all files in the size directory
       const files = fs.readdirSync(sizeDir);
 
-      for (const file of files) {
-        const filePath = path.join(sizeDir, file);
-        const stat = fs.statSync(filePath);
+      // Determine language iterations
+      // If localizations exist, we create subfolders for each language
+      // If not, we just process once at the root level (or size level)
+      const langs = body.localizations
+        ? Object.keys(body.localizations)
+        : ["default"];
+      const useSubfolders = langs.length > 1; // Only use subfolders if we have multiple languages
 
-        // Skip directories, hidden files
-        if (stat.isDirectory() || file.startsWith(".")) {
-          continue;
-        }
+      for (const langCode of langs) {
+        // Determine values for this iteration
+        const currentDynamicValues =
+          langCode === "default"
+            ? dynamicValues
+            : body.localizations![langCode];
 
-        // Read file content
-        let content: Buffer | string = fs.readFileSync(filePath);
+        // Folder prefix: e.g. "en/300x250/" or just "300x250/"
+        const folderPrefix = useSubfolders ? `${langCode}/${size}` : size;
 
-        // Special handling for manifest.js - apply modifications
-        if (file === "manifest.js") {
-          try {
-            const manifestContent = content.toString("utf-8");
-            const manifest = parseManifestJs(manifestContent);
+        for (const file of files) {
+          const filePath = path.join(sizeDir, file);
+          const stat = fs.statSync(filePath);
 
-            // Apply dynamic values and layer modifications
-            const dataWithLayers: DynamicValueData = {
-              ...dynamicValues,
-              layerModifications: layerModifications,
-            };
-
-            // If we have an image, update the imageUrl to point to local file
-            if (dynamicImageBuffer) {
-              dataWithLayers.imageUrl = "dynamicimage.png";
-            }
-
-            // If we have a logo, update the logoUrl to point to local file
-            if (logoBuffer) {
-              dataWithLayers.logoUrl = "logo.png";
-            }
-
-            const modifiedManifest = applyDynamicValues(manifest, dataWithLayers);
-            
-            // Remove __colors from manifest (it's for internal use only)
-            delete (modifiedManifest as { __colors?: unknown }).__colors;
-
-            // Serialize back to JS format
-            content = serializeManifest(modifiedManifest);
-          } catch (manifestError) {
-            console.error(`Error processing manifest.js for ${size}:`, manifestError);
-            // Fall back to original content
+          // Skip directories, hidden files
+          if (stat.isDirectory() || file.startsWith(".")) {
+            continue;
           }
-        }
 
-        // Special handling for index.html - inject colors into dynamicData
-        if (file === "index.html" && dynamicValues?.colors && dynamicValues.colors.length > 0) {
-          try {
+          // Read file content
+          let content: Buffer | string = fs.readFileSync(filePath);
+
+          // Special handling for manifest.js - apply modifications
+          if (file === "manifest.js") {
+            try {
+              const manifestContent = content.toString("utf-8");
+              const manifest = parseManifestJs(manifestContent);
+
+              // Apply dynamic values and layer modifications
+              const dataWithLayers: DynamicValueData = {
+                ...currentDynamicValues,
+                layerModifications: layerModifications,
+              };
+
+              // If we have an image, update the imageUrl to point to local file
+              if (dynamicImageBuffer) {
+                // We use the same image for all languages
+                dataWithLayers.imageUrl = "dynamicimage.png";
+              }
+
+              // If we have a logo, update the logoUrl to point to local file
+              if (logoBuffer) {
+                dataWithLayers.logoUrl = "logo.png";
+              }
+
+              const modifiedManifest = applyDynamicValues(
+                manifest,
+                dataWithLayers,
+              );
+
+              // Remove __colors from manifest (it's for internal use only)
+              delete (modifiedManifest as { __colors?: unknown }).__colors;
+
+              // Serialize back to JS format
+              content = serializeManifest(modifiedManifest);
+            } catch (manifestError) {
+              console.error(
+                `Error processing manifest.js for ${size} (${langCode}):`,
+                manifestError,
+              );
+              // Fall back to original content
+            }
+          }
+
+          // Special handling for index.html - inject colors into dynamicData
+          if (
+            file === "index.html" &&
+            currentDynamicValues?.colors &&
+            currentDynamicValues.colors.length > 0
+          ) {
+            try {
+              let htmlContent = content.toString("utf-8");
+              const colorString = currentDynamicValues.colors
+                .slice(0, 3)
+                .join("|");
+
+              // Inject colors into dynamicData initialization
+              htmlContent = htmlContent.replace(
+                /grid8player\.dynamicData\s*=\s*dynamicData;/,
+                `dynamicData["colors"] = "${colorString}";\n      grid8player.dynamicData = dynamicData;`,
+              );
+
+              // Inject custom fonts
+              if (currentDynamicValues?.typography) {
+                htmlContent = injectFonts(
+                  htmlContent,
+                  currentDynamicValues.typography,
+                );
+                console.log(
+                  `[Export] Injected fonts into ${folderPrefix}/index.html`,
+                );
+              }
+
+              // Inject color utility CSS (Tailwind-like .color-primary-500 etc.)
+              if (
+                currentDynamicValues?.colors &&
+                currentDynamicValues.colors.length > 0
+              ) {
+                const colorCss = generateColorCss(currentDynamicValues.colors);
+                htmlContent = htmlContent.replace(
+                  "</head>",
+                  `${colorCss}\n</head>`,
+                );
+                console.log(
+                  `[Export] Injected color CSS into ${folderPrefix}/index.html`,
+                );
+              }
+
+              content = htmlContent;
+            } catch (htmlError) {
+              console.error(
+                `Error processing index.html for ${size} (${langCode}):`,
+                htmlError,
+              );
+              // Fall back to original content
+            }
+          }
+
+          // Special handling for index.html - ALSO update image references if they are hardcoded in HTML
+          // Some templates might use <img src="logo.png"> or <img id="dynamicImage">
+          if (file === "index.html") {
             let htmlContent = content.toString("utf-8");
-            const colorString = dynamicValues.colors.slice(0, 3).join("|");
-            
-            // Inject colors into dynamicData initialization
-            htmlContent = htmlContent.replace(
-              /grid8player\.dynamicData\s*=\s*dynamicData;/,
-              `dynamicData["colors"] = "${colorString}";\n      grid8player.dynamicData = dynamicData;`
-            );
-            
+            // If we have a logo, ensure standard logo ID or class points to it?
+            // Actually, manifest.js usually handles the image source.
+            // But if there are fallback <img> tags:
+            if (logoBuffer) {
+              // htmlContent = htmlContent.replace(/src=["'][^"']*logo[^"']*["']/i, 'src="logo.png"');
+            }
             content = htmlContent;
-            console.log(`[Export] Injected colors into ${size}/index.html:`, colorString);
-          } catch (htmlError) {
-            console.error(`Error processing index.html for ${size}:`, htmlError);
-            // Fall back to original content
           }
+
+          // Skip files that collide with our dynamic assets (to avoid duplicates in zip)
+          if (
+            (dynamicImageBuffer && file === "dynamicimage.png") ||
+            (logoBuffer && file === "logo.png")
+          ) {
+            continue;
+          }
+
+          // Add file to archive under size folder (possibly with lang subfolder)
+          archive.append(content, { name: `${folderPrefix}/${file}` });
         }
 
-        // Add file to archive under size folder
-        archive.append(content, { name: `${size}/${file}` });
-      }
+        // Add shared assets (image/logo) to each folder
+        if (dynamicImageBuffer) {
+          archive.append(dynamicImageBuffer, {
+            name: `${folderPrefix}/dynamicimage.png`,
+          });
+        }
 
-      // Add dynamic image to this size folder if we have one
-      if (dynamicImageBuffer) {
-        archive.append(dynamicImageBuffer, { name: `${size}/dynamicimage.png` });
-        console.log(`[Export] Added dynamicimage.png to ${size}/ (${dynamicImageBuffer.length} bytes)`);
-      }
+        if (dynamicImageBuffer) {
+          console.log(
+            `[Export] Appending dynamicimage.png to ${folderPrefix}, size: ${dynamicImageBuffer.length}`,
+          );
+          archive.append(dynamicImageBuffer, {
+            name: `${folderPrefix}/dynamicimage.png`,
+          });
+        }
 
-      // Add logo to this size folder if we have one
-      if (logoBuffer) {
-        archive.append(logoBuffer, { name: `${size}/logo.png` });
-        console.log(`[Export] Added logo.png to ${size}/ (${logoBuffer.length} bytes)`);
+        if (logoBuffer) {
+          console.log(
+            `[Export] Appending logo.png to ${folderPrefix}, size: ${logoBuffer.length}`,
+          );
+          archive.append(logoBuffer, { name: `${folderPrefix}/logo.png` });
+        }
       }
     }
 
     // Finalize the archive and wait for completion
     await new Promise<void>((resolve, reject) => {
       archive.on("end", () => {
-        console.log("[Export] Archive finalized, total bytes:", archive.pointer());
+        console.log(
+          "[Export] Archive finalized, total bytes:",
+          archive.pointer(),
+        );
         resolve();
       });
       archive.on("error", (err) => {
@@ -248,11 +366,10 @@ export async function POST(request: NextRequest) {
     console.error("Export error:", error);
     return NextResponse.json(
       { error: "Failed to generate export" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
 
 /**
  * GET /api/export
@@ -265,16 +382,21 @@ export async function GET(request: NextRequest) {
   if (!templatePath) {
     return NextResponse.json(
       { error: "Missing template parameter" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  const publicDir = path.join(process.cwd(), "public", "templates", templatePath);
+  const publicDir = path.join(
+    process.cwd(),
+    "public",
+    "templates",
+    templatePath,
+  );
 
   if (!fs.existsSync(publicDir)) {
     return NextResponse.json(
       { error: `Template not found: ${templatePath}` },
-      { status: 404 }
+      { status: 404 },
     );
   }
 

@@ -1,0 +1,291 @@
+paths:
+  /project:
+    get:
+      tags:
+        - project
+      security:
+        - bearerAuth: []
+      operationId: getProjects
+      summary: List all projects
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [toDo, inProgress, done, archived]
+        - name: brandId
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: teamId
+          in: query
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 40
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            default: createdAt
+            enum: [name, createdAt, updatedAt]
+        - name: sortType
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+      responses:
+        200:
+          $ref: '#/components/responses/projects'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - project
+      security:
+        - bearerAuth: []
+      operationId: createProject
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createProjectForm'
+      responses:
+        200:
+          $ref: '#/components/responses/project'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /project/{id}:
+    get:
+      tags:
+        - project
+      security:
+        - bearerAuth: []
+      operationId: getProject
+      summary: Get project data by id
+      parameters:
+        - name: id
+          in: path
+          description: of project
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/project'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - project
+      security:
+        - bearerAuth: []
+      operationId: updateProject
+      summary: Update project by id
+      parameters:
+        - name: id
+          in: path
+          description: id of project
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateProjectForm'
+      responses:
+        200:
+          $ref: '#/components/responses/project'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - project
+      security:
+        - bearerAuth: []
+      operationId: deleteProject
+      summary: Delete project by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    createProjectForm:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - teamId
+        - status
+      properties:
+        name:
+          type: string
+          example: 'testProject'
+        teamId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        status:
+          type: number
+          enum: [toDo, inProgress, done, archived]
+          example: 'toDo'
+    #
+    updateProjectForm:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              example: 'testProject'
+        - type: object
+          additionalProperties: false
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum: [toDo, inProgress, done, archived]
+    #
+    project:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - brand
+        - team
+        - parents
+        - name
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        brand:
+          type: object
+          properties:
+            _id:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+            name:
+              type: string
+        team:
+          type: object
+          properties:
+            _id:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+            name:
+              type: string
+        parents:
+          type: object
+          additionalProperties: false
+          required:
+            - brandId
+            - teamId
+          properties:
+            brandId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+            teamId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+        name:
+          type: string
+        status:
+          type: number
+          enum: [toDo, inProgress, done, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+  ##
+  responses:
+    #
+    projects:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              total:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/project'
+    #
+    project:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/project'

@@ -9,35 +9,40 @@ import { getSession } from "./browser";
  */
 export const fontExtractorTool = createTool({
   id: "font-extractor",
-  description: "Extracts the primary brand font family and file from a webpage",
+  description: "Extracts the header and body fonts from a webpage",
   inputSchema: z.object({
     sessionId: z.string().describe("Active browser session ID"),
   }),
   outputSchema: z.object({
-    primaryFontFamily: z
-      .string()
-      .describe("The name of the primary font found"),
-    fontFileBase64: z.string().nullable().describe("Base64 encoded font file"),
-    fontFormat: z
-      .enum(["woff2", "woff", "ttf", "otf"])
-      .nullable()
-      .describe("Font file format"),
-    isSystemFont: z
-      .boolean()
-      .describe("True if no custom font file was found or matched"),
+    headerFont: z.object({
+      fontFamily: z.string(),
+      fontFileBase64: z.string().nullable(),
+      fontFormat: z.enum(["woff2", "woff", "ttf", "otf"]).nullable(),
+      isSystemFont: z.boolean(),
+    }),
+    bodyFont: z.object({
+      fontFamily: z.string(),
+      fontFileBase64: z.string().nullable(),
+      fontFormat: z.enum(["woff2", "woff", "ttf", "otf"]).nullable(),
+      isSystemFont: z.boolean(),
+    }),
     success: z.boolean(),
     error: z.string().optional(),
   }),
-  execute: async ({ context }) => {
-    const session = getSession(context.sessionId);
+  execute: async ({ sessionId }) => {
+    const session = getSession(sessionId);
     if (!session) {
-      return {
-        primaryFontFamily: "system-ui",
+      const emptyFont = {
+        fontFamily: "system-ui",
         fontFileBase64: null,
         fontFormat: null,
         isSystemFont: true,
+      };
+      return {
+        headerFont: emptyFont,
+        bodyFont: emptyFont,
         success: false,
-        error: `No active session found for ID: ${context.sessionId}`,
+        error: `No active session found for ID: ${sessionId}`,
       };
     }
 
@@ -48,11 +53,15 @@ export const fontExtractorTool = createTool({
         success: true,
       };
     } catch (error) {
-      return {
-        primaryFontFamily: "system-ui",
+      const emptyFont = {
+        fontFamily: "system-ui",
         fontFileBase64: null,
         fontFormat: null,
         isSystemFont: true,
+      };
+      return {
+        headerFont: emptyFont,
+        bodyFont: emptyFont,
         success: false,
         error:
           error instanceof Error ? error.message : "Failed to extract fonts",

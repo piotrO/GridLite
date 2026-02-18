@@ -1,0 +1,445 @@
+paths:
+  /{type}/{id}:
+    get:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: getProjectComments
+      summary: List all comments of a project (disscussion)
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [file, project, ad]
+          required: true
+          schema:
+            type: string
+            enum: [file, project, ad]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/comments'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    post:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: createProjectComment
+      summary: create a comment for project (disscussion)
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [file, project, ad]
+          required: true
+          schema:
+            type: string
+            enum: [file, project, ad]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/createCommentForm'
+      responses:
+        200:
+          $ref: '#/components/responses/comment'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: uploadAttachment
+      summary: upload attachment
+      parameters:
+        - name: type
+          in: path
+          description: type of related object [file, project, ad]
+          required: true
+          schema:
+            type: string
+            enum: [file, project, ad]
+        - name: id
+          in: path
+          description: id of relative object
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/uploadAttachmentForm'
+      responses:
+        200:
+          $ref: '#/components/responses/attachment'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}:
+    put:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: updateComment
+      summary: Update comment by id
+      parameters:
+        - name: id
+          in: path
+          description: id of a comment
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/updateCommentForm'
+      responses:
+        200:
+          $ref: '#/components/responses/attachment'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: deleteComment
+      summary: Delete comment by id
+      parameters:
+        - name: id
+          in: path
+          description: id of comment
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tmpKey:
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}/resolve:
+    put:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: resolveComment
+      summary: resolve a comment
+      parameters:
+        - name: id
+          in: path
+          description: id of a comment
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/comment'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /attachment/{id}:
+    delete:
+      tags:
+        - comment
+      security:
+        - bearerAuth: []
+      operationId: deleteAttachment
+      summary: Marks attachment as tmp deleted
+      parameters:
+        - name: id
+          in: path
+          description: id of an attachment
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tmpKey:
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          $ref: '#/components/responses/empty'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    createCommentForm:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - tmpKey
+      properties:
+        versionId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        parentId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        text:
+          type: string
+        tmpKey:
+          type: string
+          format: uuid
+    #
+    updateCommentForm:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - tmpKey
+      properties:
+        text:
+          type: string
+        tmpKey:
+          type: string
+          format: uuid
+    #
+    uploadAttachmentForm:
+      type: object
+      additionalProperties: false
+      required:
+        - attachment
+        - tmpKey
+      properties:
+        tmpKey:
+          type: string
+          format: uuid
+        attachment:
+          type: string
+          format: binary
+    #
+    comment:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - parents
+        - parentId
+        - text
+        - resolved
+        - attachments
+        - relativeType
+        - relativeId
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        relativeType:
+          type: string
+          enum: [file, project, ad]
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              nullable: true
+            teamId:
+              type: string
+              nullable: true
+            projectId:
+              type: string
+              nullable: true
+            fileId:
+              type: string
+              nullable: true
+            adId:
+              type: string
+              nullable: true
+        versionId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          nullable: true
+        createdBy:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        parentId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          nullable: true
+        text:
+          type: string
+        resolved:
+          type: boolean
+        attachments:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/attachment'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    #
+    attachment:
+      type: object
+      additionalProperties: false
+      required:
+        - _id
+        - parents
+        - commentId
+        - displayName
+        - fileName
+        - attachments
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              nullable: true
+            teamId:
+              type: string
+              nullable: true
+            projectId:
+              type: string
+              nullable: true
+            fileId:
+              type: string
+              nullable: true
+            adId:
+              type: string
+              nullable: true
+        commentId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          nullable: true
+        displayName:
+          type: string
+        fileName:
+          type: string
+        createdBy:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+  ##
+  responses:
+    #
+    comments:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/comment'
+    #
+    comment:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/comment'
+    #
+    attachment:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/attachment'

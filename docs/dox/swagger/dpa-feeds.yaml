@@ -1,0 +1,259 @@
+paths:
+  /add:
+    post:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: add
+      summary: Add a feed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/feed'
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{id}:
+    get:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: getFeed
+      summary: Get feed
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/feed'
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: updateFeed
+      summary: Update feed
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/feed'
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    delete:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: deleteFeed
+      summary: Delete feed
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/brand'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /screenshots/{id}:
+    post:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: getFeedScreenshots
+      summary: Get all screenshots from feed
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /xml/{id}:
+    get:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: getXmlFeed
+      summary: Geed feed in xml form
+      parameters:
+        - name: id
+          in: path
+          description: of feed
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /publish:
+    post:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: publishFeed
+      summary: Publish feed
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /{brandId}/{teamId}/{projectId}:
+    get:
+      tags:
+        - feeds
+      security:
+        - bearerAuth: []
+      operationId: getFeeds
+      summary: Get feeds
+      parameters:
+        - name: brandId
+          in: path
+          description: Brand id
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: teamId
+          in: path
+          description: Team id
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+        - name: projectId
+          in: path
+          description: Project id
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+components:
+  schemas:
+    #
+    list:
+      type: object
+  ##
+  responses:
+    #
+    brands:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              total:
+                type: integer
+              items:
+                type: array
+                items:
+                  $ref: '#/components/schemas/brand'
+    #
+    brand:
+      description: successfull responce
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/brand'

@@ -1,0 +1,337 @@
+paths:
+  /:
+    post:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: addAd
+      summary: Create an ad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ad'
+      responses:
+        200:
+          $ref: '#/components/responses/ad'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+    put:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: editAd
+      summary: Update ad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ad'
+      responses:
+        200:
+          $ref: '#/components/responses/ad'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /list:
+    post:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: list
+      summary: List all ads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/list'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /publish:
+    post:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: publishAds
+      summary: Publish ads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adArray'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /unpublish:
+    post:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: unpublishAds
+      summary: Unpublish an ad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adArray'
+      responses:
+        200:
+          $ref: '#/components/responses/list'
+        500:
+          $ref: '#/components/responses/500'
+        401:
+          $ref: '#/components/responses/401'
+        422:
+          $ref: '#/components/responses/422'
+        403:
+          $ref: '#/components/responses/403'
+  /deleteAllWithParents:
+    delete:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: deleteAllWithParents
+      summary: deletes all ads with specified parents object, used when deleting setup or project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/parents'
+  /{id}:
+    get:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: getAd
+      summary: returns an ad object
+      parameters:
+        - name: id
+          in: path
+          description: of ad
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ad'
+  /{id}/publish:
+    get:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: publishAd
+      summary: returns debug info atm, should return csv i guess, best to check with frontend guys
+      parameters:
+        - name: id
+          in: path
+          description: of ad
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ad'
+  /{id}/diff:
+    get:
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      operationId: getAdDiff
+      summary: get diff for ad, a list of changes/differences made on frontend
+      parameters:
+        - name: id
+          in: path
+          description: of ad
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ad'
+components:
+  schemas:
+    #
+    parents:
+      type: object
+      additionalProperties: false
+      required:
+        - parents.brandId
+        - parents.projectId
+        - parents.teamId
+      properties:
+        parents.brandId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5a'
+        parents.projectId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5b'
+        parents.teamId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+    #
+    list:
+      type: object
+      additionalProperties: false
+      required:
+        - parents.brandId
+        - parents.projectId
+        - parents.teamId
+      properties:
+        parents.brandId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+        parents.projectId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+          nullable: true
+        parents.teamId:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '61952abc6a908a79b4e97a5c'
+          nullable: true
+    #
+    ad:
+      type: object
+      properties:
+        columns:
+          type: object
+          properties:
+            ColumnName:
+              type: string
+              example: 'Ad Name'
+        shots:
+          type: array
+          items:
+            type: array
+            items:
+              type: object
+              properties:
+                widthXheight:
+                  type: object
+                  properties:
+                    MainCopy:
+                      type: string
+                      example: 'Hello'
+                    bgColor:
+                      type: string
+                      example: 'blue'
+        sizes:
+          type: array
+          items:
+            type: object
+            properties:
+              width:
+                type: number
+              height:
+                type: number
+              enabled:
+                type: boolean
+              assetId:
+                type: string
+                pattern: '^[0-9a-fA-F]{24}$'
+                example: '63579d78626a087acbbdf883'
+        parents:
+          type: object
+          properties:
+            brandId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+              example: '63579d78626a087acbbdf883'
+            projectId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+              example: '63579d78626a087acbbdf883'
+            teamId:
+              type: string
+              pattern: '^[0-9a-fA-F]{24}$'
+              example: '63579d78626a087acbbdf883'
+        setup:
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+          example: '63579d78626a087acbbdf883'
+    #
+    adArray:
+      type: array
+      items:
+        type: string
+        pattern: '^[0-9a-fA-F]{24}$'
+        example: '61952abc6a908a79b4e97a5c'
+  ##
+  responses:
+    #
+    list:
+      description: successfull response
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              oneOf:
+                - $ref: '#/components/schemas/ad'
+    #
+    ad:
+      description: successfull response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ad'

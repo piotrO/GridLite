@@ -93,6 +93,7 @@ const getDefaultBrandData = (url: string): BrandData => ({
     extraColors: ["#8B5CF6"],
   },
   font: "Inter / Plus Jakarta Sans",
+  typography: null,
   voiceLabel: "Modern Professional",
   voiceInstructions: "Professional yet approachable",
   dos: ["Use active voice", "Be direct"],
@@ -181,6 +182,7 @@ export default function ScanPage() {
           tagline: workingBrandKit.tagline,
           logo: workingBrandKit.logo,
           font: workingBrandKit.font,
+          typography: workingBrandKit.typography,
           personality: workingBrandKit.personality,
           voiceLabel: workingBrandKit.voiceLabel || "Modern Professional",
           voiceInstructions:
@@ -277,7 +279,7 @@ export default function ScanPage() {
         logo: logo || prev.logo,
         typography: typography || prev.typography || null,
         font:
-          typography?.primaryFontFamily ||
+          typography?.headerFont?.fontFamily ||
           visualIdentity.font_style ||
           visualIdentity.fontStyle ||
           prev.font,
@@ -669,7 +671,9 @@ export default function ScanPage() {
         open={showFontPicker}
         onOpenChange={setShowFontPicker}
         currentFont={brandData.font.split(" / ")[0]}
-        onFontChange={(font) => setBrandData({ ...brandData, font })}
+        onFontChange={(font) =>
+          setBrandData({ ...brandData, font, typography: null })
+        }
         brandFonts={["Inter", "Playfair Display", "Roboto"]}
       />
     </div>

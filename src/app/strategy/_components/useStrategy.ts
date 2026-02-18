@@ -172,17 +172,45 @@ export function useStrategy(): UseStrategyReturn {
   // Handle strategy error
   const handleStrategyError = useCallback(
     (fallbackMessage: string) => {
-      setMessages([
+      // Safe access to brand properties (handling the case where brand is just { name: "Your Brand" })
+      const brandTagline =
+        "tagline" in brand ? (brand as any).tagline : "Quality you can trust";
+
+      // Create a fallback strategy so the UI doesn't stay empty
+      const fallbackStrategy: StrategyData = {
+        recommendation: "AWARENESS",
+        campaignAngle: "Brand Visibility",
+        headline: `Discover ${brand.name}`,
+        subheadline: brandTagline || "Quality you can trust",
+        rationale:
+          "We recommend starting with a broad awareness campaign to establish your brand presence.",
+        callToAction: "Learn More",
+        adFormats: ["300x250", "728x90"],
+        targetingTips: [
+          "Target users interested in your industry",
+          "Lookalike audiences",
+        ],
+      };
+
+      // Set the strategy data (this triggers the UI to show content)
+      handleStrategyComplete({
+        greeting: fallbackMessage,
+        strategy: fallbackStrategy,
+      });
+
+      // Also update messages to show the error/fallback context
+      setMessages((prev) => [
+        ...prev,
         {
-          id: "fallback",
+          id: "fallback-error",
           persona: "strategist",
-          content: fallbackMessage,
+          content:
+            "I had a little trouble analyzing the website details, but I used your brand profile to create this strategy. Feel free to tweak it! 🛠️",
           timestamp: new Date(),
         },
       ]);
-      setStrategyOptions(buildFallbackOptions());
     },
-    [buildFallbackOptions],
+    [brand, handleStrategyComplete],
   );
 
   // Use the workflow stream hook
@@ -221,6 +249,7 @@ export function useStrategy(): UseStrategyReturn {
   useEffect(() => {
     if (hasInitialized.current) return;
     if (!campaignType) return; // Wait for campaign type to be set
+    if (!activeBrandKit) return; // Wait for brand kit to be loaded
     hasInitialized.current = true;
 
     const isDpa = campaignType === "dpa";
@@ -236,7 +265,7 @@ export function useStrategy(): UseStrategyReturn {
       : {
           brandProfile: buildBrandProfile(),
           campaignType: "display" as const,
-          rawWebsiteText: strategySession.rawWebsiteText,
+          rawWebsiteText: strategySession.rawWebsiteText || undefined,
           websiteUrl: !strategySession.rawWebsiteText
             ? activeBrandKit?.url
             : undefined,

@@ -205,6 +205,30 @@ export default function StrategyPage() {
     );
   }
 
+  // Error/Empty state (if loading finished but no strategy data)
+  if (!strategyData && !dpaStrategyData) {
+    return (
+      <div className="min-h-screen bg-background relative flex items-center justify-center">
+        <GradientBackground colorVar="strategist" />
+        <div className="text-center space-y-4 p-8 bg-card/50 backdrop-blur-sm rounded-xl border border-border shadow-lg max-w-md">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+            <Lightbulb className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-semibold">Strategy Generation Failed</h2>
+          <p className="text-muted-foreground">
+            We couldn't generate a strategy for this campaign at the moment.
+          </p>
+          <Button onClick={() => window.location.reload()} variant="default">
+            Try Again
+          </Button>
+          <Button onClick={handleBack} variant="ghost" className="block w-full">
+            Go Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Main Strategy View
   return (
     <div className="min-h-screen bg-background relative">

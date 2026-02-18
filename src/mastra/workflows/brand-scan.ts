@@ -47,13 +47,21 @@ const VisualIdentitySchema = z.object({
 });
 
 /**
- * Zod schema for typography.
+ * Zod schema for font detail.
  */
-const TypographySchema = z.object({
-  primaryFontFamily: z.string(),
+const FontDetailSchema = z.object({
+  fontFamily: z.string(),
   fontFileBase64: z.string().nullable(),
   fontFormat: z.enum(["woff2", "woff", "ttf", "otf"]).nullable(),
   isSystemFont: z.boolean(),
+});
+
+/**
+ * Zod schema for typography.
+ */
+const TypographySchema = z.object({
+  headerFont: FontDetailSchema,
+  bodyFont: FontDetailSchema,
 });
 
 /**
@@ -722,13 +730,15 @@ const analyzeWithAIStep = createStep({
     };
 
     if (!success || !screenshotBase64) {
+      const errorMsg = error || "Failed to scan website";
       return {
         ...defaultResult,
         brand_profile: {
           ...DEFAULT_BRAND_PROFILE,
+          brandSummary: `SCAN FAILED: ${errorMsg}`,
           guidelines: {
             ...DEFAULT_BRAND_PROFILE.guidelines,
-            voice_instructions: error || "Failed to scan website",
+            voice_instructions: errorMsg,
           },
         },
       };
@@ -749,16 +759,18 @@ const analyzeWithAIStep = createStep({
         typography,
       };
     } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "AI analysis failed";
+      console.error("AI Analysis execution failed:", error);
+
       return {
         ...defaultResult,
         brand_profile: {
           ...DEFAULT_BRAND_PROFILE,
+          brandSummary: `AI ANALYSIS FAILED: ${errorMsg}`,
           guidelines: {
             ...DEFAULT_BRAND_PROFILE.guidelines,
-            voice_instructions:
-              error instanceof Error
-                ? `AI analysis failed: ${error.message}`
-                : "AI analysis failed",
+            voice_instructions: `AI analysis failed: ${errorMsg}`,
           },
         },
       };

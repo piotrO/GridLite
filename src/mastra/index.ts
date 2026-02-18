@@ -8,6 +8,8 @@ import {
   designerAgent,
   designerChatAgent,
   colorReasonerAgent,
+  localizerAgent,
+  localizerDpaAgent,
 } from "./agents";
 import {
   brandScanWorkflow,
@@ -30,6 +32,8 @@ export const mastra = new Mastra({
     designer: designerAgent,
     designerChat: designerChatAgent,
     colorReasoner: colorReasonerAgent,
+    localizer: localizerAgent,
+    localizerDpa: localizerDpaAgent,
   },
   workflows: {
     brandScan: brandScanWorkflow,
