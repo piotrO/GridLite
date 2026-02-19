@@ -84,7 +84,7 @@ DPA Strategy:
         ...history,
         { role: "user", content: body.userMessage },
         { role: "user", content: "Respond as Sarah with JSON:" },
-      ]);
+      ] as any);
 
       let parsed;
       try {
@@ -217,6 +217,7 @@ DPA Strategy:
 
           controller.close();
         } catch (error) {
+          console.error("Strategy API Error:", error);
           // Check for rate limit errors
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error";

@@ -22,8 +22,8 @@ const BrandProfileSchema = z.object({
   palette: z
     .object({
       primary: z.string(),
-      secondary: z.string(),
-      accent: z.string(),
+      secondary: z.string().optional().nullable(),
+      accent: z.string().optional().nullable(),
       extraColors: z.array(z.string()).optional(),
     })
     .optional(),
@@ -73,6 +73,7 @@ const DesignerInputSchema = z.object({
   brandProfile: BrandProfileSchema,
   strategy: StrategyDataSchema,
   campaignData: CampaignDataSchema.optional(),
+  isDpa: z.boolean().optional(),
 });
 
 /**
@@ -108,8 +109,9 @@ function buildContextPrompt(
   brand: BrandProfile,
   strategy: StrategyData,
   campaign: CampaignData | null,
+  isDpa?: boolean,
 ): string {
-  return `
+  let prompt = `
 ## Brand Information
 - Name: ${brand.name}
 - Industry: ${brand.industry || "Not specified"}
@@ -149,9 +151,28 @@ ${
 `
     : "No additional campaign data available."
 }
+`;
 
+  if (isDpa) {
+    prompt += `
+## IMPORTANT - DPA MODE
+This creative is for a Dynamic Product Ad (DPA). The image will serve as a **BACKGROUND** for a product overlay in the center.
+
+**CRITICAL GUIDELINES:**
+1. The background must be **ABSTRACT** and **CLEAN**.
+2. **DO NOT** include the product in the generated image. The product will be added programmatically.
+3. **DO NOT** start the prompt with "A close-up shot of [Product]". Start with "Abstract background...".
+4. The center area must be **NOT BUSY** (plain texture or soft gradient).
+5. Focus on mood, color, and texture rather than concrete subjects.
+6. **Hero Image Prompt** must describe a **BACKGROUND TEXTURE ONLY**.
+`;
+  }
+
+  prompt += `
 Based on this information, create a cohesive visual direction that brings this campaign to life.
 `;
+
+  return prompt;
 }
 
 /**
@@ -204,14 +225,25 @@ const generateCreativeStep = createStep({
   inputSchema: DesignerInputSchema,
   outputSchema: CreativeOutputSchema,
   execute: async ({ inputData }) => {
-    const { brandProfile, strategy, campaignData } = inputData;
+    const { brandProfile, strategy, campaignData, isDpa } = inputData;
 
     try {
+      // For DPA, we MUST override the visual concept to be abstract
+      // otherwise the designer might try to feature the product in the background
+      const effectiveStrategy = isDpa
+        ? {
+            ...strategy,
+            heroVisualConcept:
+              "Minimalist, abstract background texture. Soft lighting. High quality. No products. Clean center.",
+          }
+        : strategy;
+
       const agent = mastra.getAgent("designer");
       const contextPrompt = buildContextPrompt(
         brandProfile as BrandProfile,
-        strategy as StrategyData,
+        effectiveStrategy as StrategyData,
         (campaignData as CampaignData) || null,
+        isDpa,
       );
 
       const result = await agent.generate([

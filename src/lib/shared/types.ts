@@ -86,6 +86,9 @@ export interface BrandProfile {
   url?: string;
   colors?: string[];
   logo?: string;
+  tone?: string;
+  personality?: string[];
+  audiences?: TargetAudience[];
 }
 
 /**
@@ -135,6 +138,7 @@ export interface CreativeData {
   animationIdeas: string[];
   moodKeywords: string[];
   heroImagePrompt?: string;
+  imageDirection?: string;
   // Optional copy fields for chat updates
   headline?: string;
   bodyCopy?: string;

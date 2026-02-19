@@ -27,6 +27,9 @@ interface DesignerRequest {
   // Campaign data from Phase 2 (optional)
   campaignData?: CampaignData;
 
+  // DPA mode flag
+  isDpa?: boolean;
+
   // For chat continuation
   mode?: "initial" | "chat";
   userMessage?: string;
@@ -137,6 +140,15 @@ export async function POST(request: NextRequest) {
         try {
           const workflow = mastra.getWorkflow("designer");
 
+          console.log(
+            "[Designer API] Starting workflow with isDpa:",
+            body.isDpa,
+          );
+          console.log(
+            "[Designer API] Strategy Recommendation:",
+            body.strategy?.recommendation,
+          );
+
           // Define step labels including synthetic ones
           const stepLabels: Record<string, string> = {
             "analyzing-brand": "Analyzing brand identity",
@@ -189,6 +201,7 @@ export async function POST(request: NextRequest) {
               brandProfile: body.brandProfile,
               strategy: body.strategy,
               campaignData: body.campaignData || null,
+              isDpa: body.isDpa,
             },
           });
 
@@ -211,12 +224,7 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
-            if (
-              (event.type === "workflow-step-completed" ||
-                // @ts-ignore
-                event.type === "workflow-step-finish") &&
-              "payload" in event
-            ) {
+            if (event.type === "workflow-step-finish" && "payload" in event) {
               const payload = event.payload as Record<string, unknown>;
               const step = payload?.step as Record<string, unknown> | undefined;
               const stepId = (payload?.stepId || step?.id || payload?.id) as

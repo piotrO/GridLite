@@ -6,7 +6,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
  * Zod schema for image generation options.
  */
 const ImageGenerationOptionsSchema = z.object({
-  prompt: z.string().describe("Detailed prompt describing the image to generate"),
+  prompt: z
+    .string()
+    .describe("Detailed prompt describing the image to generate"),
   style: z
     .enum(["product", "lifestyle", "abstract", "hero"])
     .optional()
@@ -35,7 +37,7 @@ function buildEnhancedPrompt(
   prompt: string,
   style: string,
   industry?: string,
-  moodKeywords?: string[]
+  moodKeywords?: string[],
 ): string {
   const parts: string[] = [prompt];
 
@@ -46,21 +48,21 @@ function buildEnhancedPrompt(
         "Professional product photography style",
         "Clean and minimal composition",
         "Soft studio lighting",
-        "High-end commercial quality"
+        "High-end commercial quality",
       );
       break;
     case "lifestyle":
       parts.push(
         "Lifestyle photography style",
         "Natural and authentic feel",
-        "Warm ambient lighting"
+        "Warm ambient lighting",
       );
       break;
     case "abstract":
       parts.push(
         "Abstract digital art style",
         "Modern and dynamic composition",
-        "Bold visual elements"
+        "Bold visual elements",
       );
       break;
     case "hero":
@@ -68,7 +70,7 @@ function buildEnhancedPrompt(
       parts.push(
         "Hero image for digital advertising",
         "Eye-catching and professional",
-        "Clean composition suitable for text overlay"
+        "Clean composition suitable for text overlay",
       );
       break;
   }
@@ -84,7 +86,7 @@ function buildEnhancedPrompt(
   parts.push(
     "Subject should be the main focus",
     "Simple or plain background that can be easily removed",
-    "No text or watermarks in the image"
+    "No text or watermarks in the image",
   );
 
   return parts.join(". ") + ".";
@@ -129,21 +131,24 @@ export const imageGeneratorTool = createTool({
         context.prompt,
         context.style || "hero",
         context.industry,
-        context.moodKeywords
+        context.moodKeywords,
       );
 
       const imagePrompt = `Generate a high-quality image for advertising use:
 
-${enhancedPrompt}
+  ${enhancedPrompt}
 
-Requirements:
-- The image should be professional and suitable for digital display advertising
-- Ensure the main subject is clearly visible and well-composed
-- The background should be simple/plain to allow for easy background removal
-- No text, logos, or watermarks should appear in the image
-- High resolution and sharp details`;
+  Requirements:
+  - The image should be professional and suitable for digital display advertising
+  - Ensure the main subject is clearly visible and well-composed
+  - The background should be simple/plain to allow for easy background removal
+  - No text, logos, or watermarks should appear in the image
+  - High resolution and sharp details`;
 
-      console.log("[ImageGenerator Tool] Generating image with prompt:", context.prompt.slice(0, 100));
+      console.log(
+        "[ImageGenerator Tool] Generating image with prompt:",
+        context.prompt,
+      );
 
       const result = await model.generateContent(imagePrompt);
       const response = result.response;
@@ -160,7 +165,9 @@ Requirements:
 
       // Look for inline data (image)
       for (const part of parts) {
-        const partData = part as { inlineData?: { mimeType: string; data: string } };
+        const partData = part as {
+          inlineData?: { mimeType: string; data: string };
+        };
         if (partData.inlineData) {
           console.log("[ImageGenerator Tool] Image generated successfully");
           return {
@@ -184,7 +191,8 @@ Requirements:
       return {
         result: null,
         success: false,
-        error: error instanceof Error ? error.message : "Failed to generate image",
+        error:
+          error instanceof Error ? error.message : "Failed to generate image",
       };
     }
   },
@@ -207,9 +215,11 @@ export interface GenerateImageResult {
   enhancedPrompt: string;
 }
 
-export async function generateImage(
-  options: GenerateImageOptions
-): Promise<{ result: GenerateImageResult | null; success: boolean; error?: string }> {
+export async function generateImage(options: GenerateImageOptions): Promise<{
+  result: GenerateImageResult | null;
+  success: boolean;
+  error?: string;
+}> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return {
@@ -234,21 +244,24 @@ export async function generateImage(
       options.prompt,
       options.style || "hero",
       options.industry,
-      options.moodKeywords
+      options.moodKeywords,
     );
 
     const imagePrompt = `Generate a high-quality image for advertising use:
 
-${enhancedPrompt}
+  ${enhancedPrompt}
 
-Requirements:
-- The image should be professional and suitable for digital display advertising
-- Ensure the main subject is clearly visible and well-composed
-- The background should be simple/plain to allow for easy background removal
-- No text, logos, or watermarks should appear in the image
-- High resolution and sharp details`;
+  Requirements:
+  - The image should be professional and suitable for digital display advertising
+  - Ensure the main subject is clearly visible and well-composed
+  - The background should be simple/plain to allow for easy background removal
+  - No text, logos, or watermarks should appear in the image
+  - High resolution and sharp details`;
 
-    console.log("[ImageGenerator] Generating image with prompt:", options.prompt.slice(0, 100));
+    console.log(
+      "[ImageGenerator] Generating image with prompt:",
+      options.prompt,
+    );
 
     const result = await model.generateContent(imagePrompt);
     const response = result.response;
@@ -263,7 +276,9 @@ Requirements:
     }
 
     for (const part of parts) {
-      const partData = part as { inlineData?: { mimeType: string; data: string } };
+      const partData = part as {
+        inlineData?: { mimeType: string; data: string };
+      };
       if (partData.inlineData) {
         console.log("[ImageGenerator] Image generated successfully");
         return {
@@ -287,7 +302,8 @@ Requirements:
     return {
       result: null,
       success: false,
-      error: error instanceof Error ? error.message : "Failed to generate image",
+      error:
+        error instanceof Error ? error.message : "Failed to generate image",
     };
   }
 }
@@ -295,6 +311,9 @@ Requirements:
 /**
  * Helper function to get a data URL from the image result.
  */
-export function getImageDataUrl(result: { imageData: string; mimeType: string }): string {
+export function getImageDataUrl(result: {
+  imageData: string;
+  mimeType: string;
+}): string {
   return `data:${result.mimeType};base64,${result.imageData}`;
 }

@@ -101,6 +101,24 @@ export default function StudioPage() {
     imageUrl: "",
   });
 
+  // DEBUG: Track strategy synchronization
+  useEffect(() => {
+    console.log("[StudioPage] Strategy Session:", strategySession);
+    console.log("[StudioPage] Current Content:", content);
+  }, [strategySession, content]);
+
+  // Sync content when strategySession updates (e.g. new campaign)
+  useEffect(() => {
+    if (strategySession.strategy) {
+      setContent((prev) => ({
+        ...prev,
+        headline: strategySession.strategy!.headline,
+        bodyCopy: strategySession.strategy!.subheadline,
+        ctaText: strategySession.strategy!.callToAction,
+      }));
+    }
+  }, [strategySession.strategy]);
+
   // Layer modifications from the Designer agent
   const [layerModifications, setLayerModifications] = useState<
     Array<{
@@ -121,6 +139,7 @@ export default function StudioPage() {
     creativeData,
     handleSend,
   } = useDesigner({
+    isDPA,
     currentContent: {
       headline: content.headline,
       bodyCopy: content.bodyCopy,
@@ -510,6 +529,7 @@ export default function StudioPage() {
                         : "FFFFFF",
                       imageUrl: selectedProduct.images?.[0]?.src || "",
                       image: selectedProduct.images?.[0]?.src || "",
+                      bgImageUrl: content.imageUrl, // Generated background
                       colors: [
                         brand.palette?.primary || "#4F46E5",
                         brand.palette?.secondary || "#F97316",

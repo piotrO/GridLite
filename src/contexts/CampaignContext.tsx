@@ -35,9 +35,9 @@ export interface StrategySession {
     subheadline: string;
     rationale: string;
     callToAction: string;
-    adFormats: string[];
     targetingTips: string[];
   } | null;
+  dpaStrategy?: any;
 }
 
 // Design session state for passing data between Strategy → Studio → Export

@@ -31,6 +31,7 @@ interface UseDesignerProps {
   onLayerChange?: (modifications: LayerModification[]) => void;
   onImageChange?: (imageUrl: string) => void;
   currentContent?: { headline: string; bodyCopy: string; ctaText: string };
+  isDPA?: boolean;
 }
 
 interface UseDesignerReturn {
@@ -44,7 +45,7 @@ interface UseDesignerReturn {
 }
 
 export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
-  const { onCopyChange, onLayerChange, onImageChange, currentContent } =
+  const { onCopyChange, onLayerChange, onImageChange, currentContent, isDPA } =
     props || {};
   const { activeBrandKit } = useBrand();
   const { token } = useAuth();
@@ -168,6 +169,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
       brandId,
       strategy: strategySession.strategy,
       campaignData: strategySession.campaignData,
+      isDpa: isDPA || !!strategySession.dpaStrategy,
     });
   }, [
     activeBrandKit,
@@ -176,6 +178,7 @@ export function useDesigner(props?: UseDesignerProps): UseDesignerReturn {
     brand.name,
     brandId,
     startDesignerWorkflow,
+    isDPA,
   ]);
 
   // Apply creative update

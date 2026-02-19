@@ -111,8 +111,8 @@ async function extractPaletteFromBuffer(
     let b = b0;
 
     // Skip white/near-white backgrounds
-    if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
-      continue;
+    // if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
+      // continue;
 
     // Simple quantization to group noise (e.g. 254 vs 255)
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;

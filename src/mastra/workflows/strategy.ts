@@ -93,8 +93,8 @@ const fetchWebsiteTextStep = createStep({
   execute: async ({ inputData }) => {
     const { brandProfile, rawWebsiteText, websiteUrl } = inputData;
 
-    // If we already have raw text, use it
-    if (rawWebsiteText) {
+    // If we have raw text, validate it
+    if (rawWebsiteText && rawWebsiteText.length > 200) {
       return { brandProfile, websiteText: rawWebsiteText, success: true };
     }
 
@@ -105,7 +105,7 @@ Summary: ${brandProfile.brandSummary || "N/A"}.
 Tagline: ${brandProfile.tagline || "N/A"}. 
 Key Audiences: ${brandProfile.audiences?.map((a) => a.name).join(", ") || "General"}.`;
 
-    // If we have a URL, try to fetch the text
+    // If we have a URL, try to fetch the text (either because no raw text or it was too short)
     if (websiteUrl) {
       const normalizedUrl = parseUrl(websiteUrl);
 
@@ -113,13 +113,16 @@ Key Audiences: ${brandProfile.audiences?.map((a) => a.name).join(", ") || "Gener
       if (!normalizedUrl) {
         return {
           brandProfile,
-          websiteText: fallbackText,
+          websiteText: rawWebsiteText || fallbackText,
           success: true, // Treat as success to keep workflow moving
           error: "Invalid website URL - used brand profile instead",
         };
       }
 
       try {
+        console.log(
+          "Strategy workflow: scraping website for better content...",
+        );
         // Attempt scraping with a timeout
         const session = await Promise.race([
           createBrowserSession(normalizedUrl),
@@ -138,7 +141,7 @@ Key Audiences: ${brandProfile.audiences?.map((a) => a.name).join(", ") || "Gener
         if (!websiteText || websiteText.length < 50) {
           return {
             brandProfile,
-            websiteText: fallbackText,
+            websiteText: rawWebsiteText || fallbackText,
             success: true,
             error: "Extracted text too short - used brand profile instead",
           };

@@ -251,6 +251,7 @@ export interface DynamicValueData {
   cta?: string;
   bgColor?: string;
   image?: string;
+  bgImageUrl?: string; // DPA background image
   layerModifications?: Array<{
     layerName: string;
     positionDelta?: { x?: number; y?: number };
@@ -292,6 +293,7 @@ export function applyDynamicValues(
       logoUrl: "s0_logoUrl",
       price: "s0_price", // DPA price mapping
       label: "s0_label",
+      bgImageUrl: "s0_bgImageUrl",
     };
 
     // Update each dynamic value

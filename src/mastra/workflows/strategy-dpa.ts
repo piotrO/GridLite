@@ -373,6 +373,7 @@ Based on this catalog, create a DPA campaign strategy. Select the best products 
         },
       };
     } catch (error) {
+      console.error("DPA Strategy Generation Failed:", error);
       // Return fallback strategy with auto-selected products
       const autoSelected = productSummaries
         .filter(

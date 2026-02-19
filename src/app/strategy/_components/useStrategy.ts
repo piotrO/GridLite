@@ -266,9 +266,7 @@ export function useStrategy(): UseStrategyReturn {
           brandProfile: buildBrandProfile(),
           campaignType: "display" as const,
           rawWebsiteText: strategySession.rawWebsiteText || undefined,
-          websiteUrl: !strategySession.rawWebsiteText
-            ? activeBrandKit?.url
-            : undefined,
+          websiteUrl: activeBrandKit?.url,
         };
 
     startStrategyWorkflow(payload);

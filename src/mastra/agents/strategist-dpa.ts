@@ -63,7 +63,7 @@ Return ONLY a JSON object:
 }
 
 IMPORTANT: Return ONLY JSON. No markdown.`,
-  model: "google/gemini-2.0-flash",
+  model: "google/gemini-2.5-flash",
 });
 
 /**
@@ -87,5 +87,5 @@ Return JSON: { "message": "Your conversational response (2-4 sentences)" }
 
 Use a friendly, expert tone. 🎯 💡
 IMPORTANT: Always return valid JSON. No markdown.`,
-  model: "google/gemini-2.0-flash",
+  model: "google/gemini-2.5-flash",
 });

@@ -92,6 +92,7 @@ export interface BrandKit {
   dos: string[];
   donts: string[];
   palette?: BrandPalette;
+  colors?: string[];
   tone?: string; // Legacy
   brandSummary?: string;
   audiences: { name: string; description: string }[];

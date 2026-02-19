@@ -22,6 +22,7 @@ export interface AdCanvasData {
   cta?: string;
   bgColor?: string;
   image?: string;
+  bgImageUrl?: string;
   layerModifications?: Array<{
     layerName: string;
     positionDelta?: { x?: number; y?: number };

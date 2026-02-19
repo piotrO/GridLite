@@ -127,9 +127,10 @@ export default function ScanPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, logout } = useAuth();
-  const { brandKits, addBrandKit, updateBrandKit } = useBrand();
+  const { brandKits, addBrandKit, updateBrandKit, setActiveBrandKit } =
+    useBrand();
   const { credits, useCredit } = useCredits();
-  const { setRawWebsiteText } = useCampaign();
+  const { setRawWebsiteText, clearStrategySession } = useCampaign();
 
   const initialUrl = searchParams.get("url") || "";
   const editId = searchParams.get("edit");
@@ -391,8 +392,10 @@ export default function ScanPage() {
   useEffect(() => {
     if (initialUrl) {
       hasScannedRef.current = false;
+      // Clear previous strategy session to avoid stale data
+      clearStrategySession();
     }
-  }, [initialUrl]);
+  }, [initialUrl, clearStrategySession]);
 
   // Initialize messages for editing mode (not reanalyze mode)
   useEffect(() => {
@@ -456,7 +459,10 @@ export default function ScanPage() {
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (urlInput.trim()) setIsScanningMode(true);
+    if (urlInput.trim()) {
+      clearStrategySession(); // Ensure fresh session for new scan
+      setIsScanningMode(true);
+    }
   };
 
   const handleSend = (message: string) => {
@@ -503,7 +509,11 @@ export default function ScanPage() {
         needsReanalysis: false,
       });
     } else {
-      await addBrandKit(brandData);
+      const newKit = await addBrandKit(brandData);
+      // Explicitly set as active to ensure immediate availability for Strategy page
+      if (newKit) {
+        setActiveBrandKit(newKit);
+      }
     }
   };
 
