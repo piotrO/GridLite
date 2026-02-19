@@ -26,6 +26,8 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: "tr", name: "Turkish", nativeName: "Türkçe", flag: "🇹🇷" },
   { code: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺" },
   { code: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳" },
+  { code: "sr", name: "Serbian", nativeName: "Srpski", flag: "🇷🇸" },
+  { code: "hr", name: "Croatian", nativeName: "Hrvatski", flag: "🇭🇷" },
 ];
 
 export interface LocalizedCopy {

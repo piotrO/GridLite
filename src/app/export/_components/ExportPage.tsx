@@ -100,7 +100,7 @@ export default function ExportPage() {
   const [selectedProducts, setSelectedProducts] = useState<typeof products>([]);
 
   // For DPA, default to "images" format only
-  const [selectedFormats, setSelectedFormats] = useState<string[]>(["html5"]);
+  const [selectedFormats, setSelectedFormats] = useState<string[]>(["zip"]);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -135,10 +135,19 @@ export default function ExportPage() {
     }
   }, [isDPA, selectedProductIds, products]);
 
-  // Filter formats for DPA mode (only show Static Images)
+  // Filter formats: DPA shows only Static Images, display shows only ZIP
   const displayFormats = isDPA
     ? exportFormats.filter((f) => f.id === "images")
-    : exportFormats;
+    : exportFormats.filter((f) => f.id === "zip");
+
+  // Total image count across all languages (for download button)
+  const exportLangCount =
+    localization.selectedLanguages.length > 1
+      ? localization.selectedLanguages.filter(
+          (l) => l === "en" || localization.translations[l]?.status === "done",
+        ).length
+      : 1;
+  const totalImageCount = selectedProducts.length * exportLangCount;
 
   // Fetch available sizes on mount
   useEffect(() => {
@@ -591,7 +600,7 @@ export default function ExportPage() {
                     className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md text-lg h-14"
                   >
                     <Download className="h-5 w-5" />
-                    Download ZIP ({selectedProducts.length} images)
+                    Download ZIP ({totalImageCount} images)
                   </Button>
                   <p className="text-center text-sm text-muted-foreground mt-2">
                     Click to save your generated ads

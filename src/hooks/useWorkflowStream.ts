@@ -16,7 +16,7 @@ export function useWorkflowStream<TResult = any>(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<TResult | null>(null);
-  const hasStartedRef = useRef(false);
+  const [hasStarted, setHasStarted] = useState(false);
 
   // Keep options in ref to avoid re-creating start function if options change
   const optionsRef = useRef(options);
@@ -24,11 +24,11 @@ export function useWorkflowStream<TResult = any>(
 
   const start = useCallback(
     async (payload: any) => {
+      setHasStarted(true);
       setIsLoading(true);
       setError(null);
       setSteps([]);
       setData(null);
-      hasStartedRef.current = true;
 
       try {
         const response = await fetch(endpoint, {
@@ -150,5 +150,5 @@ export function useWorkflowStream<TResult = any>(
     [endpoint],
   );
 
-  return { start, steps, isLoading, error, data };
+  return { start, steps, isLoading, error, data, hasStarted };
 }

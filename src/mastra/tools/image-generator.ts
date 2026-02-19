@@ -60,9 +60,11 @@ function buildEnhancedPrompt(
       break;
     case "abstract":
       parts.push(
-        "Abstract digital art style",
-        "Modern and dynamic composition",
-        "Bold visual elements",
+        "Abstract background texture",
+        "Soft gradients and subtle patterns",
+        "Atmospheric and clean composition",
+        "No distinct objects or products in the center",
+        "Suitable as a backdrop for a product overlay",
       );
       break;
     case "hero":
@@ -83,11 +85,19 @@ function buildEnhancedPrompt(
     parts.push(`Mood: ${moodKeywords.join(", ")}`);
   }
 
-  parts.push(
-    "Subject should be the main focus",
-    "Simple or plain background that can be easily removed",
-    "No text or watermarks in the image",
-  );
+  if (style === "abstract") {
+    parts.push(
+      "Soft, atmospheric background only",
+      "Keep the center area clear and not busy",
+      "No text or watermarks in the image",
+    );
+  } else {
+    parts.push(
+      "Subject should be the main focus",
+      "Simple or plain background that can be easily removed",
+      "No text or watermarks in the image",
+    );
+  }
 
   return parts.join(". ") + ".";
 }

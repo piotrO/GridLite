@@ -81,6 +81,7 @@ export default function StrategyPage() {
     messages,
     isTyping,
     isLoading,
+    hasStarted,
     steps,
     strategyData,
     dpaStrategyData,
@@ -205,7 +206,22 @@ export default function StrategyPage() {
     );
   }
 
-  // Error/Empty state (if loading finished but no strategy data)
+  // Waiting state (workflow hasn't started yet - waiting for brand/campaign type)
+  if (!hasStarted && !strategyData && !dpaStrategyData) {
+    return (
+      <div className="min-h-screen bg-background relative">
+        <GradientBackground colorVar="strategist" />
+        <WorkflowProgress
+          steps={[]}
+          title="Preparing Strategy"
+          subtitle={`Getting ready for ${brand.name}`}
+          colorVar="strategist"
+        />
+      </div>
+    );
+  }
+
+  // Error/Empty state (workflow started but produced no strategy data)
   if (!strategyData && !dpaStrategyData) {
     return (
       <div className="min-h-screen bg-background relative flex items-center justify-center">

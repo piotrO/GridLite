@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
 
                   const imageResult = await generateImage({
                     prompt: imagePrompt,
-                    style: "hero",
+                    style: body.isDpa ? "abstract" : "hero",
                     industry: body.brandProfile.industry,
                     moodKeywords: creativeResult.creative.moodKeywords,
                   });

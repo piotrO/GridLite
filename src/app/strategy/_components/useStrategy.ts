@@ -23,6 +23,7 @@ interface UseStrategyReturn {
   messages: Message[];
   isTyping: boolean;
   isLoading: boolean;
+  hasStarted: boolean;
   steps: WorkflowStep[];
   strategyData: StrategyData | null;
   dpaStrategyData: DPAStrategyData | null;
@@ -218,6 +219,7 @@ export function useStrategy(): UseStrategyReturn {
     start: startStrategyWorkflow,
     steps,
     isLoading,
+    hasStarted,
   } = useWorkflowStream("/api/strategy", {
     onComplete: (data) => {
       handleStrategyComplete(data);
@@ -419,6 +421,7 @@ export function useStrategy(): UseStrategyReturn {
     messages,
     isTyping,
     isLoading,
+    hasStarted,
     steps,
     strategyData,
     dpaStrategyData,
