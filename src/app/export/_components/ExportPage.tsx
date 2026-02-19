@@ -298,6 +298,7 @@ export default function ExportPage() {
           ctaColor: activeBrandKit?.palette?.primary,
           bgColor: "#FFFFFF",
           typography: activeBrandKit?.typography,
+          bgImageUrl: designSession.imageUrl || undefined,
         };
 
         // Simulate progress — account for language count

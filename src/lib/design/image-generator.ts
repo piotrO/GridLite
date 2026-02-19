@@ -58,11 +58,12 @@ function buildEnhancedPrompt(options: ImageGenerationOptions): string {
       break;
     case "abstract":
       parts.push(
-        "Abstract background texture",
-        "Soft gradients and subtle patterns",
-        "Atmospheric and clean composition",
-        "No distinct objects or products in the center",
-        "Suitable as a backdrop for a product overlay",
+        "Soft, blurred background texture for a product ad",
+        "Very gentle and smooth gradients with NO hard edges",
+        "Dreamy, slightly out-of-focus aesthetic",
+        "Muted and pastel tones only",
+        "No distinct objects, shapes, or products",
+        "Empty quiet center area",
       );
       break;
     case "hero":
@@ -87,8 +88,10 @@ function buildEnhancedPrompt(options: ImageGenerationOptions): string {
 
   if (options.style === "abstract") {
     parts.push(
-      "Soft, atmospheric background only",
-      "Keep the center area clear and not busy",
+      "IMPORTANT: This is a BACKGROUND ONLY — no subjects, no products",
+      "Use very soft, diffused, almost blurry gradients",
+      "Avoid any hard lines, sharp contrasts, or bold patterns",
+      "Think: out-of-focus photography bokeh or watercolor wash",
       "No text or watermarks in the image",
     );
   } else {
@@ -129,8 +132,21 @@ export async function generateImage(
 
   const enhancedPrompt = buildEnhancedPrompt(options);
 
-  // Generate the image prompt
-  const imagePrompt = `Generate a high-quality image for advertising use:
+  const isAbstract = options.style === "abstract";
+
+  const imagePrompt = isAbstract
+    ? `Generate a soft, dreamy background image:
+
+${enhancedPrompt}
+
+Requirements:
+- This is a BACKGROUND TEXTURE ONLY for a product ad — a product will be overlaid on top
+- Use extremely soft, blurred, diffused gradients — like an out-of-focus photograph
+- NO hard edges, NO sharp contrasts, NO bold geometric patterns
+- Keep the center area especially calm and empty
+- No text, logos, or watermarks
+- Gentle, muted tones — think pastel or desaturated brand colors`
+    : `Generate a high-quality image for advertising use:
 
 ${enhancedPrompt}
 

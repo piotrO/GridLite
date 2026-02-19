@@ -32,6 +32,7 @@ interface DpaExportRequest {
     labelColor?: string;
     ctaColor?: string;
     bgColor?: string;
+    bgImageUrl?: string;
     typography?: Typography;
   };
   localizations?: Record<
@@ -90,6 +91,7 @@ async function generateProductHtml(
     imageUrl: product.imageUrl || "",
     image: product.imageUrl || "",
     logoUrl: brandData.logoUrl,
+    bgImageUrl: brandData.bgImageUrl,
     colors: brandData.colors,
     labelColor: brandData.labelColor?.replace("#", "") || "F97316",
     ctaColor: brandData.ctaColor?.replace("#", "") || "4F46E5",
