@@ -110,9 +110,8 @@ async function extractPaletteFromBuffer(
     let g = g0;
     let b = b0;
 
-    // Skip white/near-white backgrounds
-    // if (r > whiteThreshold && g > whiteThreshold && b > whiteThreshold)
-      // continue;
+    // We no longer skip white/near-white backgrounds outright.
+    // The user wants white colors to be viable palette candidates.
 
     // Simple quantization to group noise (e.g. 254 vs 255)
     r = Math.round(r / QUANTIZE_STEP) * QUANTIZE_STEP;
@@ -141,9 +140,11 @@ async function extractPaletteFromBuffer(
     rgb: [number, number, number];
   }[] = [];
 
-  // Minimum distance to consider a color "distinct" (approx 15-20% difference)
-  // 45 is a good heuristic for RGB Euclidean distance to separate "Blue" from "Dark Blue"
-  const MIN_DISTANCE = 15;
+  // Minimum distance to consider a color "distinct".
+  // We increase this to ensure primary and secondary colors are not too similar.
+  // 90 is a stronger heuristic for RGB Euclidean distance to separate shades.
+  // We can dynamically reduce this distance if we're struggling to find enough colors.
+  let currentMinDistance = 90;
 
   for (const candidate of sortedCandidates) {
     const candidateRgb: [number, number, number] = [
@@ -154,7 +155,8 @@ async function extractPaletteFromBuffer(
 
     // Check if this candidate is too close to any already selected color
     const isTooClose = selectedColors.some(
-      (selected) => getColorDistance(selected.rgb, candidateRgb) < MIN_DISTANCE,
+      (selected) =>
+        getColorDistance(selected.rgb, candidateRgb) < currentMinDistance,
     );
 
     if (!isTooClose) {
@@ -163,6 +165,11 @@ async function extractPaletteFromBuffer(
         rgb: candidateRgb,
         count: candidate.count,
       });
+      // Gradually relax the distance constraint as we find more colors
+      // to ensure we still find accents and extra colors
+      if (selectedColors.length >= 2) {
+        currentMinDistance = 45;
+      }
     }
 
     // Stop once we have enough distinct colors

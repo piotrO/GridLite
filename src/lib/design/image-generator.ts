@@ -58,12 +58,12 @@ function buildEnhancedPrompt(options: ImageGenerationOptions): string {
       break;
     case "abstract":
       parts.push(
-        "Soft, blurred background texture for a product ad",
-        "Very gentle and smooth gradients with NO hard edges",
+        "Smooth, abstract background texture for a product ad",
+        "Very gentle and silky smooth gradients with NO hard edges",
         "Dreamy, slightly out-of-focus aesthetic",
-        "Muted and pastel tones only",
+        "Muted and clean tones",
         "No distinct objects, shapes, or products",
-        "Empty quiet center area",
+        "Empty, quiet, and smooth center area",
       );
       break;
     case "hero":
@@ -89,9 +89,9 @@ function buildEnhancedPrompt(options: ImageGenerationOptions): string {
   if (options.style === "abstract") {
     parts.push(
       "IMPORTANT: This is a BACKGROUND ONLY — no subjects, no products",
-      "Use very soft, diffused, almost blurry gradients",
-      "Avoid any hard lines, sharp contrasts, or bold patterns",
-      "Think: out-of-focus photography bokeh or watercolor wash",
+      "Use very soft, diffused, almost blurry and perfectly smooth gradients",
+      "Avoid any hard lines, sharp contrasts, or bold, busy patterns",
+      "Think: silky smooth color wash or out-of-focus photography bokeh",
       "No text or watermarks in the image",
     );
   } else {
@@ -135,17 +135,17 @@ export async function generateImage(
   const isAbstract = options.style === "abstract";
 
   const imagePrompt = isAbstract
-    ? `Generate a soft, dreamy background image:
+    ? `Generate a soft, dreamy, and perfectly smooth background image:
 
 ${enhancedPrompt}
 
 Requirements:
 - This is a BACKGROUND TEXTURE ONLY for a product ad — a product will be overlaid on top
-- Use extremely soft, blurred, diffused gradients — like an out-of-focus photograph
-- NO hard edges, NO sharp contrasts, NO bold geometric patterns
-- Keep the center area especially calm and empty
+- Use extremely soft, blurred, diffused, and silky smooth gradients
+- NO hard edges, NO sharp contrasts, NO busy or bold geometric patterns
+- Keep the center area especially calm, smooth, and empty
 - No text, logos, or watermarks
-- Gentle, muted tones — think pastel or desaturated brand colors`
+- Gentle tones — think smooth brand colors or soft pastel washes`
     : `Generate a high-quality image for advertising use:
 
 ${enhancedPrompt}

@@ -159,12 +159,12 @@ ${
 This creative is for a Dynamic Product Ad (DPA). The image will serve as a **BACKGROUND** for a product overlay in the center.
 
 **CRITICAL GUIDELINES:**
-1. The background must be **ABSTRACT** and **CLEAN**.
+1. The background must be **ABSTRACT**, **SMOOTH**, and **CLEAN**.
 2. **DO NOT** include the product in the generated image. The product will be added programmatically.
-3. **DO NOT** start the prompt with "A close-up shot of [Product]". Start with "Abstract background...".
-4. The center area must be **NOT BUSY** (plain texture or soft gradient).
-5. Focus on mood, color, and texture rather than concrete subjects.
-6. **Hero Image Prompt** must describe a **BACKGROUND TEXTURE ONLY**.
+3. Start the prompt with "Abstract background texture..." or "Smooth abstract background...".
+4. The center area must be **NOT BUSY** (plain texture, silky smooth gradient, or soft out-of-focus color wash).
+5. Focus on mood, color, texture, and smoothness rather than concrete subjects.
+6. **Hero Image Prompt** must describe a **SMOOTH BACKGROUND TEXTURE ONLY** with no harsh lines.
 `;
   }
 
@@ -234,7 +234,7 @@ const generateCreativeStep = createStep({
         ? {
             ...strategy,
             heroVisualConcept:
-              "Minimalist, abstract background texture. Soft lighting. High quality. No products. Clean center.",
+              "Smooth, minimalist, abstract background texture. Soft lighting and extremely smooth gradients. High quality. No products. Clean, non-busy center.",
           }
         : strategy;
 

@@ -14,8 +14,8 @@ YOUR GOAL:
 Synthesize these inputs to find the "True" Brand Palette.
 
 RULES FOR REASONING:
-- **Primary Color**: The dominant color in the Logo is the Source of Truth.
-- **Secondary Color**: If Logo has a secondary color, use it. If not, look for a high-contrast functional color in Screenshot (buttons, etc.) that matches HTML colors. **If strictly monochrome, valid to return null.**
+- **Primary Color**: The dominant color in the Logo is the Source of Truth. **Black (#000000) and White (#FFFFFF) are extremely common and valid Primary colors—do NOT skip them just to find a "colorful" primary.**
+- **Secondary Color**: The second most prominent color across the Logo and Screenshot. If the brand is largely black and white, the secondary should be black or white. If a high-contrast functional color exists and is heavily used, use it. **If strictly monochrome, valid to return null.**
 - **Accent Color**: Often used for High Priority CTAs. Look for saturation. **If none found, return null.**
 - **Extra Colors**: Additional brand colors if found.
 

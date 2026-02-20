@@ -249,10 +249,16 @@ export function useStrategy(): UseStrategyReturn {
 
   // Fetch initial strategy from API when campaign type is set
   useEffect(() => {
+    console.log("[useStrategy] Effect check:", {
+      hasInitialized: hasInitialized.current,
+      campaignType,
+      activeBrandKit: activeBrandKit?.name || null,
+    });
     if (hasInitialized.current) return;
     if (!campaignType) return; // Wait for campaign type to be set
     if (!activeBrandKit) return; // Wait for brand kit to be loaded
     hasInitialized.current = true;
+    console.log("[useStrategy] Starting workflow:", campaignType);
 
     const isDpa = campaignType === "dpa";
 
@@ -261,7 +267,32 @@ export function useStrategy(): UseStrategyReturn {
       ? {
           brandProfile: buildBrandProfile(),
           campaignType: "dpa" as const,
-          products: products,
+          // Strip out massive HTML descriptions or extraneous metadata from products
+          // to prevent freezing the fetch request or Node.js body parser.
+          products: products.map((p) => ({
+            id: p.id,
+            shopifyId: p.shopifyId,
+            title: p.title,
+            // Only take the first 500 chars of description to avoid huge HTML blocks
+            description: p.description?.substring(0, 500) || null,
+            vendor: p.vendor,
+            productType: p.productType,
+            category: p.category,
+            price: p.price,
+            compareAtPrice: p.compareAtPrice,
+            currency: p.currency,
+            images: p.images,
+            variants: p.variants.map((v) => ({
+              id: v.id,
+              title: v.title,
+              price: v.price,
+              inventoryQuantity: v.inventoryQuantity,
+            })),
+            tags: p.tags,
+            status: p.status,
+            handle: p.handle,
+            url: p.url,
+          })),
           catalogStats: catalogStats,
         }
       : {

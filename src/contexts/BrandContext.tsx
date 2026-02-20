@@ -258,61 +258,25 @@ export function BrandProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        // Upload fonts as CSS if available
-        let fontCssUrl: string | null = null;
-        if (brand.typography) {
-          const { headerFont, bodyFont } = brand.typography;
-          let cssContent = "";
-
-          if (headerFont?.fontFileBase64) {
-            const format = headerFont.fontFormat || "woff2";
-            cssContent += `@font-face {\n  font-family: '${headerFont.fontFamily}';\n  src: url('data:font/${format};base64,${headerFont.fontFileBase64}') format('${format}');\n  font-weight: normal;\n  font-style: normal;\n}\n`;
-          }
-          if (
-            bodyFont?.fontFileBase64 &&
-            bodyFont.fontFamily !== headerFont?.fontFamily
-          ) {
-            const format = bodyFont.fontFormat || "woff2";
-            cssContent += `@font-face {\n  font-family: '${bodyFont.fontFamily}';\n  src: url('data:font/${format};base64,${bodyFont.fontFileBase64}') format('${format}');\n  font-weight: normal;\n  font-style: normal;\n}\n`;
-          }
-
-          if (cssContent) {
-            try {
-              const blob = new Blob([cssContent], { type: "text/css" });
-              const file = new File([blob], "fonts.css", { type: "text/css" });
-              fontCssUrl = await uploadBrandAsset(token, grid8Data._id, file);
-            } catch (e) {
-              console.error("Failed to upload fonts.css during creation:", e);
+        // Create brand kit immediately (don't block on font upload)
+        // Strip base64 from typography for the initial kit
+        const initialTypography = brand.typography
+          ? {
+              ...brand.typography,
+              headerFont: {
+                ...brand.typography.headerFont,
+                fontFileBase64: null,
+              },
+              bodyFont: {
+                ...brand.typography.bodyFont,
+                fontFileBase64: null,
+              },
             }
-          }
-
-          // Update brand with cleaned typography (no base64) + cssUrl
-          const finalTypography = {
-            ...brand.typography,
-            fontCssUrl: fontCssUrl || undefined,
-            headerFont: { ...headerFont, fontFileBase64: null },
-            bodyFont: { ...bodyFont, fontFileBase64: null },
-          };
-
-          // Upload updated profile to Grid8
-          await updateBrandOnGrid8(token, grid8Data._id, {
-            notes: {
-              book: JSON.stringify({
-                ...brand,
-                typography: finalTypography,
-              }),
-            },
-          });
-
-          // Update local brand object
-          brand = {
-            ...brand,
-            typography: finalTypography,
-          };
-        }
+          : null;
 
         const newKit: BrandKit = {
           ...brand,
+          typography: initialTypography,
           id: `grid8-${grid8Data._id}`,
           grid8Id: grid8Data._id,
           createdAt: new Date(grid8Data.createdAt),
@@ -320,6 +284,78 @@ export function BrandProvider({ children }: { children: ReactNode }) {
         };
         setBrandKits((prev) => [...prev, newKit]);
         setActiveBrandKit(newKit);
+
+        // Upload fonts as CSS in the background (fire-and-forget)
+        if (brand.typography) {
+          const typography = brand.typography;
+          const grid8Id = grid8Data._id;
+          const brandSnapshot = { ...brand };
+
+          (async () => {
+            try {
+              const { headerFont, bodyFont } = typography;
+              let cssContent = "";
+
+              if (headerFont?.fontFileBase64) {
+                const format = headerFont.fontFormat || "woff2";
+                cssContent += `@font-face {\n  font-family: '${headerFont.fontFamily}';\n  src: url('data:font/${format};base64,${headerFont.fontFileBase64}') format('${format}');\n  font-weight: normal;\n  font-style: normal;\n}\n`;
+              }
+              if (
+                bodyFont?.fontFileBase64 &&
+                bodyFont.fontFamily !== headerFont?.fontFamily
+              ) {
+                const format = bodyFont.fontFormat || "woff2";
+                cssContent += `@font-face {\n  font-family: '${bodyFont.fontFamily}';\n  src: url('data:font/${format};base64,${bodyFont.fontFileBase64}') format('${format}');\n  font-weight: normal;\n  font-style: normal;\n}\n`;
+              }
+
+              let fontCssUrl: string | null = null;
+              if (cssContent) {
+                const blob = new Blob([cssContent], { type: "text/css" });
+                const file = new File([blob], "fonts.css", {
+                  type: "text/css",
+                });
+                fontCssUrl = await uploadBrandAsset(token, grid8Id, file);
+              }
+
+              const finalTypography = {
+                ...typography,
+                fontCssUrl: fontCssUrl || undefined,
+                headerFont: { ...headerFont, fontFileBase64: null },
+                bodyFont: { ...bodyFont, fontFileBase64: null },
+              };
+
+              // Update Grid8 with the final typography (including fontCssUrl)
+              await updateBrandOnGrid8(token, grid8Id, {
+                notes: {
+                  book: JSON.stringify({
+                    ...brandSnapshot,
+                    typography: finalTypography,
+                  }),
+                },
+              });
+
+              // Update local state with fontCssUrl so hydration can find it
+              const kitId = `grid8-${grid8Id}`;
+              setBrandKits((prev) =>
+                prev.map((k) =>
+                  k.id === kitId ? { ...k, typography: finalTypography } : k,
+                ),
+              );
+              setActiveBrandKitState((prev) =>
+                prev?.id === kitId
+                  ? { ...prev, typography: finalTypography }
+                  : prev,
+              );
+              console.log(
+                "[BrandContext] Background font upload complete for",
+                kitId,
+              );
+            } catch (e) {
+              console.error("[BrandContext] Background font upload failed:", e);
+            }
+          })();
+        }
+
         return newKit;
       } catch (error) {
         console.error("Failed to create brand on Grid8:", error);

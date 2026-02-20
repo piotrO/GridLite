@@ -435,18 +435,23 @@ export async function fetchAndParseFontCss(
 
     const fontData: Record<string, string> = {};
 
-    // Regex to match @font-face blocks and extract font-family + src data uri
-    // Simple regex for standard generated CSS structure
-    // Matches: font-family: 'Name'; ... src: url('data:font/woff2;base64,DATA')
-    const fontFaceRegex =
-      /@font-face\s*{[^}]*?font-family:\s*['"]([^'"]+)['"][^}]*?src:\s*url\(['"]data:[^;]+;base64,([^'"]+)['"]\)/g;
+    // Split by @font-face to safely bound the search and avoid catastrophic regex backtracking
+    // over massive CSS strings (megabytes of base64 data).
+    const blocks = cssContent.split("@font-face");
 
-    let match;
-    while ((match = fontFaceRegex.exec(cssContent)) !== null) {
-      const fontFamily = match[1];
-      const base64Data = match[2];
-      if (fontFamily && base64Data) {
-        fontData[fontFamily] = base64Data;
+    for (const block of blocks) {
+      if (!block.trim()) continue;
+
+      // Look for font-family
+      const familyMatch = block.match(/font-family:\s*['"]([^'"]+)['"]/);
+
+      // Look for base64 data
+      const srcMatch = block.match(
+        /src:\s*url\(['"]data:[^;]+;base64,([^'"]+)['"]\)/,
+      );
+
+      if (familyMatch && familyMatch[1] && srcMatch && srcMatch[1]) {
+        fontData[familyMatch[1]] = srcMatch[1];
       }
     }
 
