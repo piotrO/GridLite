@@ -179,13 +179,17 @@ export function useStrategy(): UseStrategyReturn {
 
       // Create a fallback strategy so the UI doesn't stay empty
       const fallbackStrategy: StrategyData = {
-        recommendation: "AWARENESS",
-        campaignAngle: "Brand Visibility",
-        headline: `Discover ${brand.name}`,
+        recommendation: campaignType === "dpa" ? "CONVERSION" : "AWARENESS",
+        campaignAngle:
+          campaignType === "dpa" ? "Shop & Save" : "Brand Visibility",
+        headline:
+          campaignType === "dpa" ? "Discover More" : `Discover ${brand.name}`,
         subheadline: brandTagline || "Quality you can trust",
         rationale:
-          "We recommend starting with a broad awareness campaign to establish your brand presence.",
-        callToAction: "Learn More",
+          campaignType === "dpa"
+            ? "A conversion-focused DPA campaign drives direct sales from your product catalog."
+            : "We recommend starting with a broad awareness campaign to establish your brand presence.",
+        callToAction: campaignType === "dpa" ? "Shop Now" : "Learn More",
         adFormats: ["300x250", "728x90"],
         targetingTips: [
           "Target users interested in your industry",
@@ -193,10 +197,38 @@ export function useStrategy(): UseStrategyReturn {
         ],
       };
 
+      // Build DPA fallback if applicable
+      let dpaFallback: DPAStrategyData | undefined;
+      if (campaignType === "dpa" && products.length > 0) {
+        const autoSelected = products
+          .filter((p) => p.images?.length > 0 && p.status === "active")
+          .slice(0, 6)
+          .map((p) => p.id);
+
+        dpaFallback = {
+          segments: [
+            {
+              id: "featured",
+              name: "Featured Products",
+              description: "Top products with great images and stock",
+              productIds: autoSelected,
+              productCount: autoSelected.length,
+              strategy: "conversion",
+              suggestedHeadline: "Shop Now",
+              suggestedCta: "Buy Now",
+            },
+          ],
+          selectedProductIds: autoSelected,
+          productGroupStrategy: "hero",
+          priceDisplayStyle: "prominent",
+        };
+      }
+
       // Set the strategy data (this triggers the UI to show content)
       handleStrategyComplete({
         greeting: fallbackMessage,
         strategy: fallbackStrategy,
+        dpaStrategy: dpaFallback,
       });
 
       // Also update messages to show the error/fallback context
@@ -211,7 +243,7 @@ export function useStrategy(): UseStrategyReturn {
         },
       ]);
     },
-    [brand, handleStrategyComplete],
+    [brand, campaignType, products, handleStrategyComplete],
   );
 
   // Use the workflow stream hook

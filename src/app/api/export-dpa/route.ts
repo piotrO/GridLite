@@ -128,6 +128,24 @@ async function generateProductHtml(
     );
   }
 
+  // Inline all remaining local .js files referenced in the HTML
+  // This makes the HTML fully self-contained (no dependency on <base> tag for scripts)
+  const localScriptPattern =
+    /<script\s+src=["']([^"']+\.js)["']\s*><\/script>/gi;
+  let match;
+  while ((match = localScriptPattern.exec(html)) !== null) {
+    const scriptSrc = match[1];
+    // Skip absolute URLs (already handled above) and already-inlined scripts
+    if (scriptSrc.startsWith("http")) continue;
+    const scriptPath = path.join(templateDir, scriptSrc);
+    if (fs.existsSync(scriptPath)) {
+      const scriptContent = fs.readFileSync(scriptPath, "utf-8");
+      html = html.replace(match[0], `<script>${scriptContent}<\/script>`);
+      // Reset regex index since we modified the string
+      localScriptPattern.lastIndex = 0;
+    }
+  }
+
   // Inject color overrides and extra data
   if (colors && colors.length > 0) {
     const extraData =
