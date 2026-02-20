@@ -53,9 +53,11 @@ export async function POST(request: NextRequest) {
         const keepAlive = setInterval(() => {
           if (closed) return;
           try {
-            controller.enqueue(encoder.encode('{"type":"ping"}\n'));
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: "ping" })}\n\n`),
+            );
           } catch {}
-        }, 15000);
+        }, 5000);
 
         const sendEvent = (event: unknown) => {
           if (closed) return;
@@ -83,6 +85,10 @@ export async function POST(request: NextRequest) {
         };
 
         try {
+          // Force proxy buffer flush
+          if (!closed)
+            controller.enqueue(encoder.encode(" ".repeat(2048) + "\n\n"));
+
           // Get the workflow
           const workflow = getBrandScanWorkflow();
 

@@ -105,206 +105,198 @@ DPA Strategy:
       });
     }
 
-    // Initial strategy generation (streaming via    // Next.js App Router recommended streaming pattern
-    const encoder = new TextEncoder();
+    // Initial strategy generation (streaming via
+    const stream = new ReadableStream({
+      async start(controller) {
+        let closed = false;
+        const startTime = Date.now();
+        console.log(`[Strategy Stream] Started at ${new Date().toISOString()}`);
 
-    async function* generateStream() {
-      let closed = false;
-      const startTime = Date.now();
-      console.log(`[Strategy Stream] Started at ${new Date().toISOString()}`);
-
-      // Keep connection alive during long AI steps
-      const keepAlive = setInterval(() => {
-        if (closed) return;
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        console.log(`[Strategy Stream] Interval ping at ${elapsed}s`);
-      }, 5000);
-
-      const encodeEvent = (event: unknown) => {
-        return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
-      };
-
-      try {
-        console.log(`[Strategy Stream] Sending initial buffer flush...`);
-        // Force the proxy to flush its initial buffer
-        yield encoder.encode(" ".repeat(2048) + "\n");
-
-        console.log(`[Strategy Stream] Initializing Mastra workflow...`);
-        // Use DPA workflow for DPA campaigns
-        const workflowId = isDpaMode ? "strategyDpa" : "strategy";
-        const workflow = mastra.getWorkflow(workflowId);
-
-        // Define step labels for the UI
-        const stepLabels: Record<string, string> = isDpaMode
-          ? {
-              "analyze-catalog": "Analyzing product catalog",
-              "generate-dpa-strategy": "Creating DPA campaign strategy",
-            }
-          : {
-              "fetch-website-text": "Analyzing website content",
-              "extract-campaign-data": "Identifying key selling points",
-              "generate-strategy": "Formulating campaign strategy",
-            };
-
-        // Send initial pending steps
-        yield encodeEvent({
-          type: "init",
-          steps: Object.keys(stepLabels).map((id) => ({
-            id,
-            label: stepLabels[id],
-          })),
-        });
-
-        console.log(`[Strategy Stream] Creating workflow run...`);
-        const run = await workflow.createRun();
-
-        // Prepare input data
-        const inputData = isDpaMode
-          ? {
-              brandProfile: {
-                ...body.brandProfile,
-                url: body.brandProfile.url || "",
-              },
-              products: body.products || [],
-              catalogStats: body.catalogStats,
-            }
-          : {
-              brandProfile: body.brandProfile,
-              rawWebsiteText: body.rawWebsiteText,
-              websiteUrl: body.websiteUrl,
-            };
-
-        console.log(`[Strategy Stream] Starting workflow execution...`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const streamResult = await run.stream({ inputData } as any);
-
-        for await (const event of streamResult.fullStream) {
-          const elapsed = Math.round((Date.now() - startTime) / 1000);
-          console.log(
-            `[Strategy Stream] Received workflow event at ${elapsed}s:`,
-            event.type,
-          );
-
-          // Send ping to keep proxy alive while waiting for next event
-          yield encodeEvent({ type: "ping" });
-
-          // Step Start
-          if (event.type === "workflow-step-start" && "payload" in event) {
-            const payload = event.payload as Record<string, unknown>;
-            const step = payload?.step as Record<string, unknown> | undefined;
-            const stepId = (payload?.stepId || step?.id || payload?.id) as
-              | string
-              | undefined;
-
-            if (stepId && stepLabels[stepId]) {
-              console.log(`[Strategy Stream]   -> Step Start: ${stepId}`);
-              yield encodeEvent({
-                type: "step_start",
-                stepId,
-                label: stepLabels[stepId],
-              });
-            }
+        const encodeEvent = (event: unknown) => {
+          if (closed) return;
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+            );
+          } catch (e) {
+            console.error("[Strategy Stream] Error enqueuing event:", e);
           }
+        };
 
-          // Step Complete
-          if (event.type === "workflow-step-finish" && "payload" in event) {
-            const payload = event.payload as Record<string, unknown>;
-            const step = payload?.step as Record<string, unknown> | undefined;
-            const stepId = (payload?.stepId || step?.id || payload?.id) as
-              | string
-              | undefined;
-
-            // Check success
-            const result = payload?.result as { success?: boolean };
-            const success = result?.success !== false;
-
-            if (stepId && stepLabels[stepId]) {
-              console.log(
-                `[Strategy Stream]   -> Step Complete: ${stepId} (Success: ${success})`,
-              );
-              yield encodeEvent({
-                type: "step_complete",
-                stepId,
-                success,
-              });
-            }
-          }
-        }
-
-        console.log(
-          `[Strategy Stream] Workflow execution finished. Waiting for final result...`,
-        );
-        // Get the final result
-        const workflowResult = await streamResult.result;
-        const totalTime = Math.round((Date.now() - startTime) / 1000);
-
-        if (workflowResult.status === "success" && workflowResult.result) {
-          console.log(
-            `[Strategy Stream] Success. Sending final complete event at ${totalTime}s.`,
-          );
-          yield encodeEvent({ type: "complete", data: workflowResult.result });
-        } else {
-          console.error(
-            `[Strategy Stream] Failed status at ${totalTime}s:`,
-            workflowResult.status,
-          );
-          yield encodeEvent({
-            type: "error",
-            message:
-              workflowResult.status === "failed"
-                ? "Workflow failed to complete"
-                : "Workflow completed but no result was returned",
-          });
-        }
-      } catch (error) {
-        const errorTime = Math.round((Date.now() - startTime) / 1000);
-        console.error(
-          `[Strategy Stream] Exception caught at ${errorTime}s:`,
-          error,
-        );
-
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        if (
-          errorMessage.includes("429") ||
-          errorMessage.toLowerCase().includes("too many requests")
-        ) {
-          yield encodeEvent({
-            type: "error",
-            message:
-              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
-          });
-        } else {
-          yield encodeEvent({
-            type: "error",
-            message: errorMessage,
-          });
-        }
-      } finally {
-        const closeTime = Math.round((Date.now() - startTime) / 1000);
-        console.log(
-          `[Strategy Stream] Finally block executing at ${closeTime}s. Stream closing.`,
-        );
-        closed = true;
-        clearInterval(keepAlive);
-      }
-    }
-
-    // Helper to convert async generator to ReadableStream
-    function iteratorToStream(iterator: any) {
-      return new ReadableStream({
-        async pull(controller) {
-          const { value, done } = await iterator.next();
-          if (done) {
+        const closeStream = () => {
+          if (closed) return;
+          closed = true;
+          clearInterval(keepAlive);
+          try {
             controller.close();
-          } else {
-            controller.enqueue(value);
+            const closeTime = Math.round((Date.now() - startTime) / 1000);
+            console.log(`[Strategy Stream] Stream closed at ${closeTime}s.`);
+          } catch {
+            // ignore
           }
-        },
-      });
-    }
+        };
 
-    const stream = iteratorToStream(generateStream());
+        // Keep connection alive during long AI steps
+        const keepAlive = setInterval(() => {
+          if (closed) return;
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(`[Strategy Stream] Interval ping at ${elapsed}s`);
+          encodeEvent({ type: "ping" });
+        }, 5000);
+
+        try {
+          console.log(`[Strategy Stream] Sending initial buffer flush...`);
+          // Force the proxy to flush its initial buffer
+          if (!closed)
+            controller.enqueue(encoder.encode(" ".repeat(2048) + "\n\n"));
+
+          console.log(`[Strategy Stream] Initializing Mastra workflow...`);
+          const workflowId = isDpaMode ? "strategyDpa" : "strategy";
+          const workflow = mastra.getWorkflow(workflowId);
+
+          const stepLabels: Record<string, string> = isDpaMode
+            ? {
+                "analyze-catalog": "Analyzing product catalog",
+                "generate-dpa-strategy": "Creating DPA campaign strategy",
+              }
+            : {
+                "fetch-website-text": "Analyzing website content",
+                "extract-campaign-data": "Identifying key selling points",
+                "generate-strategy": "Formulating campaign strategy",
+              };
+
+          encodeEvent({
+            type: "init",
+            steps: Object.keys(stepLabels).map((id) => ({
+              id,
+              label: stepLabels[id],
+            })),
+          });
+
+          console.log(`[Strategy Stream] Creating workflow run...`);
+          const run = await workflow.createRun();
+
+          const inputData = isDpaMode
+            ? {
+                brandProfile: {
+                  ...body.brandProfile,
+                  url: body.brandProfile.url || "",
+                },
+                products: body.products || [],
+                catalogStats: body.catalogStats,
+              }
+            : {
+                brandProfile: body.brandProfile,
+                rawWebsiteText: body.rawWebsiteText,
+                websiteUrl: body.websiteUrl,
+              };
+
+          console.log(`[Strategy Stream] Starting workflow execution...`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const streamResult = await run.stream({ inputData } as any);
+
+          for await (const event of streamResult.fullStream) {
+            if (closed) break;
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            console.log(
+              `[Strategy Stream] Received workflow event at ${elapsed}s:`,
+              event.type,
+            );
+
+            if (event.type === "workflow-step-start" && "payload" in event) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
+
+              if (stepId && stepLabels[stepId]) {
+                console.log(`[Strategy Stream]   -> Step Start: ${stepId}`);
+                encodeEvent({
+                  type: "step_start",
+                  stepId,
+                  label: stepLabels[stepId],
+                });
+              }
+            }
+
+            if (event.type === "workflow-step-finish" && "payload" in event) {
+              const payload = event.payload as Record<string, unknown>;
+              const step = payload?.step as Record<string, unknown> | undefined;
+              const stepId = (payload?.stepId || step?.id || payload?.id) as
+                | string
+                | undefined;
+
+              const result = payload?.result as { success?: boolean };
+              const success = result?.success !== false;
+
+              if (stepId && stepLabels[stepId]) {
+                console.log(
+                  `[Strategy Stream]   -> Step Complete: ${stepId} (Success: ${success})`,
+                );
+                encodeEvent({
+                  type: "step_complete",
+                  stepId,
+                  success,
+                });
+              }
+            }
+          }
+
+          if (closed) return;
+          console.log(
+            `[Strategy Stream] Workflow execution finished. Waiting for final result...`,
+          );
+          const workflowResult = await streamResult.result;
+          const totalTime = Math.round((Date.now() - startTime) / 1000);
+
+          if (workflowResult.status === "success" && workflowResult.result) {
+            console.log(
+              `[Strategy Stream] Success. Sending final complete event at ${totalTime}s.`,
+            );
+            encodeEvent({ type: "complete", data: workflowResult.result });
+          } else {
+            console.error(
+              `[Strategy Stream] Failed status at ${totalTime}s:`,
+              workflowResult.status,
+            );
+            encodeEvent({
+              type: "error",
+              message:
+                workflowResult.status === "failed"
+                  ? "Workflow failed to complete"
+                  : "Workflow completed but no result was returned",
+            });
+          }
+        } catch (error) {
+          const errorTime = Math.round((Date.now() - startTime) / 1000);
+          console.error(
+            `[Strategy Stream] Exception caught at ${errorTime}s:`,
+            error,
+          );
+
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          if (
+            errorMessage.includes("429") ||
+            errorMessage.toLowerCase().includes("too many requests")
+          ) {
+            encodeEvent({
+              type: "error",
+              message:
+                "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
+            });
+          } else {
+            encodeEvent({
+              type: "error",
+              message: errorMessage,
+            });
+          }
+        } finally {
+          closeStream();
+        }
+      },
+    });
 
     return new Response(stream, {
       headers: {
