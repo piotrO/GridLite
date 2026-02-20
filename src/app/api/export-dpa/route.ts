@@ -172,8 +172,21 @@ async function screenshotHtml(
     // Wait for fonts to load
     await page.evaluate(() => document.fonts.ready);
 
-    // Buffer for rendering to settle
-    await page.waitForTimeout(1000);
+    // Wait for Grid8 player to signal ready (set via gsap.delayedCall after animationLoaded)
+    try {
+      await page.waitForFunction(() => (window as any).ready === true, {
+        timeout: 15000,
+        polling: 200,
+      });
+    } catch {
+      console.warn(
+        "[DPA Export] window.ready not set after 15s, using fallback",
+      );
+      await page.waitForTimeout(3000);
+    }
+
+    // Small buffer for final rendering
+    await page.waitForTimeout(500);
 
     // Take screenshot
     const screenshot = await page.screenshot({
