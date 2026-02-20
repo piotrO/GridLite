@@ -44,12 +44,31 @@ export async function POST(request: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+
         const sendEvent = (event: any) => {
-          const message = JSON.stringify(event) + "\n";
-          controller.enqueue(encoder.encode(message));
+          if (closed) return;
+          try {
+            const message = `data: ${JSON.stringify(event)}\n\n`;
+            controller.enqueue(encoder.encode(message));
+          } catch {
+            // Ignore
+          }
+        };
+
+        const closeStream = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {}
         };
 
         try {
+          // Force proxy buffer flush
+          if (!closed)
+            controller.enqueue(encoder.encode(" ".repeat(2048) + "\n\n"));
+
           const nonEnglishLangs = body.targetLanguages.filter(
             (l) => l !== "en",
           );
@@ -152,20 +171,22 @@ Copy to localize:
           }
 
           sendEvent({ type: "complete", data: { translations: results } });
-          controller.close();
         } catch (error) {
           const msg =
             error instanceof Error ? error.message : "Localization failed";
           sendEvent({ type: "error", message: msg });
-          controller.close();
+        } finally {
+          closeStream();
         }
       },
     });
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+        Connection: "keep-alive",
       },
     });
   } catch (error) {
