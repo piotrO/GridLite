@@ -26,7 +26,7 @@ export const strategistDpaAgent = new Agent({
    - **Dynamic Tags:** Use placeholders like {{product.name}} or {{product.price}} if appropriate.
    - Always prioritize the **Benefit** over the Feature.
 
-4. **Product Segmentation:** Select MAX 10 products across segments (Hero, Sale, or New).
+4. **Product Segmentation:** Select MAX 6 products across segments (Hero, Sale, or New).
 
 **Output Format:**
 Return ONLY a JSON object:

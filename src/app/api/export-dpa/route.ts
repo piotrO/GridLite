@@ -166,29 +166,14 @@ async function screenshotHtml(
     // Set viewport to exact ad size
     await page.setViewportSize({ width, height });
 
-    // Set the HTML content — domcontentloaded is faster than networkidle
-    // and sufficient since assets load via <base> tag
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    // Set the HTML content - the <base> tag handles asset resolution
+    await page.setContent(html, { waitUntil: "networkidle" });
 
-    // Wait for fonts + images to settle
-    await page.evaluate(() =>
-      Promise.all([
-        document.fonts.ready,
-        // Wait for all images to load
-        ...Array.from(document.images)
-          .filter((img) => !img.complete)
-          .map(
-            (img) =>
-              new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = resolve;
-              }),
-          ),
-      ]),
-    );
+    // Wait for fonts to load
+    await page.evaluate(() => document.fonts.ready);
 
-    // Small buffer for final rendering
-    await page.waitForTimeout(200);
+    // Buffer for rendering to settle
+    await page.waitForTimeout(1000);
 
     // Take screenshot
     const screenshot = await page.screenshot({
@@ -213,9 +198,6 @@ function sanitizeFilename(name: string): string {
     .replace(/^_+|_+$/g, "")
     .substring(0, 50);
 }
-
-// Max concurrent Playwright pages to avoid memory issues
-const CONCURRENCY = 3;
 
 /**
  * POST /api/export-dpa
@@ -279,55 +261,44 @@ export async function POST(request: NextRequest) {
 
     archive.on("data", (chunk) => chunks.push(chunk));
 
-    // Helper to generate images for a set of products (parallel with concurrency limit)
+    // Helper to generate images for a set of products
     const generateForProducts = async (
       productsToExport: DpaExportProduct[],
       folder: string,
     ) => {
-      // Process in batches of CONCURRENCY
-      for (let i = 0; i < productsToExport.length; i += CONCURRENCY) {
-        const batch = productsToExport.slice(i, i + CONCURRENCY);
-
-        const results = await Promise.allSettled(
-          batch.map(async (product, batchIdx) => {
-            const idx = i + batchIdx;
-            console.log(
-              `[DPA Export] Processing ${folder ? folder + "/" : ""}${idx + 1}/${productsToExport.length}: ${product.title}`,
-            );
-
-            const html = await generateProductHtml(
-              templatePath,
-              size,
-              product,
-              brandData,
-              baseUrl,
-            );
-
-            const screenshot = await screenshotHtml(
-              browser!,
-              html,
-              width,
-              height,
-            );
-
-            const filename = `${sanitizeFilename(product.title)}_${size}.png`;
-            const entryName = folder ? `${folder}/${filename}` : filename;
-            archive.append(screenshot, { name: entryName });
-
-            console.log(`[DPA Export] Added: ${entryName}`);
-          }),
+      for (let i = 0; i < productsToExport.length; i++) {
+        const product = productsToExport[i];
+        console.log(
+          `[DPA Export] Processing ${folder ? folder + "/" : ""}${i + 1}/${productsToExport.length}: ${product.title}`,
         );
 
-        // Log any failures
-        results.forEach((r, batchIdx) => {
-          if (r.status === "rejected") {
-            const product = batch[batchIdx];
-            console.error(
-              `[DPA Export] Failed to process product ${product.id}:`,
-              r.reason,
-            );
-          }
-        });
+        try {
+          const html = await generateProductHtml(
+            templatePath,
+            size,
+            product,
+            brandData,
+            baseUrl,
+          );
+
+          const screenshot = await screenshotHtml(
+            browser!,
+            html,
+            width,
+            height,
+          );
+
+          const filename = `${sanitizeFilename(product.title)}_${size}.png`;
+          const entryName = folder ? `${folder}/${filename}` : filename;
+          archive.append(screenshot, { name: entryName });
+
+          console.log(`[DPA Export] Added: ${entryName}`);
+        } catch (error) {
+          console.error(
+            `[DPA Export] Failed to process product ${product.id}:`,
+            error,
+          );
+        }
       }
     };
 

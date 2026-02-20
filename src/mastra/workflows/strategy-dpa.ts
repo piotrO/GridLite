@@ -312,9 +312,9 @@ Based on this catalog, create a DPA campaign strategy. Select the best products 
 
       // Validate selected product IDs exist
       const validProductIds = new Set(products.map((p) => p.id));
-      const selectedIds = (parsed.dpaStrategy?.selectedProductIds || []).filter(
-        (id: string) => validProductIds.has(id),
-      );
+      const selectedIds = (parsed.dpaStrategy?.selectedProductIds || [])
+        .filter((id: string) => validProductIds.has(id))
+        .slice(0, 6);
 
       // Ensure we have at least some products selected
       if (selectedIds.length === 0) {
