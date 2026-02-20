@@ -176,6 +176,18 @@ async function screenshotHtml(
     // Set viewport to exact ad size
     await page.setViewportSize({ width, height });
 
+    // Capture page console output and errors for debugging
+    const pageErrors: string[] = [];
+    const pageLogs: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        pageErrors.push(msg.text());
+      } else {
+        pageLogs.push(msg.text());
+      }
+    });
+
     // Set the HTML content - the <base> tag handles asset resolution
     await page.setContent(html, { waitUntil: "networkidle" });
 
@@ -185,13 +197,14 @@ async function screenshotHtml(
     // Wait for Grid8 player to signal ready (set via gsap.delayedCall after animationLoaded)
     try {
       await page.waitForFunction(() => (window as any).ready === true, {
-        timeout: 15000,
+        timeout: 3000,
         polling: 200,
       });
     } catch {
-      console.warn(
-        "[DPA Export] window.ready not set after 15s, using fallback",
-      );
+      console.warn("[DPA Export] window.ready not set, using 3s fallback");
+      if (pageErrors.length > 0) {
+        console.warn("[DPA Export] Page errors:", pageErrors);
+      }
       await page.waitForTimeout(3000);
     }
 
