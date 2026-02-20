@@ -6,6 +6,8 @@ import { parseUrl } from "@/lib/shared/url-utils";
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Allow up to 5 minutes for brand scanning (Playwright + AI analysis)
+export const maxDuration = 300;
 
 // Type definitions for Mastra workflow events
 interface WorkflowStepPayload {

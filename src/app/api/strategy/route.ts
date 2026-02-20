@@ -6,6 +6,8 @@ import { Product, CatalogStats, DPAStrategy } from "@/types/shopify";
 // Force Node.js runtime (Playwright doesn't work in Edge runtime)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Allow up to 5 minutes for strategy generation (AI workflows)
+export const maxDuration = 300;
 
 interface StrategyRequest {
   // Brand profile (required)

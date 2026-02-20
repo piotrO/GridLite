@@ -292,8 +292,10 @@ export async function POST(request: NextRequest) {
         (langCodes.length > 0 ? ` in ${langCodes.length} languages` : ""),
     );
 
-    // Get base URL for asset loading — derive from the incoming request
-    const baseUrl = new URL(request.url).origin;
+    // Get base URL for asset loading
+    // Playwright runs inside the same container, so use HTTP + localhost + actual port
+    const port = process.env.PORT || "3000";
+    const baseUrl = `http://localhost:${port}`;
     console.log(`[DPA Export] Base URL: ${baseUrl}`);
 
     // Launch browser
