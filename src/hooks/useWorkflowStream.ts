@@ -33,8 +33,12 @@ export function useWorkflowStream<TResult = any>(
       try {
         const response = await fetch(endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/plain",
+          },
           body: JSON.stringify(payload),
+          keepalive: true,
         });
 
         if (!response.ok) {
