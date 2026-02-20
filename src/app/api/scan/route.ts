@@ -45,13 +45,30 @@ export async function POST(request: NextRequest) {
     // Create a streaming response
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+
         const sendEvent = (event: any) => {
-          const message = JSON.stringify(event) + "\n";
-          controller.enqueue(encoder.encode(message));
+          if (closed) return;
+          try {
+            const message = JSON.stringify(event) + "\n";
+            controller.enqueue(encoder.encode(message));
+          } catch {
+            // Controller already closed, ignore
+          }
         };
 
         const sendError = (message: string) => {
           sendEvent({ type: "error", message });
+        };
+
+        const closeController = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
         };
 
         try {
@@ -157,7 +174,7 @@ export async function POST(request: NextRequest) {
             sendError(errorMessage);
           }
 
-          controller.close();
+          closeController();
         } catch (error) {
           // Check for rate limit errors
           const errorMessage =
@@ -184,7 +201,7 @@ export async function POST(request: NextRequest) {
           }
 
           sendError(userMessage);
-          controller.close();
+          closeController();
         }
       },
     });
