@@ -130,6 +130,12 @@ export async function POST(request: NextRequest) {
       // Instead of a wrapper function, we'll yield directly from the main generator
 
       try {
+        // Send a large dummy space string to force the proxy to flush its initial buffer
+        // Some proxies (like Envoy on Railway) wait for ~1-4KB of data before they begin
+        // transmitting the stream to the client. If the first AI step takes >10s and we
+        // haven't flushed the buffer, the proxy kills it.
+        yield encoder.encode(" ".repeat(2048) + "\n");
+
         const workflow = mastra.getWorkflow("designer");
 
         console.log("[Designer API] Starting workflow with isDpa:", body.isDpa);

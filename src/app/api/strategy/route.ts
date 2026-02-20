@@ -123,6 +123,9 @@ DPA Strategy:
       };
 
       try {
+        // Force the proxy to flush its initial buffer
+        yield encoder.encode(" ".repeat(2048) + "\n");
+
         // Use DPA workflow for DPA campaigns
         const workflowId = isDpaMode ? "strategyDpa" : "strategy";
         const workflow = mastra.getWorkflow(workflowId);
