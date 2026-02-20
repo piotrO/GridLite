@@ -292,11 +292,9 @@ export async function POST(request: NextRequest) {
         (langCodes.length > 0 ? ` in ${langCodes.length} languages` : ""),
     );
 
-    // Get base URL for asset loading
-    const baseUrl =
-      process.env.NEXTAUTH_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+    // Get base URL for asset loading — derive from the incoming request
+    const baseUrl = new URL(request.url).origin;
+    console.log(`[DPA Export] Base URL: ${baseUrl}`);
 
     // Launch browser
     browser = await chromium.launch({
