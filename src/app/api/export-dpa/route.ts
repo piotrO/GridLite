@@ -118,6 +118,16 @@ async function generateProductHtml(
     `<script>${inlineManifest}</script>`,
   );
 
+  // Replace external GSAP CDN with inline script (CDN unreachable from server)
+  const gsapPath = path.join(templateDir, "gsap.min.js");
+  if (fs.existsSync(gsapPath)) {
+    const gsapJs = fs.readFileSync(gsapPath, "utf-8");
+    html = html.replace(
+      /<script\s+src=["']https?:\/\/[^"']*gsap[^"']*["']\s*><\/script>/i,
+      `<script>${gsapJs}<\/script>`,
+    );
+  }
+
   // Inject color overrides and extra data
   if (colors && colors.length > 0) {
     const extraData =
