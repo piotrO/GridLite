@@ -59,10 +59,25 @@ export async function POST(request: NextRequest) {
         const closeStream = () => {
           if (closed) return;
           closed = true;
+          clearInterval(keepAlive);
           try {
             controller.close();
           } catch {}
         };
+
+        // Keep connection alive during long AI steps
+        const keepAlive = setInterval(() => {
+          if (closed) return;
+          sendEvent({ type: "ping" });
+        }, 5000);
+
+        // Ensure Mastra's Google provider gets a valid key if the specific one is missing
+        if (
+          !process.env.GOOGLE_GENERATIVE_AI_API_KEY &&
+          process.env.GEMINI_API_KEY
+        ) {
+          process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
+        }
 
         try {
           // Force proxy buffer flush

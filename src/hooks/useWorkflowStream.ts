@@ -38,7 +38,6 @@ export function useWorkflowStream<TResult = any>(
             Accept: "text/plain",
           },
           body: JSON.stringify(payload),
-          keepalive: true,
         });
 
         if (!response.ok) {
@@ -163,6 +162,7 @@ export function useWorkflowStream<TResult = any>(
           if (optionsRef.current.onError) optionsRef.current.onError(noDataMsg);
         }
       } catch (err: any) {
+        console.error("Workflow stream caught error:", err);
         const msg = err instanceof Error ? err.message : "Workflow failed";
         setError(msg);
         if (optionsRef.current.onError) optionsRef.current.onError(msg);

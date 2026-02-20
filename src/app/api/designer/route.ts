@@ -347,7 +347,9 @@ export async function POST(request: NextRequest) {
           encodeEvent({
             type: "complete",
             data: {
-              ...(creativeResult?.creative || {}),
+              greeting:
+                creativeResult?.greeting || "Here is your creative concept!",
+              creative: creativeResult?.creative || {},
               imageUrl: imageUrl || "",
             },
           });

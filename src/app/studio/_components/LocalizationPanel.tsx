@@ -13,6 +13,7 @@ import {
   LocalizedCopy,
   LocalizedProductCopy,
 } from "@/types/localization";
+import { toast } from "@/hooks/use-toast";
 
 interface LocalizationPanelProps {
   content: { headline: string; bodyCopy: string; ctaText: string };
@@ -69,8 +70,15 @@ export function LocalizationPanel({
       });
       setLocalizationTranslating(false);
     },
-    onError: () => {
+    onError: (err) => {
       setLocalizationTranslating(false);
+      toast({
+        title: "Translation Failed",
+        description:
+          err ||
+          "There was an issue connecting to the translation service. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
