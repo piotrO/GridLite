@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
           } catch {}
         }, 15000);
 
-        const sendEvent = (event: any) => {
+        const sendEvent = (event: unknown) => {
           if (closed) return;
           try {
-            const message = JSON.stringify(event) + "\n";
+            const message = `data: ${JSON.stringify(event)}\n\n`;
             controller.enqueue(encoder.encode(message));
           } catch {
             // Controller already closed, ignore
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         "X-Content-Type-Options": "nosniff",
         Connection: "keep-alive",

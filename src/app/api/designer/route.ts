@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       }, 15000);
 
       const encodeEvent = (event: unknown) => {
-        return encoder.encode(JSON.stringify(event) + "\n");
+        return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
       };
 
       // Helper to execute synthetic steps inline
@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         "X-Content-Type-Options": "nosniff",
         Connection: "keep-alive",

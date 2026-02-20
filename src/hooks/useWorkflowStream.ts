@@ -123,11 +123,30 @@ export function useWorkflowStream<TResult = any>(
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
 
-          for (const line of lines) {
-            processLine(line);
+          // SSE messages are separated by double newlines
+          const messages = buffer.split("\n\n");
+          // Keep the last partial message in the buffer
+          buffer = messages.pop() || "";
+
+          for (const message of messages) {
+            // Standard SSE format is:
+            // event: eventType (optional)
+            // data: jsonPayload
+            // \n
+            const lines = message.split("\n");
+            let dataLine = "";
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                dataLine = line.substring(6);
+                break;
+              }
+            }
+
+            if (dataLine) {
+              processLine(dataLine);
+            }
           }
         }
 

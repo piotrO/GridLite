@@ -119,7 +119,7 @@ DPA Strategy:
       }, 15000);
 
       const encodeEvent = (event: unknown) => {
-        return encoder.encode(JSON.stringify(event) + "\n");
+        return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
       };
 
       try {
@@ -269,7 +269,7 @@ DPA Strategy:
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         "X-Content-Type-Options": "nosniff",
         Connection: "keep-alive",
