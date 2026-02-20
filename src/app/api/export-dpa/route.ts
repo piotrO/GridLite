@@ -13,6 +13,9 @@ import {
 } from "@/lib/manifest-utils";
 import { Typography } from "@/lib/shared/types";
 
+// Allow up to 5 minutes for large product exports (10+ products × multiple languages)
+export const maxDuration = 300;
+
 interface DpaExportProduct {
   id: string;
   title: string;
@@ -163,34 +166,35 @@ async function screenshotHtml(
     // Set viewport to exact ad size
     await page.setViewportSize({ width, height });
 
-    // Set the HTML content - the <base> tag handles asset resolution
-    await page.setContent(html, { waitUntil: "networkidle" });
+    // Set the HTML content — domcontentloaded is faster than networkidle
+    // and sufficient since assets load via <base> tag
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
 
-    // Wait for fonts to load
-    await page.evaluate(() => document.fonts.ready);
+    // Wait for fonts + images to settle
+    await page.evaluate(() =>
+      Promise.all([
+        document.fonts.ready,
+        // Wait for all images to load
+        ...Array.from(document.images)
+          .filter((img) => !img.complete)
+          .map(
+            (img) =>
+              new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+              }),
+          ),
+      ]),
+    );
 
-    // Wait for Grid8 player to signal ready state
-    // We poll for window.ready every 100ms, with a timeout
-    try {
-      await page.waitForFunction(() => (window as any).ready === true, {
-        timeout: 10000,
-        polling: 100,
-      });
-    } catch (e) {
-      console.warn(
-        "[DPA Export] window.ready not set, falling back to timeout",
-      );
-      await page.waitForTimeout(2000);
-    }
-
-    // Extra buffer for any final animations/rendering
-    await page.waitForTimeout(500);
+    // Small buffer for final rendering
+    await page.waitForTimeout(200);
 
     // Take screenshot
     const screenshot = await page.screenshot({
       type: "png",
       clip: { x: 0, y: 0, width, height },
-      omitBackground: true, // Allow transparency if needed
+      omitBackground: true,
     });
 
     return Buffer.from(screenshot);
@@ -209,6 +213,9 @@ function sanitizeFilename(name: string): string {
     .replace(/^_+|_+$/g, "")
     .substring(0, 50);
 }
+
+// Max concurrent Playwright pages to avoid memory issues
+const CONCURRENCY = 3;
 
 /**
  * POST /api/export-dpa
@@ -272,44 +279,55 @@ export async function POST(request: NextRequest) {
 
     archive.on("data", (chunk) => chunks.push(chunk));
 
-    // Helper to generate images for a set of products
+    // Helper to generate images for a set of products (parallel with concurrency limit)
     const generateForProducts = async (
       productsToExport: DpaExportProduct[],
       folder: string,
     ) => {
-      for (let i = 0; i < productsToExport.length; i++) {
-        const product = productsToExport[i];
-        console.log(
-          `[DPA Export] Processing ${folder ? folder + "/" : ""}${i + 1}/${productsToExport.length}: ${product.title}`,
+      // Process in batches of CONCURRENCY
+      for (let i = 0; i < productsToExport.length; i += CONCURRENCY) {
+        const batch = productsToExport.slice(i, i + CONCURRENCY);
+
+        const results = await Promise.allSettled(
+          batch.map(async (product, batchIdx) => {
+            const idx = i + batchIdx;
+            console.log(
+              `[DPA Export] Processing ${folder ? folder + "/" : ""}${idx + 1}/${productsToExport.length}: ${product.title}`,
+            );
+
+            const html = await generateProductHtml(
+              templatePath,
+              size,
+              product,
+              brandData,
+              baseUrl,
+            );
+
+            const screenshot = await screenshotHtml(
+              browser!,
+              html,
+              width,
+              height,
+            );
+
+            const filename = `${sanitizeFilename(product.title)}_${size}.png`;
+            const entryName = folder ? `${folder}/${filename}` : filename;
+            archive.append(screenshot, { name: entryName });
+
+            console.log(`[DPA Export] Added: ${entryName}`);
+          }),
         );
 
-        try {
-          const html = await generateProductHtml(
-            templatePath,
-            size,
-            product,
-            brandData,
-            baseUrl,
-          );
-
-          const screenshot = await screenshotHtml(
-            browser!,
-            html,
-            width,
-            height,
-          );
-
-          const filename = `${sanitizeFilename(product.title)}_${size}.png`;
-          const entryName = folder ? `${folder}/${filename}` : filename;
-          archive.append(screenshot, { name: entryName });
-
-          console.log(`[DPA Export] Added: ${entryName}`);
-        } catch (error) {
-          console.error(
-            `[DPA Export] Failed to process product ${product.id}:`,
-            error,
-          );
-        }
+        // Log any failures
+        results.forEach((r, batchIdx) => {
+          if (r.status === "rejected") {
+            const product = batch[batchIdx];
+            console.error(
+              `[DPA Export] Failed to process product ${product.id}:`,
+              r.reason,
+            );
+          }
+        });
       }
     };
 
