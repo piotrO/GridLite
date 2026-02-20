@@ -126,29 +126,8 @@ export async function POST(request: NextRequest) {
         return encoder.encode(JSON.stringify(event) + "\n");
       };
 
-      // Helper to simulate step execution
-      const runSyntheticStep = async (
-        id: string,
-        label: string,
-        action: () => Promise<void>,
-      ) => {
-        yield encodeEvent({ type: "step_start", stepId: id, label });
-        try {
-          await action();
-          yield encodeEvent({
-            type: "step_complete",
-            stepId: id,
-            success: true,
-          });
-        } catch (e) {
-          yield encodeEvent({
-            type: "step_complete",
-            stepId: id,
-            success: false,
-          });
-          throw e;
-        }
-      };
+      // Helper to execute synthetic steps inline
+      // Instead of a wrapper function, we'll yield directly from the main generator
 
       try {
         const workflow = mastra.getWorkflow("designer");
@@ -179,22 +158,48 @@ export async function POST(request: NextRequest) {
         });
 
         // 1. Analyzing Brand (Synthetic)
-        await runSyntheticStep(
-          "analyzing-brand",
-          stepLabels["analyzing-brand"],
-          async () => {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-          },
-        );
+        yield encodeEvent({
+          type: "step_start",
+          stepId: "analyzing-brand",
+          label: stepLabels["analyzing-brand"],
+        });
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          yield encodeEvent({
+            type: "step_complete",
+            stepId: "analyzing-brand",
+            success: true,
+          });
+        } catch (e) {
+          yield encodeEvent({
+            type: "step_complete",
+            stepId: "analyzing-brand",
+            success: false,
+          });
+          throw e;
+        }
 
         // 2. Reviewing Strategy (Synthetic)
-        await runSyntheticStep(
-          "reviewing-strategy",
-          stepLabels["reviewing-strategy"],
-          async () => {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-          },
-        );
+        yield encodeEvent({
+          type: "step_start",
+          stepId: "reviewing-strategy",
+          label: stepLabels["reviewing-strategy"],
+        });
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          yield encodeEvent({
+            type: "step_complete",
+            stepId: "reviewing-strategy",
+            success: true,
+          });
+        } catch (e) {
+          yield encodeEvent({
+            type: "step_complete",
+            stepId: "reviewing-strategy",
+            success: false,
+          });
+          throw e;
+        }
 
         // 3. Generate Creative (Real Mastra Workflow)
         yield encodeEvent({
@@ -274,37 +279,43 @@ export async function POST(request: NextRequest) {
         let imageUrl: string | undefined;
 
         if (body.brandId && !SKIP_IMAGE_GENERATION) {
-          await runSyntheticStep(
-            "generate-image",
-            stepLabels["generate-image"],
-            async () => {
-              try {
-                const imagePrompt =
-                  creativeResult.creative.heroImagePrompt ||
-                  `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
+          yield encodeEvent({
+            type: "step_start",
+            stepId: "generate-image",
+            label: stepLabels["generate-image"],
+          });
+          try {
+            const imagePrompt =
+              creativeResult.creative.heroImagePrompt ||
+              `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
 
-                console.log(
-                  "[Designer] Generating initial image:",
-                  imagePrompt,
-                );
+            console.log("[Designer] Generating initial image:", imagePrompt);
 
-                const imageResult = await generateImage({
-                  prompt: imagePrompt,
-                  style: body.isDpa ? "abstract" : "hero",
-                  industry: body.brandProfile.industry,
-                  moodKeywords: creativeResult.creative.moodKeywords,
-                });
+            const imageResult = await generateImage({
+              prompt: imagePrompt,
+              style: body.isDpa ? "abstract" : "hero",
+              industry: body.brandProfile.industry,
+              moodKeywords: creativeResult.creative.moodKeywords,
+            });
 
-                if (imageResult.success && imageResult.result) {
-                  imageUrl = getImageDataUrl(imageResult.result);
-                } else {
-                  console.error("Image generation failed", imageResult.error);
-                }
-              } catch (e) {
-                console.error("Image generation exception", e);
-              }
-            },
-          );
+            if (imageResult.success && imageResult.result) {
+              imageUrl = getImageDataUrl(imageResult.result);
+            } else {
+              console.error("Image generation failed", imageResult.error);
+            }
+            yield encodeEvent({
+              type: "step_complete",
+              stepId: "generate-image",
+              success: true,
+            });
+          } catch (e) {
+            console.error("Image generation exception", e);
+            yield encodeEvent({
+              type: "step_complete",
+              stepId: "generate-image",
+              success: false,
+            });
+          }
         }
 
         yield encodeEvent({
