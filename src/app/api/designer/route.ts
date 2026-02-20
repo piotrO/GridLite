@@ -110,251 +110,245 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        let closed = false;
+    const encoder = new TextEncoder();
 
-        // Keep connection alive during long AI/image generation steps
-        const keepAlive = setInterval(() => {
-          if (closed) return;
-          try {
-            controller.enqueue(encoder.encode('{"type":"ping"}\n'));
-          } catch {}
-        }, 15000);
+    async function* generateStream() {
+      let closed = false;
 
-        const sendEvent = (event: any) => {
-          if (closed) return;
-          try {
-            const message = JSON.stringify(event) + "\n";
-            controller.enqueue(encoder.encode(message));
-          } catch {
-            // Already closed
-          }
-        };
+      // Keep connection alive during long AI steps
+      const keepAlive = setInterval(() => {
+        if (closed) return;
+        // Yieldping doesn't work well within async generators without complex logic,
+        // but the generator will yield Step events as they happen.
+      }, 15000);
 
-        const sendError = (message: string) => {
-          sendEvent({ type: "error", message });
-        };
+      const encodeEvent = (event: unknown) => {
+        return encoder.encode(JSON.stringify(event) + "\n");
+      };
 
-        const closeController = () => {
-          if (closed) return;
-          closed = true;
-          clearInterval(keepAlive);
-          try {
-            controller.close();
-          } catch {
-            // Already closed
-          }
-        };
-
-        // Helper to simulate step execution
-        const runSyntheticStep = async (
-          id: string,
-          label: string,
-          action: () => Promise<void>,
-        ) => {
-          sendEvent({ type: "step_start", stepId: id, label });
-          try {
-            await action();
-            sendEvent({ type: "step_complete", stepId: id, success: true });
-          } catch (e) {
-            sendEvent({ type: "step_complete", stepId: id, success: false });
-            throw e;
-          }
-        };
-
+      // Helper to simulate step execution
+      const runSyntheticStep = async (
+        id: string,
+        label: string,
+        action: () => Promise<void>,
+      ) => {
+        yield encodeEvent({ type: "step_start", stepId: id, label });
         try {
-          const workflow = mastra.getWorkflow("designer");
-
-          console.log(
-            "[Designer API] Starting workflow with isDpa:",
-            body.isDpa,
-          );
-          console.log(
-            "[Designer API] Strategy Recommendation:",
-            body.strategy?.recommendation,
-          );
-
-          // Define step labels including synthetic ones
-          const stepLabels: Record<string, string> = {
-            "analyzing-brand": "Analyzing brand identity",
-            "reviewing-strategy": "Reviewing campaign strategy",
-            "generate-creative": "Crafting visual direction",
-            ...(SKIP_IMAGE_GENERATION
-              ? {}
-              : { "generate-image": "Generating hero image" }),
-          };
-
-          // Send init event
-          sendEvent({
-            type: "init",
-            steps: Object.keys(stepLabels).map((id) => ({
-              id,
-              label: stepLabels[id],
-            })),
-          });
-
-          // 1. Analyzing Brand (Synthetic)
-          await runSyntheticStep(
-            "analyzing-brand",
-            stepLabels["analyzing-brand"],
-            async () => {
-              await new Promise((resolve) => setTimeout(resolve, 600));
-            },
-          );
-
-          // 2. Reviewing Strategy (Synthetic)
-          await runSyntheticStep(
-            "reviewing-strategy",
-            stepLabels["reviewing-strategy"],
-            async () => {
-              await new Promise((resolve) => setTimeout(resolve, 600));
-            },
-          );
-
-          // 3. Generate Creative (Real Mastra Workflow)
-          // Explicitly send start event to ensure UI is updated immediately
-          // before the actual Mastra workflow starts processing
-          sendEvent({
-            type: "step_start",
-            stepId: "generate-creative",
-            label: stepLabels["generate-creative"],
-          });
-
-          const run = await workflow.createRun();
-          const streamResult = await run.stream({
-            inputData: {
-              brandProfile: body.brandProfile,
-              strategy: body.strategy,
-              campaignData: body.campaignData || null,
-              isDpa: body.isDpa,
-            },
-          });
-
-          for await (const event of streamResult.fullStream) {
-            // Forward real step events using robust parsing
-            if (event.type === "workflow-step-start" && "payload" in event) {
-              const payload = event.payload as Record<string, unknown>;
-              const step = payload?.step as Record<string, unknown> | undefined;
-              const stepId = (payload?.stepId || step?.id || payload?.id) as
-                | string
-                | undefined;
-
-              if (stepId === "generate-creative") {
-                // We already sent the start event, so we can ignore this or send it again (idempotent)
-                // Let's send it again just to be safe in case of re-connections or if timing was off
-                sendEvent({
-                  type: "step_start",
-                  stepId: "generate-creative",
-                  label: stepLabels["generate-creative"],
-                });
-              }
-            }
-            if (event.type === "workflow-step-finish" && "payload" in event) {
-              const payload = event.payload as Record<string, unknown>;
-              const step = payload?.step as Record<string, unknown> | undefined;
-              const stepId = (payload?.stepId || step?.id || payload?.id) as
-                | string
-                | undefined;
-
-              // Check success status from the result
-              const result = payload?.result as any;
-              const success = result?.success !== false;
-
-              if (stepId === "generate-creative") {
-                sendEvent({
-                  type: "step_complete",
-                  stepId: "generate-creative",
-                  success,
-                });
-              }
-            }
-          }
-
-          const workflowResult = await streamResult.result;
-
-          if (workflowResult.status !== "success" || !workflowResult.result) {
-            throw new Error("Creative generation workflow failed");
-          }
-
-          // Ensure generate-creative is marked as complete if the stream loop somehow missed it
-          // This is a safety catch
-          sendEvent({
+          await action();
+          yield encodeEvent({
             type: "step_complete",
-            stepId: "generate-creative",
+            stepId: id,
             success: true,
           });
-
-          const creativeResult = workflowResult.result as {
-            greeting: string;
-            creative: CreativeData;
-          };
-
-          // 4. Generate Image (Synthetic)
-          let imageUrl: string | undefined;
-
-          if (body.brandId && !SKIP_IMAGE_GENERATION) {
-            await runSyntheticStep(
-              "generate-image",
-              stepLabels["generate-image"],
-              async () => {
-                try {
-                  const imagePrompt =
-                    creativeResult.creative.heroImagePrompt ||
-                    `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
-
-                  console.log(
-                    "[Designer] Generating initial image:",
-                    imagePrompt,
-                  );
-
-                  const imageResult = await generateImage({
-                    prompt: imagePrompt,
-                    style: body.isDpa ? "abstract" : "hero",
-                    industry: body.brandProfile.industry,
-                    moodKeywords: creativeResult.creative.moodKeywords,
-                  });
-
-                  if (imageResult.success && imageResult.result) {
-                    imageUrl = getImageDataUrl(imageResult.result);
-                  } else {
-                    console.error("Image generation failed", imageResult.error);
-                    // We don't throw here to avoid failing the whole request
-                  }
-                } catch (e) {
-                  console.error("Image generation exception", e);
-                }
-              },
-            );
-          }
-
-          sendEvent({
-            type: "complete",
-            data: {
-              ...workflowResult.result,
-              imageUrl,
-            },
+        } catch (e) {
+          yield encodeEvent({
+            type: "step_complete",
+            stepId: id,
+            success: false,
           });
-
-          closeController();
-        } catch (error) {
-          // Check for rate limit errors
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          if (
-            errorMessage.includes("429") ||
-            errorMessage.toLowerCase().includes("too many requests")
-          ) {
-            sendError(
-              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
-            );
-          } else {
-            sendError(errorMessage);
-          }
-          closeController();
+          throw e;
         }
-      },
-    });
+      };
+
+      try {
+        const workflow = mastra.getWorkflow("designer");
+
+        console.log("[Designer API] Starting workflow with isDpa:", body.isDpa);
+        console.log(
+          "[Designer API] Strategy Recommendation:",
+          body.strategy?.recommendation,
+        );
+
+        // Define step labels including synthetic ones
+        const stepLabels: Record<string, string> = {
+          "analyzing-brand": "Analyzing brand identity",
+          "reviewing-strategy": "Reviewing campaign strategy",
+          "generate-creative": "Crafting visual direction",
+          ...(SKIP_IMAGE_GENERATION
+            ? {}
+            : { "generate-image": "Generating hero image" }),
+        };
+
+        // Send init event
+        yield encodeEvent({
+          type: "init",
+          steps: Object.keys(stepLabels).map((id) => ({
+            id,
+            label: stepLabels[id],
+          })),
+        });
+
+        // 1. Analyzing Brand (Synthetic)
+        await runSyntheticStep(
+          "analyzing-brand",
+          stepLabels["analyzing-brand"],
+          async () => {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          },
+        );
+
+        // 2. Reviewing Strategy (Synthetic)
+        await runSyntheticStep(
+          "reviewing-strategy",
+          stepLabels["reviewing-strategy"],
+          async () => {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          },
+        );
+
+        // 3. Generate Creative (Real Mastra Workflow)
+        yield encodeEvent({
+          type: "step_start",
+          stepId: "generate-creative",
+          label: stepLabels["generate-creative"],
+        });
+
+        const run = await workflow.createRun();
+        const streamResult = await run.stream({
+          inputData: {
+            brandProfile: body.brandProfile,
+            strategy: body.strategy,
+            campaignData: body.campaignData || null,
+            isDpa: body.isDpa,
+          },
+        });
+
+        for await (const event of streamResult.fullStream) {
+          // Send ping to keep connection alive
+          yield encodeEvent({ type: "ping" });
+
+          // Forward real step events
+          if (event.type === "workflow-step-start" && "payload" in event) {
+            const payload = event.payload as Record<string, unknown>;
+            const step = payload?.step as Record<string, unknown> | undefined;
+            const stepId = (payload?.stepId || step?.id || payload?.id) as
+              | string
+              | undefined;
+
+            if (stepId === "generate-creative") {
+              yield encodeEvent({
+                type: "step_start",
+                stepId: "generate-creative",
+                label: stepLabels["generate-creative"],
+              });
+            }
+          }
+          if (event.type === "workflow-step-finish" && "payload" in event) {
+            const payload = event.payload as Record<string, unknown>;
+            const step = payload?.step as Record<string, unknown> | undefined;
+            const stepId = (payload?.stepId || step?.id || payload?.id) as
+              | string
+              | undefined;
+
+            const result = payload?.result as any;
+            const success = result?.success !== false;
+
+            if (stepId === "generate-creative") {
+              yield encodeEvent({
+                type: "step_complete",
+                stepId: "generate-creative",
+                success,
+              });
+            }
+          }
+        }
+
+        const workflowResult = await streamResult.result;
+
+        if (workflowResult.status !== "success" || !workflowResult.result) {
+          throw new Error("Creative generation workflow failed");
+        }
+
+        yield encodeEvent({
+          type: "step_complete",
+          stepId: "generate-creative",
+          success: true,
+        });
+
+        const creativeResult = workflowResult.result as {
+          greeting: string;
+          creative: CreativeData;
+        };
+
+        // 4. Generate Image (Synthetic)
+        let imageUrl: string | undefined;
+
+        if (body.brandId && !SKIP_IMAGE_GENERATION) {
+          await runSyntheticStep(
+            "generate-image",
+            stepLabels["generate-image"],
+            async () => {
+              try {
+                const imagePrompt =
+                  creativeResult.creative.heroImagePrompt ||
+                  `Hero image for ${body.brandProfile.name} in ${body.brandProfile.industry || "general"} industry. Style: professional advertising. ${creativeResult.creative.moodKeywords?.join(", ") || ""}`;
+
+                console.log(
+                  "[Designer] Generating initial image:",
+                  imagePrompt,
+                );
+
+                const imageResult = await generateImage({
+                  prompt: imagePrompt,
+                  style: body.isDpa ? "abstract" : "hero",
+                  industry: body.brandProfile.industry,
+                  moodKeywords: creativeResult.creative.moodKeywords,
+                });
+
+                if (imageResult.success && imageResult.result) {
+                  imageUrl = getImageDataUrl(imageResult.result);
+                } else {
+                  console.error("Image generation failed", imageResult.error);
+                }
+              } catch (e) {
+                console.error("Image generation exception", e);
+              }
+            },
+          );
+        }
+
+        yield encodeEvent({
+          type: "complete",
+          data: {
+            ...workflowResult.result,
+            imageUrl,
+          },
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (
+          errorMessage.includes("429") ||
+          errorMessage.toLowerCase().includes("too many requests")
+        ) {
+          yield encodeEvent({
+            type: "error",
+            message:
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
+          });
+        } else {
+          yield encodeEvent({ type: "error", message: errorMessage });
+        }
+      } finally {
+        closed = true;
+        clearInterval(keepAlive);
+      }
+    }
+
+    function iteratorToStream(iterator: any) {
+      return new ReadableStream({
+        async pull(controller) {
+          const { value, done } = await iterator.next();
+          if (done) {
+            controller.close();
+          } else {
+            controller.enqueue(value);
+          }
+        },
+      });
+    }
+
+    const stream = iteratorToStream(generateStream());
 
     return new Response(stream, {
       headers: {

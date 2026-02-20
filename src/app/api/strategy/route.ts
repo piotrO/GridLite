@@ -105,164 +105,164 @@ DPA Strategy:
       });
     }
 
-    // Initial strategy generation (streaming via Mastra workflow)
-    const stream = new ReadableStream({
-      async start(controller) {
-        let closed = false;
+    // Initial strategy generation (streaming via    // Next.js App Router recommended streaming pattern
+    const encoder = new TextEncoder();
 
-        // Keep connection alive during long AI steps
-        const keepAlive = setInterval(() => {
-          if (closed) return;
-          try {
-            controller.enqueue(encoder.encode('{"type":"ping"}\n'));
-          } catch {}
-        }, 15000);
+    async function* generateStream() {
+      let closed = false;
 
-        const sendEvent = (event: unknown) => {
-          if (closed) return;
-          try {
-            const message = JSON.stringify(event) + "\n";
-            controller.enqueue(encoder.encode(message));
-          } catch {
-            // Controller already closed, ignore
-          }
-        };
+      // Keep connection alive during long AI steps
+      const keepAlive = setInterval(() => {
+        if (closed) return;
+        // Yieldping doesn't work well within async generators without complex logic,
+        // but the generator will yield Step events as they happen.
+      }, 15000);
 
-        const sendError = (message: string) => {
-          sendEvent({ type: "error", message });
-        };
+      const encodeEvent = (event: unknown) => {
+        return encoder.encode(JSON.stringify(event) + "\n");
+      };
 
-        const closeController = () => {
-          if (closed) return;
-          closed = true;
-          clearInterval(keepAlive);
-          try {
-            controller.close();
-          } catch {
-            // Already closed
-          }
-        };
+      try {
+        // Use DPA workflow for DPA campaigns
+        const workflowId = isDpaMode ? "strategyDpa" : "strategy";
+        const workflow = mastra.getWorkflow(workflowId);
 
-        try {
-          // Use DPA workflow for DPA campaigns
-          const workflowId = isDpaMode ? "strategyDpa" : "strategy";
-          const workflow = mastra.getWorkflow(workflowId);
-
-          // Define step labels for the UI
-          const stepLabels: Record<string, string> = isDpaMode
-            ? {
-                "analyze-catalog": "Analyzing product catalog",
-                "generate-dpa-strategy": "Creating DPA campaign strategy",
-              }
-            : {
-                "fetch-website-text": "Analyzing website content",
-                "extract-campaign-data": "Identifying key selling points",
-                "generate-strategy": "Formulating campaign strategy",
-              };
-
-          // Send initial pending steps so UI knows what to expect
-          sendEvent({
-            type: "init",
-            steps: Object.keys(stepLabels).map((id) => ({
-              id,
-              label: stepLabels[id],
-            })),
-          });
-
-          const run = await workflow.createRun();
-
-          // Prepare input data based on campaign type
-          const inputData = isDpaMode
-            ? {
-                brandProfile: {
-                  ...body.brandProfile,
-                  url: body.brandProfile.url || "",
-                },
-                products: body.products || [],
-                catalogStats: body.catalogStats,
-              }
-            : {
-                brandProfile: body.brandProfile,
-                rawWebsiteText: body.rawWebsiteText,
-                websiteUrl: body.websiteUrl,
-              };
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const streamResult = await run.stream({ inputData } as any);
-
-          for await (const event of streamResult.fullStream) {
-            // Step Start
-            if (event.type === "workflow-step-start" && "payload" in event) {
-              const payload = event.payload as Record<string, unknown>;
-              const step = payload?.step as Record<string, unknown> | undefined;
-              const stepId = (payload?.stepId || step?.id || payload?.id) as
-                | string
-                | undefined;
-
-              if (stepId && stepLabels[stepId]) {
-                sendEvent({
-                  type: "step_start",
-                  stepId,
-                  label: stepLabels[stepId],
-                });
-              }
+        // Define step labels for the UI
+        const stepLabels: Record<string, string> = isDpaMode
+          ? {
+              "analyze-catalog": "Analyzing product catalog",
+              "generate-dpa-strategy": "Creating DPA campaign strategy",
             }
+          : {
+              "fetch-website-text": "Analyzing website content",
+              "extract-campaign-data": "Identifying key selling points",
+              "generate-strategy": "Formulating campaign strategy",
+            };
 
-            // Step Complete
-            if (event.type === "workflow-step-finish" && "payload" in event) {
-              const payload = event.payload as Record<string, unknown>;
-              const step = payload?.step as Record<string, unknown> | undefined;
-              const stepId = (payload?.stepId || step?.id || payload?.id) as
-                | string
-                | undefined;
+        // Send initial pending steps
+        yield encodeEvent({
+          type: "init",
+          steps: Object.keys(stepLabels).map((id) => ({
+            id,
+            label: stepLabels[id],
+          })),
+        });
 
-              // Check success status from the result
-              const result = payload?.result as { success?: boolean };
-              const success = result?.success !== false;
+        const run = await workflow.createRun();
 
-              if (stepId && stepLabels[stepId]) {
-                sendEvent({
-                  type: "step_complete",
-                  stepId,
-                  success,
-                });
-              }
+        // Prepare input data
+        const inputData = isDpaMode
+          ? {
+              brandProfile: {
+                ...body.brandProfile,
+                url: body.brandProfile.url || "",
+              },
+              products: body.products || [],
+              catalogStats: body.catalogStats,
+            }
+          : {
+              brandProfile: body.brandProfile,
+              rawWebsiteText: body.rawWebsiteText,
+              websiteUrl: body.websiteUrl,
+            };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const streamResult = await run.stream({ inputData } as any);
+
+        for await (const event of streamResult.fullStream) {
+          // Send ping to keep proxy alive while waiting for next event
+          yield encodeEvent({ type: "ping" });
+
+          // Step Start
+          if (event.type === "workflow-step-start" && "payload" in event) {
+            const payload = event.payload as Record<string, unknown>;
+            const step = payload?.step as Record<string, unknown> | undefined;
+            const stepId = (payload?.stepId || step?.id || payload?.id) as
+              | string
+              | undefined;
+
+            if (stepId && stepLabels[stepId]) {
+              yield encodeEvent({
+                type: "step_start",
+                stepId,
+                label: stepLabels[stepId],
+              });
             }
           }
 
-          // Get the final result
-          const workflowResult = await streamResult.result;
+          // Step Complete
+          if (event.type === "workflow-step-finish" && "payload" in event) {
+            const payload = event.payload as Record<string, unknown>;
+            const step = payload?.step as Record<string, unknown> | undefined;
+            const stepId = (payload?.stepId || step?.id || payload?.id) as
+              | string
+              | undefined;
 
-          if (workflowResult.status === "success" && workflowResult.result) {
-            sendEvent({ type: "complete", data: workflowResult.result });
-          } else {
-            const errorMessage =
+            // Check success
+            const result = payload?.result as { success?: boolean };
+            const success = result?.success !== false;
+
+            if (stepId && stepLabels[stepId]) {
+              yield encodeEvent({
+                type: "step_complete",
+                stepId,
+                success,
+              });
+            }
+          }
+        }
+
+        // Get the final result
+        const workflowResult = await streamResult.result;
+
+        if (workflowResult.status === "success" && workflowResult.result) {
+          yield encodeEvent({ type: "complete", data: workflowResult.result });
+        } else {
+          yield encodeEvent({
+            type: "error",
+            message:
               workflowResult.status === "failed"
                 ? "Workflow failed to complete"
-                : "Workflow completed but no result was returned";
-            sendError(errorMessage);
-          }
-
-          closeController();
-        } catch (error) {
-          console.error("Strategy API Error:", error);
-          // Check for rate limit errors
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          if (
-            errorMessage.includes("429") ||
-            errorMessage.toLowerCase().includes("too many requests")
-          ) {
-            sendError(
-              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
-            );
-          } else {
-            sendError(errorMessage);
-          }
-          closeController();
+                : "Workflow completed but no result was returned",
+          });
         }
-      },
-    });
+      } catch (error) {
+        console.error("Strategy API Error:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (
+          errorMessage.includes("429") ||
+          errorMessage.toLowerCase().includes("too many requests")
+        ) {
+          yield encodeEvent({
+            type: "error",
+            message:
+              "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
+          });
+        } else {
+          yield encodeEvent({ type: "error", message: errorMessage });
+        }
+      } finally {
+        closed = true;
+        clearInterval(keepAlive);
+      }
+    }
+
+    // Helper to convert async generator to ReadableStream
+    function iteratorToStream(iterator: any) {
+      return new ReadableStream({
+        async pull(controller) {
+          const { value, done } = await iterator.next();
+          if (done) {
+            controller.close();
+          } else {
+            controller.enqueue(value);
+          }
+        },
+      });
+    }
+
+    const stream = iteratorToStream(generateStream());
 
     return new Response(stream, {
       headers: {
