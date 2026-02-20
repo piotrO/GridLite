@@ -112,13 +112,30 @@ export async function POST(request: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
+
         const sendEvent = (event: any) => {
-          const message = JSON.stringify(event) + "\n";
-          controller.enqueue(encoder.encode(message));
+          if (closed) return;
+          try {
+            const message = JSON.stringify(event) + "\n";
+            controller.enqueue(encoder.encode(message));
+          } catch {
+            // Already closed
+          }
         };
 
         const sendError = (message: string) => {
           sendEvent({ type: "error", message });
+        };
+
+        const closeController = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
         };
 
         // Helper to simulate step execution
@@ -310,7 +327,7 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          controller.close();
+          closeController();
         } catch (error) {
           // Check for rate limit errors
           const errorMessage =
@@ -325,7 +342,7 @@ export async function POST(request: NextRequest) {
           } else {
             sendError(errorMessage);
           }
-          controller.close();
+          closeController();
         }
       },
     });
@@ -333,7 +350,6 @@ export async function POST(request: NextRequest) {
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
       },
     });
   } catch (error) {
