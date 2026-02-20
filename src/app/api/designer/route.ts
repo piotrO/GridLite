@@ -114,6 +114,14 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         let closed = false;
 
+        // Keep connection alive during long AI/image generation steps
+        const keepAlive = setInterval(() => {
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode('{"type":"ping"}\n'));
+          } catch {}
+        }, 15000);
+
         const sendEvent = (event: any) => {
           if (closed) return;
           try {
@@ -131,6 +139,7 @@ export async function POST(request: NextRequest) {
         const closeController = () => {
           if (closed) return;
           closed = true;
+          clearInterval(keepAlive);
           try {
             controller.close();
           } catch {
@@ -350,6 +359,9 @@ export async function POST(request: NextRequest) {
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+        Connection: "keep-alive",
       },
     });
   } catch (error) {

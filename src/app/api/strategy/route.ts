@@ -110,6 +110,14 @@ DPA Strategy:
       async start(controller) {
         let closed = false;
 
+        // Keep connection alive during long AI steps
+        const keepAlive = setInterval(() => {
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode('{"type":"ping"}\n'));
+          } catch {}
+        }, 15000);
+
         const sendEvent = (event: unknown) => {
           if (closed) return;
           try {
@@ -127,6 +135,7 @@ DPA Strategy:
         const closeController = () => {
           if (closed) return;
           closed = true;
+          clearInterval(keepAlive);
           try {
             controller.close();
           } catch {
@@ -258,6 +267,9 @@ DPA Strategy:
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+        Connection: "keep-alive",
       },
     });
   } catch (error) {
