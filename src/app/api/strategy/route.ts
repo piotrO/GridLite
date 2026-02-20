@@ -110,22 +110,26 @@ DPA Strategy:
 
     async function* generateStream() {
       let closed = false;
+      const startTime = Date.now();
+      console.log(`[Strategy Stream] Started at ${new Date().toISOString()}`);
 
       // Keep connection alive during long AI steps
       const keepAlive = setInterval(() => {
         if (closed) return;
-        // Yieldping doesn't work well within async generators without complex logic,
-        // but the generator will yield Step events as they happen.
-      }, 15000);
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        console.log(`[Strategy Stream] Interval ping at ${elapsed}s`);
+      }, 5000);
 
       const encodeEvent = (event: unknown) => {
         return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
       };
 
       try {
+        console.log(`[Strategy Stream] Sending initial buffer flush...`);
         // Force the proxy to flush its initial buffer
         yield encoder.encode(" ".repeat(2048) + "\n");
 
+        console.log(`[Strategy Stream] Initializing Mastra workflow...`);
         // Use DPA workflow for DPA campaigns
         const workflowId = isDpaMode ? "strategyDpa" : "strategy";
         const workflow = mastra.getWorkflow(workflowId);
@@ -151,6 +155,7 @@ DPA Strategy:
           })),
         });
 
+        console.log(`[Strategy Stream] Creating workflow run...`);
         const run = await workflow.createRun();
 
         // Prepare input data
@@ -169,10 +174,17 @@ DPA Strategy:
               websiteUrl: body.websiteUrl,
             };
 
+        console.log(`[Strategy Stream] Starting workflow execution...`);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const streamResult = await run.stream({ inputData } as any);
 
         for await (const event of streamResult.fullStream) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          console.log(
+            `[Strategy Stream] Received workflow event at ${elapsed}s:`,
+            event.type,
+          );
+
           // Send ping to keep proxy alive while waiting for next event
           yield encodeEvent({ type: "ping" });
 
@@ -185,6 +197,7 @@ DPA Strategy:
               | undefined;
 
             if (stepId && stepLabels[stepId]) {
+              console.log(`[Strategy Stream]   -> Step Start: ${stepId}`);
               yield encodeEvent({
                 type: "step_start",
                 stepId,
@@ -206,6 +219,9 @@ DPA Strategy:
             const success = result?.success !== false;
 
             if (stepId && stepLabels[stepId]) {
+              console.log(
+                `[Strategy Stream]   -> Step Complete: ${stepId} (Success: ${success})`,
+              );
               yield encodeEvent({
                 type: "step_complete",
                 stepId,
@@ -215,12 +231,23 @@ DPA Strategy:
           }
         }
 
+        console.log(
+          `[Strategy Stream] Workflow execution finished. Waiting for final result...`,
+        );
         // Get the final result
         const workflowResult = await streamResult.result;
+        const totalTime = Math.round((Date.now() - startTime) / 1000);
 
         if (workflowResult.status === "success" && workflowResult.result) {
+          console.log(
+            `[Strategy Stream] Success. Sending final complete event at ${totalTime}s.`,
+          );
           yield encodeEvent({ type: "complete", data: workflowResult.result });
         } else {
+          console.error(
+            `[Strategy Stream] Failed status at ${totalTime}s:`,
+            workflowResult.status,
+          );
           yield encodeEvent({
             type: "error",
             message:
@@ -230,7 +257,12 @@ DPA Strategy:
           });
         }
       } catch (error) {
-        console.error("Strategy API Error:", error);
+        const errorTime = Math.round((Date.now() - startTime) / 1000);
+        console.error(
+          `[Strategy Stream] Exception caught at ${errorTime}s:`,
+          error,
+        );
+
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         if (
@@ -243,9 +275,16 @@ DPA Strategy:
               "AI is currently busy (Rate Limit). Please wait 30 seconds and try again.",
           });
         } else {
-          yield encodeEvent({ type: "error", message: errorMessage });
+          yield encodeEvent({
+            type: "error",
+            message: errorMessage,
+          });
         }
       } finally {
+        const closeTime = Math.round((Date.now() - startTime) / 1000);
+        console.log(
+          `[Strategy Stream] Finally block executing at ${closeTime}s. Stream closing.`,
+        );
         closed = true;
         clearInterval(keepAlive);
       }
