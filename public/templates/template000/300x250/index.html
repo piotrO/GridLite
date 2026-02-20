@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -7,7 +7,7 @@
     <title></title>
     <link rel="stylesheet" type="text/css" href="styles.css" />
 
-    <script src="https://s0.2mdn.net/ads/studio/cached_libs/gsap_3.11.5_min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
     <script src="manifest.js"></script>
 
     <!-- VARIABLES -->
@@ -73,8 +73,8 @@
   <body>
     <div
       id="ad"
-      onmouseenter="mouseOver(event,this)"
-      onmouseleave="mouseOut(event,this)"
+      onmouseenter="mouseOver(event, this)"
+      onmouseleave="mouseOut(event, this)"
     ></div>
     <!--<div id="clickLayer" onclick="onClick()"></div>-->
     <!--<div id="border"></div>-->
@@ -255,7 +255,7 @@
         const b = ((rgb >> 0) & 0xff) / 255;
 
         const a = [r, g, b].map((v) =>
-          v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+          v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4),
         );
         return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
       };
@@ -292,7 +292,7 @@
           toCenter = Math.round(
             (H -
               (height_he + padding + height_sub + padding * 1.5 + height_cta)) /
-              2
+              2,
           ),
           centerCta = 0;
 
@@ -413,14 +413,14 @@
             repeatRefresh: true,
             ease: "sine",
           },
-          d
+          d,
         );
 
         d += 0.1;
         tl.from(
           ".logo",
           { duration: 2.0, rotateY: -80 - 180, ease: "elastic(1.3, 0.6)" },
-          d
+          d,
         );
 
         d += 0.2;
@@ -447,7 +447,7 @@
             ease: "expo",
             stagger: 0.125,
           },
-          d
+          d,
         );
         tl.from(cops, { duration: 1.0, alpha: 0, stagger: 0.125 }, d);
 
@@ -461,7 +461,7 @@
             ease: "expo",
             stagger: 0.2,
           },
-          d
+          d,
         );
         tl.from(sub.children, { duration: 0.8, alpha: 0, stagger: 0.2 }, d);
 
@@ -469,7 +469,7 @@
         tl.from(
           cta,
           { duration: 0.8, scale: 0, ease: "elastic.out(1.3, 0.8)" },
-          d
+          d,
         );
         console.log(height_cta);
         tl.from(
@@ -480,7 +480,7 @@
             stagger: 0.15,
             ease: "elastic.out(1.0, 0.9)",
           },
-          d
+          d,
         );
         tl.from(cta_words, { duration: 0.6, alpha: 0, stagger: 0.15 }, d);
       };

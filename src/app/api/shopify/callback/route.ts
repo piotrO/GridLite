@@ -50,10 +50,15 @@ export async function GET(request: NextRequest) {
     const shop = searchParams.get("shop");
     const state = searchParams.get("state");
 
+    // Use public app URL for redirects (avoids Railway's internal 0.0.0.0:8080)
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      `https://${request.headers.get("host")}`;
+
     // Validate required parameters
     if (!code || !shop || !state) {
       return NextResponse.redirect(
-        new URL("/strategy?error=missing_params", request.url),
+        new URL("/strategy?error=missing_params", appUrl),
       );
     }
 
@@ -76,7 +81,7 @@ export async function GET(request: NextRequest) {
         storedMemory: storedShop,
       });
       return NextResponse.redirect(
-        new URL("/strategy?error=invalid_state", request.url),
+        new URL("/strategy?error=invalid_state", appUrl),
       );
     }
 
@@ -109,7 +114,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       console.error("Token exchange failed:", await tokenResponse.text());
       return NextResponse.redirect(
-        new URL("/strategy?error=token_exchange_failed", request.url),
+        new URL("/strategy?error=token_exchange_failed", appUrl),
       );
     }
 
@@ -153,7 +158,7 @@ export async function GET(request: NextRequest) {
     );
 
     // Redirect back to strategy page with connection data
-    const successUrl = new URL("/strategy", request.url);
+    const successUrl = new URL("/strategy", appUrl);
     successUrl.searchParams.set("shopify_connected", "true");
     successUrl.searchParams.set("connection", connectionData);
 
@@ -161,7 +166,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Shopify callback error:", error);
     return NextResponse.redirect(
-      new URL("/strategy?error=callback_failed", request.url),
+      new URL("/strategy?error=callback_failed", appUrl),
     );
   }
 }
